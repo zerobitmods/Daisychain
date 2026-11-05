@@ -24,7 +24,7 @@ public final class Daisychain {
     public static final String MOD_ID = "daisychain";
     public static final Logger LOGGER = LogUtils.getLogger();
     /** Development step this build is at. Shown by /daisychain version; bumped with every step. */
-    public static final String DEV_STEP = "104";
+    public static final String DEV_STEP = "105";
     /** The Flowline bitmap font (assets/daisychain/font/flowline.json; made from VT323, see font/OFL.txt). */
     public static final ResourceLocation FLOWLINE_FONT = ResourceLocation.fromNamespaceAndPath(MOD_ID, "flowline");
 

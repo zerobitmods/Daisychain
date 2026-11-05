@@ -41,7 +41,14 @@ jobs:
           path: build/libs/*.jar
           retention-days: 14
 
-      # The dev game and normal builds use neo_version; this checks the code still compiles on the oldest
-      # NeoForge we support (neo_version_range in gradle.properties).
-      - name: Compile against oldest supported NeoForge 21.1
-        run: ./gradlew compileJava -Pneo_version=21.1.49
+      # Release jar: built against the oldest NeoForge we support, so it only uses what that version has. This is the jar
+      # that gets uploaded to Modrinth and CurseForge (artifact "release-jar").
+      - name: Build release jar against oldest supported NeoForge 21.1
+        run: ./gradlew clean build -Pneo_version=21.1.49
+
+      - name: Upload release jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-jar
+          path: build/libs/*.jar
+          retention-days: 90
