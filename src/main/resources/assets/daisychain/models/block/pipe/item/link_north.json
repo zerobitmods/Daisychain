@@ -1,0 +1,61 @@
+{
+ "parent": "minecraft:block/block",
+ "textures": {
+  "particle": "daisychain:block/item_pipe",
+  "tube": "daisychain:block/item_pipe_straight"
+ },
+ "elements": [
+  {
+   "from": [
+    5,
+    5,
+    0
+   ],
+   "to": [
+    11,
+    11,
+    5
+   ],
+   "faces": {
+    "east": {
+     "uv": [
+      11,
+      5,
+      16,
+      11
+     ],
+     "texture": "#tube"
+    },
+    "west": {
+     "uv": [
+      0,
+      5,
+      5,
+      11
+     ],
+     "texture": "#tube"
+    },
+    "up": {
+     "uv": [
+      0,
+      5,
+      5,
+      11
+     ],
+     "rotation": 90,
+     "texture": "#tube"
+    },
+    "down": {
+     "uv": [
+      11,
+      5,
+      16,
+      11
+     ],
+     "rotation": 90,
+     "texture": "#tube"
+    }
+   }
+  }
+ ]
+}

@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "IRI",
+    "RPR",
+    "IRI"
+  ],
+  "key": {
+    "I": {
+      "tag": "c:ingots/iron"
+    },
+    "R": {
+      "tag": "c:dusts/redstone"
+    },
+    "P": {
+      "item": "daisychain:item_pipe"
+    }
+  },
+  "result": {
+    "id": "daisychain:iron_upgrade",
+    "count": 1
+  }
+}

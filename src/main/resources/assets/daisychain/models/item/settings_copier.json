@@ -1,0 +1,14 @@
+{
+  "parent": "minecraft:item/generated",
+  "textures": {
+    "layer0": "daisychain:item/settings_copier"
+  },
+  "overrides": [
+    {
+      "predicate": {
+        "daisychain:loaded": 1
+      },
+      "model": "daisychain:item/settings_copier_loaded"
+    }
+  ]
+}

@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "NBN",
+    "BUB",
+    "NBN"
+  ],
+  "key": {
+    "N": {
+      "tag": "c:ingots/netherite"
+    },
+    "B": {
+      "tag": "c:storage_blocks/redstone"
+    },
+    "U": {
+      "item": "daisychain:diamond_upgrade"
+    }
+  },
+  "result": {
+    "id": "daisychain:netherite_upgrade",
+    "count": 1
+  }
+}

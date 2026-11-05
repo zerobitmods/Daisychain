@@ -1,0 +1,25 @@
+{
+ "providers": [
+  {
+   "type": "space",
+   "advances": {
+    " ": 3
+   }
+  },
+  {
+   "type": "bitmap",
+   "file": "daisychain:font/flowline.png",
+   "ascent": 10,
+   "height": 13,
+   "chars": [
+    "\u0000!\"#$%&'()*+,-./",
+    "0123456789:;<=>?",
+    "@ABCDEFGHIJKLMNO",
+    "PQRSTUVWXYZ[\\]^_",
+    "`abcdefghijklmno",
+    "pqrstuvwxyz{|}~\u00b7",
+    "\u2019\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000"
+   ]
+  }
+ ]
+}

@@ -1,0 +1,59 @@
+{
+ "parent": "minecraft:block/block",
+ "textures": {
+  "particle": "daisychain:block/energy_pipe",
+  "corec": "daisychain:block/energy_pipe_core_c",
+  "band_corec": "daisychain:block/energy_pipe_band_core_c"
+ },
+ "elements": [
+  {
+   "from": [
+    5,
+    5,
+    5
+   ],
+   "to": [
+    11,
+    11,
+    11
+   ],
+   "faces": {
+    "south": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#corec",
+     "tintindex": 13
+    }
+   }
+  },
+  {
+   "from": [
+    5,
+    5,
+    5
+   ],
+   "to": [
+    11,
+    11,
+    11
+   ],
+   "faces": {
+    "south": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#band_corec",
+     "tintindex": 12
+    }
+   }
+  }
+ ],
+ "render_type": "minecraft:cutout"
+}

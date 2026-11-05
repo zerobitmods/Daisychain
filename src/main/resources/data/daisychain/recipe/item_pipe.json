@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "III",
+    "GRG",
+    "III"
+  ],
+  "key": {
+    "I": {
+      "tag": "c:ingots/iron"
+    },
+    "G": {
+      "tag": "c:glass_blocks"
+    },
+    "R": {
+      "tag": "c:dusts/redstone"
+    }
+  },
+  "result": {
+    "id": "daisychain:item_pipe",
+    "count": 16
+  }
+}

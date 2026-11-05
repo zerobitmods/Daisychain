@@ -1,0 +1,354 @@
+{
+ "parent": "minecraft:block/block",
+ "textures": {
+  "particle": "daisychain:block/energy_pipe",
+  "tube": "daisychain:block/energy_pipe_straight",
+  "end": "daisychain:block/energy_pipe_end",
+  "groove": "daisychain:block/energy_pipe_groove",
+  "band_tube": "daisychain:block/energy_pipe_band_straight",
+  "band_end": "daisychain:block/energy_pipe_band_end"
+ },
+ "elements": [
+  {
+   "from": [
+    5,
+    5,
+    0
+   ],
+   "to": [
+    11,
+    11,
+    1.5
+   ],
+   "faces": {
+    "east": {
+     "uv": [
+      14.5,
+      5,
+      16,
+      11
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "west": {
+     "uv": [
+      0,
+      5,
+      1.5,
+      11
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "up": {
+     "uv": [
+      0,
+      5,
+      1.5,
+      11
+     ],
+     "rotation": 90,
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "down": {
+     "uv": [
+      14.5,
+      5,
+      16,
+      11
+     ],
+     "rotation": 90,
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "south": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#end",
+     "tintindex": 13
+    },
+    "north": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#end",
+     "cullface": "north",
+     "tintindex": 13
+    }
+   }
+  },
+  {
+   "from": [
+    5.5,
+    5.5,
+    1.5
+   ],
+   "to": [
+    10.5,
+    10.5,
+    2.5
+   ],
+   "faces": {
+    "east": {
+     "uv": [
+      13.5,
+      5.5,
+      14.5,
+      10.5
+     ],
+     "texture": "#groove",
+     "tintindex": 8
+    },
+    "west": {
+     "uv": [
+      1.5,
+      5.5,
+      2.5,
+      10.5
+     ],
+     "texture": "#groove",
+     "tintindex": 8
+    },
+    "up": {
+     "uv": [
+      5.5,
+      1.5,
+      10.5,
+      2.5
+     ],
+     "texture": "#groove",
+     "tintindex": 8
+    },
+    "down": {
+     "uv": [
+      5.5,
+      13.5,
+      10.5,
+      14.5
+     ],
+     "texture": "#groove",
+     "tintindex": 8
+    }
+   }
+  },
+  {
+   "from": [
+    5,
+    5,
+    2.5
+   ],
+   "to": [
+    11,
+    11,
+    5
+   ],
+   "faces": {
+    "east": {
+     "uv": [
+      11,
+      5,
+      13.5,
+      11
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "west": {
+     "uv": [
+      2.5,
+      5,
+      5,
+      11
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "up": {
+     "uv": [
+      2.5,
+      5,
+      5,
+      11
+     ],
+     "rotation": 90,
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "down": {
+     "uv": [
+      11,
+      5,
+      13.5,
+      11
+     ],
+     "rotation": 90,
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "north": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#end",
+     "tintindex": 13
+    }
+   }
+  },
+  {
+   "from": [
+    5,
+    5,
+    0
+   ],
+   "to": [
+    11,
+    11,
+    1.5
+   ],
+   "faces": {
+    "east": {
+     "uv": [
+      14.5,
+      5,
+      16,
+      11
+     ],
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "west": {
+     "uv": [
+      0,
+      5,
+      1.5,
+      11
+     ],
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "up": {
+     "uv": [
+      0,
+      5,
+      1.5,
+      11
+     ],
+     "rotation": 90,
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "down": {
+     "uv": [
+      14.5,
+      5,
+      16,
+      11
+     ],
+     "rotation": 90,
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "south": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#band_end",
+     "tintindex": 12
+    },
+    "north": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#band_end",
+     "cullface": "north",
+     "tintindex": 12
+    }
+   }
+  },
+  {
+   "from": [
+    5,
+    5,
+    2.5
+   ],
+   "to": [
+    11,
+    11,
+    5
+   ],
+   "faces": {
+    "east": {
+     "uv": [
+      11,
+      5,
+      13.5,
+      11
+     ],
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "west": {
+     "uv": [
+      2.5,
+      5,
+      5,
+      11
+     ],
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "up": {
+     "uv": [
+      2.5,
+      5,
+      5,
+      11
+     ],
+     "rotation": 90,
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "down": {
+     "uv": [
+      11,
+      5,
+      13.5,
+      11
+     ],
+     "rotation": 90,
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "north": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#band_end",
+     "tintindex": 12
+    }
+   }
+  }
+ ],
+ "render_type": "minecraft:cutout"
+}

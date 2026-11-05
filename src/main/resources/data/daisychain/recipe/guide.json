@@ -1,0 +1,19 @@
+{
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    {
+      "item": "minecraft:book"
+    },
+    {
+      "item": "daisychain:item_pipe"
+    }
+  ],
+  "result": {
+    "id": "guideme:guide",
+    "count": 1,
+    "components": {
+      "guideme:guide_id": "daisychain:guide"
+    }
+  }
+}
