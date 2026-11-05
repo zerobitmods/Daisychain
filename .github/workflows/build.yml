@@ -40,7 +40,14 @@ jobs:
           path: build/libs/*.jar
           retention-days: 14
 
-      # The dev game and the build above use Project Infinity's Forge (forge_version in gradle.properties). This checks the
-      # code still compiles on the oldest Forge we support. Release jars: ./gradlew build -Pforge_version=47.2.0
-      - name: Compile against oldest supported Forge 47.2.0
-        run: ./gradlew compileJava -Pforge_version=47.2.0
+      # Release jar: built against the oldest Forge we support (Forge 47.2.0), so it only uses what that version has. This is
+      # the jar that gets uploaded to Modrinth and CurseForge (artifact "release-jar").
+      - name: Build release jar against oldest supported Forge 47.2.0
+        run: ./gradlew clean build -Pforge_version=47.2.0
+
+      - name: Upload release jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: release-jar
+          path: build/libs/*.jar
+          retention-days: 90
