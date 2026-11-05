@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "GRG",
+    "RUR",
+    "GRG"
+  ],
+  "key": {
+    "G": {
+      "tag": "forge:ingots/gold"
+    },
+    "R": {
+      "tag": "forge:dusts/redstone"
+    },
+    "U": {
+      "item": "daisychain:iron_upgrade"
+    }
+  },
+  "result": {
+    "item": "daisychain:gold_upgrade",
+    "count": 1
+  }
+}

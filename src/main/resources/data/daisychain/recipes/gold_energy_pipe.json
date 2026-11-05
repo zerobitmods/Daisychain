@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "PPP",
+    "PUP",
+    "PPP"
+  ],
+  "key": {
+    "P": {
+      "item": "daisychain:iron_energy_pipe"
+    },
+    "U": {
+      "item": "daisychain:gold_upgrade"
+    }
+  },
+  "result": {
+    "item": "daisychain:gold_energy_pipe",
+    "count": 8
+  }
+}

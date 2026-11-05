@@ -1,0 +1,346 @@
+{
+ "parent": "minecraft:block/block",
+ "textures": {
+  "particle": "daisychain:block/energy_pipe",
+  "tube": "daisychain:block/energy_pipe_straight",
+  "end": "daisychain:block/energy_pipe_end",
+  "groove": "daisychain:block/energy_pipe_groove",
+  "band_tube": "daisychain:block/energy_pipe_band_straight",
+  "band_end": "daisychain:block/energy_pipe_band_end"
+ },
+ "elements": [
+  {
+   "from": [
+    14.5,
+    5,
+    5
+   ],
+   "to": [
+    16,
+    11,
+    11
+   ],
+   "faces": {
+    "south": {
+     "uv": [
+      14.5,
+      5,
+      16,
+      11
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "north": {
+     "uv": [
+      0,
+      5,
+      1.5,
+      11
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "up": {
+     "uv": [
+      14.5,
+      5,
+      16,
+      11
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "down": {
+     "uv": [
+      14.5,
+      5,
+      16,
+      11
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "west": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#end",
+     "tintindex": 13
+    },
+    "east": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#end",
+     "cullface": "east",
+     "tintindex": 13
+    }
+   }
+  },
+  {
+   "from": [
+    13.5,
+    5.5,
+    5.5
+   ],
+   "to": [
+    14.5,
+    10.5,
+    10.5
+   ],
+   "faces": {
+    "south": {
+     "uv": [
+      13.5,
+      5.5,
+      14.5,
+      10.5
+     ],
+     "texture": "#groove",
+     "tintindex": 11
+    },
+    "north": {
+     "uv": [
+      1.5,
+      5.5,
+      2.5,
+      10.5
+     ],
+     "texture": "#groove",
+     "tintindex": 11
+    },
+    "up": {
+     "uv": [
+      13.5,
+      5.5,
+      14.5,
+      10.5
+     ],
+     "texture": "#groove",
+     "tintindex": 11
+    },
+    "down": {
+     "uv": [
+      13.5,
+      5.5,
+      14.5,
+      10.5
+     ],
+     "texture": "#groove",
+     "tintindex": 11
+    }
+   }
+  },
+  {
+   "from": [
+    11,
+    5,
+    5
+   ],
+   "to": [
+    13.5,
+    11,
+    11
+   ],
+   "faces": {
+    "south": {
+     "uv": [
+      11,
+      5,
+      13.5,
+      11
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "north": {
+     "uv": [
+      2.5,
+      5,
+      5,
+      11
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "up": {
+     "uv": [
+      11,
+      5,
+      13.5,
+      11
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "down": {
+     "uv": [
+      11,
+      5,
+      13.5,
+      11
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "east": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#end",
+     "tintindex": 13
+    }
+   }
+  },
+  {
+   "from": [
+    14.5,
+    5,
+    5
+   ],
+   "to": [
+    16,
+    11,
+    11
+   ],
+   "faces": {
+    "south": {
+     "uv": [
+      14.5,
+      5,
+      16,
+      11
+     ],
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "north": {
+     "uv": [
+      0,
+      5,
+      1.5,
+      11
+     ],
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "up": {
+     "uv": [
+      14.5,
+      5,
+      16,
+      11
+     ],
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "down": {
+     "uv": [
+      14.5,
+      5,
+      16,
+      11
+     ],
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "west": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#band_end",
+     "tintindex": 12
+    },
+    "east": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#band_end",
+     "cullface": "east",
+     "tintindex": 12
+    }
+   }
+  },
+  {
+   "from": [
+    11,
+    5,
+    5
+   ],
+   "to": [
+    13.5,
+    11,
+    11
+   ],
+   "faces": {
+    "south": {
+     "uv": [
+      11,
+      5,
+      13.5,
+      11
+     ],
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "north": {
+     "uv": [
+      2.5,
+      5,
+      5,
+      11
+     ],
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "up": {
+     "uv": [
+      11,
+      5,
+      13.5,
+      11
+     ],
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "down": {
+     "uv": [
+      11,
+      5,
+      13.5,
+      11
+     ],
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "east": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#band_end",
+     "tintindex": 12
+    }
+   }
+  }
+ ],
+ "render_type": "minecraft:cutout"
+}

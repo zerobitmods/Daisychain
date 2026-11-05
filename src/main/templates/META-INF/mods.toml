@@ -1,0 +1,40 @@
+modLoader="javafml"
+loaderVersion="${loader_version_range}"
+license="${mod_license}"
+issueTrackerURL="https://github.com/zerobitmods/Daisychain/issues"
+
+[[mods]]
+modId="${mod_id}"
+version="${mod_version}"
+displayName="${mod_name}"
+authors="zerobit"
+displayURL="https://modrinth.com/mod/daisychain"
+# Pixel-art logo shown in the mod list; logoBlur=false keeps the pixels sharp.
+logoFile="daisychain_logo.png"
+logoBlur=false
+credits="Flowline font: a modified version of VT323, Copyright 2011 The VT323 Project Authors, under the SIL Open Font License 1.1."
+description='''
+Fast, lag-friendly pipes for items, fluids and energy.
+'''
+
+[[dependencies.${mod_id}]]
+modId="forge"
+mandatory=true
+versionRange="${forge_version_range}"
+ordering="NONE"
+side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="minecraft"
+mandatory=true
+versionRange="${minecraft_version_range}"
+ordering="NONE"
+side="BOTH"
+
+# GuideME runs Daisychain's in-game guide (hold G over any Daisychain item).
+[[dependencies.${mod_id}]]
+modId="guideme"
+mandatory=true
+versionRange="${guideme_version_range}"
+ordering="NONE"
+side="BOTH"

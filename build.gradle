@@ -1,0 +1,172 @@
+plugins {
+    id 'java-library'
+    id 'net.neoforged.moddev.legacyforge' version '2.0.148'
+    id 'idea'
+}
+
+// Daisychain for Minecraft 1.20.1 + Forge (branch forge-1.20.1).
+// Built with NeoForged's ModDevGradle "legacyforge" plugin, which supports MinecraftForge up to 1.20.1.
+
+version = "${mod_version}+${minecraft_version}-forge"
+group = mod_group_id
+
+repositories {
+    // JEI (optional integration).
+    maven {
+        name = "Jared's maven"
+        url = "https://maven.blamejared.com/"
+    }
+    // Mekanism, only for testing energy pipes in the dev game.
+    maven {
+        name = "ModMaven"
+        url = "https://modmaven.dev"
+    }
+    // FTB's and Architectury's mavens (step F26): FTB Ultimine for the optional add-on, plus FTB Library and Architectury
+    // API so Ultimine runs in the dev game. Each maven is only asked for its own group.
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "FTB"
+                url = "https://maven.ftb.dev/releases"
+            }
+        }
+        filter {
+            includeGroup "dev.ftb.mods"
+        }
+    }
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Architectury"
+                url = "https://maven.architectury.dev/"
+            }
+        }
+        filter {
+            includeGroup "dev.architectury"
+        }
+    }
+    // Modrinth's maven: GuideME.
+    exclusiveContent {
+        forRepository {
+            maven {
+                name = "Modrinth"
+                url = "https://api.modrinth.com/maven"
+            }
+        }
+        filter {
+            includeGroup "maven.modrinth"
+        }
+    }
+}
+
+base {
+    archivesName = mod_id
+}
+
+// Minecraft 1.20.1 runs on Java 17, so the mod must be Java 17 bytecode.
+java.toolchain.languageVersion = JavaLanguageVersion.of(17)
+
+legacyForge {
+    version = "${minecraft_version}-${forge_version}"
+    validateAccessTransformers = true
+
+    runs {
+        client {
+            client()
+            programArguments.addAll '--width', '1920', '--height', '1080'
+        }
+        server {
+            server()
+            programArgument '--nogui'
+        }
+        // Step F25: runs every game test (src/main/java/com/daisychain/gametest) on a headless server, then exits.
+        gameTestServer {
+            type = "gameTestServer"
+            systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
+        }
+        configureEach {
+            systemProperty 'forge.logging.markers', 'REGISTRIES'
+            logLevel = org.slf4j.event.Level.DEBUG
+        }
+    }
+
+    mods {
+        "${mod_id}" {
+            sourceSet(sourceSets.main)
+        }
+    }
+}
+
+configurations {
+    runtimeClasspath.extendsFrom localRuntime
+}
+
+dependencies {
+    // GuideME: REQUIRED. It shows the in-game guide.
+    modImplementation "maven.modrinth:guideme:${guideme_version}"
+
+    // JEI (optional): compile against its API only; the full JEI is only in the dev game.
+    modCompileOnly "mezz.jei:jei-${minecraft_version}-common-api:${jei_version}"
+    modCompileOnly "mezz.jei:jei-${minecraft_version}-forge-api:${jei_version}"
+    modRuntimeOnly "mezz.jei:jei-${minecraft_version}-forge:${jei_version}"
+
+    // Jade (optional): pipe side info when you look at a pipe. Compile against it; in the dev game for testing.
+    modCompileOnly "maven.modrinth:jade:${jade_version}"
+    modRuntimeOnly "maven.modrinth:jade:${jade_version}"
+
+    // spark profiler, only in the dev game, to measure stress tests. Never a dependency of Daisychain.
+    modRuntimeOnly "maven.modrinth:spark:${spark_version}"
+
+    // Mekanism + Generators, only so energy pipes can be tested in the dev game. Never a dependency of Daisychain.
+    modRuntimeOnly "mekanism:Mekanism:${mekanism_version}"
+    modRuntimeOnly "mekanism:Mekanism:${mekanism_version}:generators"
+    // FTB Ultimine (step F26, optional): compile against it; in the dev game with FTB Library and Architectury API.
+    // Never required: Daisychain only touches Ultimine when it's installed (Daisychain.java).
+    modCompileOnly("dev.ftb.mods:ftb-ultimine-forge:${ultimine_version}") { transitive = false }
+    modCompileOnly("dev.architectury:architectury-forge:${architectury_version}") { transitive = false }
+    modRuntimeOnly("dev.ftb.mods:ftb-ultimine-forge:${ultimine_version}") { transitive = false }
+    modRuntimeOnly("dev.ftb.mods:ftb-library-forge:${ftb_library_version}") { transitive = false }
+    modRuntimeOnly("dev.architectury:architectury-forge:${architectury_version}") { transitive = false }
+}
+
+// Fill in mods.toml from gradle.properties.
+var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
+    var replaceProperties = [
+            minecraft_version      : minecraft_version,
+            minecraft_version_range: minecraft_version_range,
+            forge_version          : forge_version,
+            forge_version_range    : forge_version_range,
+            loader_version_range   : loader_version_range,
+            guideme_version_range  : guideme_version_range,
+            mod_id                 : mod_id,
+            mod_name               : mod_name,
+            mod_license            : mod_license,
+            mod_version            : mod_version,
+    ]
+    inputs.properties replaceProperties
+    expand replaceProperties
+    from "src/main/templates"
+    into "build/generated/sources/modMetadata"
+}
+sourceSets.main.resources.srcDir generateModMetadata
+legacyForge.ideSyncTask generateModMetadata
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.compilerArgs.addAll(['-Xmaxerrs', '2000'])
+}
+
+// Ship the MIT license inside the mod jar as LICENSE_<modid>.txt.
+def licenseInJar = "LICENSE_${project.property('mod_id')}.txt"
+tasks.named('jar', Jar).configure {
+    from(rootProject.file('LICENSE.txt')) {
+        rename { String ignored -> licenseInJar }
+    }
+}
+
+idea {
+    module {
+        downloadSources = true
+        downloadJavadoc = true
+    }
+}

@@ -1,0 +1,21 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "PPP",
+    "PUP",
+    "PPP"
+  ],
+  "key": {
+    "P": {
+      "item": "daisychain:netherite_energy_pipe"
+    },
+    "U": {
+      "item": "daisychain:nether_star_upgrade"
+    }
+  },
+  "result": {
+    "item": "daisychain:nether_star_energy_pipe",
+    "count": 8
+  }
+}

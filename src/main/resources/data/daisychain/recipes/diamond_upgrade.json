@@ -1,0 +1,24 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    "DRD",
+    "RUR",
+    "DRD"
+  ],
+  "key": {
+    "D": {
+      "tag": "forge:gems/diamond"
+    },
+    "R": {
+      "tag": "forge:dusts/redstone"
+    },
+    "U": {
+      "item": "daisychain:gold_upgrade"
+    }
+  },
+  "result": {
+    "item": "daisychain:diamond_upgrade",
+    "count": 1
+  }
+}

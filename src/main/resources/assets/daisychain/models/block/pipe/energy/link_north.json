@@ -1,0 +1,123 @@
+{
+ "parent": "minecraft:block/block",
+ "textures": {
+  "particle": "daisychain:block/energy_pipe",
+  "tube": "daisychain:block/energy_pipe_straight",
+  "band_tube": "daisychain:block/energy_pipe_band_straight"
+ },
+ "elements": [
+  {
+   "from": [
+    5,
+    5,
+    0
+   ],
+   "to": [
+    11,
+    11,
+    5
+   ],
+   "faces": {
+    "east": {
+     "uv": [
+      11,
+      5,
+      16,
+      11
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "west": {
+     "uv": [
+      0,
+      5,
+      5,
+      11
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "up": {
+     "uv": [
+      0,
+      5,
+      5,
+      11
+     ],
+     "rotation": 90,
+     "texture": "#tube",
+     "tintindex": 13
+    },
+    "down": {
+     "uv": [
+      11,
+      5,
+      16,
+      11
+     ],
+     "rotation": 90,
+     "texture": "#tube",
+     "tintindex": 13
+    }
+   }
+  },
+  {
+   "from": [
+    5,
+    5,
+    0
+   ],
+   "to": [
+    11,
+    11,
+    5
+   ],
+   "faces": {
+    "east": {
+     "uv": [
+      11,
+      5,
+      16,
+      11
+     ],
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "west": {
+     "uv": [
+      0,
+      5,
+      5,
+      11
+     ],
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "up": {
+     "uv": [
+      0,
+      5,
+      5,
+      11
+     ],
+     "rotation": 90,
+     "texture": "#band_tube",
+     "tintindex": 12
+    },
+    "down": {
+     "uv": [
+      11,
+      5,
+      16,
+      11
+     ],
+     "rotation": 90,
+     "texture": "#band_tube",
+     "tintindex": 12
+    }
+   }
+  }
+ ],
+ "render_type": "minecraft:cutout"
+}

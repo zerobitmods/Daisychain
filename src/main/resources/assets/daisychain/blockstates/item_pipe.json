@@ -1,0 +1,7 @@
+{
+ "variants": {
+  "": {
+   "model": "daisychain:block/pipe/item/node"
+  }
+ }
+}

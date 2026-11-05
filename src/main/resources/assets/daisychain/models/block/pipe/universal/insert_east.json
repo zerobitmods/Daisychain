@@ -1,0 +1,193 @@
+{
+ "parent": "minecraft:block/block",
+ "textures": {
+  "particle": "daisychain:block/universal_pipe",
+  "tube": "daisychain:block/universal_pipe_straight",
+  "end": "daisychain:block/universal_pipe_end",
+  "groove": "daisychain:block/universal_pipe_groove"
+ },
+ "elements": [
+  {
+   "from": [
+    14.5,
+    5,
+    5
+   ],
+   "to": [
+    16,
+    11,
+    11
+   ],
+   "faces": {
+    "south": {
+     "uv": [
+      14.5,
+      5,
+      16,
+      11
+     ],
+     "texture": "#tube"
+    },
+    "north": {
+     "uv": [
+      0,
+      5,
+      1.5,
+      11
+     ],
+     "texture": "#tube"
+    },
+    "up": {
+     "uv": [
+      14.5,
+      5,
+      16,
+      11
+     ],
+     "texture": "#tube"
+    },
+    "down": {
+     "uv": [
+      14.5,
+      5,
+      16,
+      11
+     ],
+     "texture": "#tube"
+    },
+    "west": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#end"
+    },
+    "east": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#end",
+     "cullface": "east"
+    }
+   }
+  },
+  {
+   "from": [
+    13.5,
+    5.5,
+    5.5
+   ],
+   "to": [
+    14.5,
+    10.5,
+    10.5
+   ],
+   "faces": {
+    "south": {
+     "uv": [
+      13.5,
+      5.5,
+      14.5,
+      10.5
+     ],
+     "texture": "#groove",
+     "tintindex": 11
+    },
+    "north": {
+     "uv": [
+      1.5,
+      5.5,
+      2.5,
+      10.5
+     ],
+     "texture": "#groove",
+     "tintindex": 11
+    },
+    "up": {
+     "uv": [
+      13.5,
+      5.5,
+      14.5,
+      10.5
+     ],
+     "texture": "#groove",
+     "tintindex": 11
+    },
+    "down": {
+     "uv": [
+      13.5,
+      5.5,
+      14.5,
+      10.5
+     ],
+     "texture": "#groove",
+     "tintindex": 11
+    }
+   }
+  },
+  {
+   "from": [
+    11,
+    5,
+    5
+   ],
+   "to": [
+    13.5,
+    11,
+    11
+   ],
+   "faces": {
+    "south": {
+     "uv": [
+      11,
+      5,
+      13.5,
+      11
+     ],
+     "texture": "#tube"
+    },
+    "north": {
+     "uv": [
+      2.5,
+      5,
+      5,
+      11
+     ],
+     "texture": "#tube"
+    },
+    "up": {
+     "uv": [
+      11,
+      5,
+      13.5,
+      11
+     ],
+     "texture": "#tube"
+    },
+    "down": {
+     "uv": [
+      11,
+      5,
+      13.5,
+      11
+     ],
+     "texture": "#tube"
+    },
+    "east": {
+     "uv": [
+      5,
+      5,
+      11,
+      11
+     ],
+     "texture": "#end"
+    }
+   }
+  }
+ ]
+}

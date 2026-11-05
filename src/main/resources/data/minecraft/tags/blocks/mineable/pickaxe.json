@@ -1,0 +1,14 @@
+{
+  "replace": false,
+  "values": [
+    "daisychain:item_pipe",
+    "daisychain:fluid_pipe",
+    "daisychain:energy_pipe",
+    "daisychain:iron_energy_pipe",
+    "daisychain:gold_energy_pipe",
+    "daisychain:diamond_energy_pipe",
+    "daisychain:netherite_energy_pipe",
+    "daisychain:nether_star_energy_pipe",
+    "daisychain:universal_pipe"
+  ]
+}

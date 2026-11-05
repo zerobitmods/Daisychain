@@ -1,0 +1,26 @@
+{
+  "type": "minecraft:crafting_shaped",
+  "category": "misc",
+  "pattern": [
+    " D ",
+    "IFE"
+  ],
+  "key": {
+    "D": {
+      "tag": "forge:gems/diamond"
+    },
+    "I": {
+      "item": "daisychain:item_pipe"
+    },
+    "F": {
+      "item": "daisychain:fluid_pipe"
+    },
+    "E": {
+      "item": "daisychain:energy_pipe"
+    }
+  },
+  "result": {
+    "item": "daisychain:universal_pipe",
+    "count": 3
+  }
+}
