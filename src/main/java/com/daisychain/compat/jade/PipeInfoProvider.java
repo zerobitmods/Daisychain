@@ -7,6 +7,7 @@ import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.PipeKind;
 import com.daisychain.config.UpgradeSpeeds;
 import com.daisychain.item.UpgradeItem;
+import com.daisychain.network.SideStatus;
 import com.daisychain.registry.ModItems;
 import java.util.Locale;
 import net.minecraft.ChatFormatting;
@@ -24,8 +25,9 @@ import snownee.jade.api.ITooltip;
 import snownee.jade.api.config.IPluginConfig;
 
 /**
- * Jade: the upgrade and top speed of the pull side you're looking at. Client only; everything shown is already synced
- * to the client (side settings, upgrades and the server's speed config).
+ * Jade: the status (step 108), upgrade and top speed of the pull side you're looking at. Client only; the status comes
+ * from the server (PipeNetworkDataProvider), the rest is already synced to the client (side settings, upgrades and the
+ * server's speed config).
  */
 public enum PipeInfoProvider implements IBlockComponentProvider {
     INSTANCE;
@@ -47,13 +49,20 @@ public enum PipeInfoProvider implements IBlockComponentProvider {
         BlockPos pos = accessor.getPosition();
         Direction looked = FlowPipeBlock.targetedSide(state, pos, accessor.getHitResult());
         if (!FlowPipeBlock.isPullSide(level, pos, state, looked)) {
-            return; // only pull sides move things, so only they have an upgrade and a speed
+            return; // only pull sides move things, so only they have a status, an upgrade and a speed
+        }
+        CompoundTag server = accessor.getServerData();
+        if (server.contains(PipeNetworkDataProvider.STATUS)) {
+            int status = SideStatus.valid(server.getByte(PipeNetworkDataProvider.STATUS));
+            tooltip.add(Component.translatable("jade.daisychain.status",
+                    Component.translatable("screen.daisychain.status." + SideStatus.name(status))
+                            .withStyle(style -> style.withColor(SideStatus.color(status))))
+                    .withStyle(ChatFormatting.GRAY));
         }
         if (state.getBlock() instanceof EnergyPipeBlock energy) {
             // Step 84: energy pipes have no upgrades; their speed comes from their tier. Step 85: and from the routes
             // on their network, which only the server knows (PipeNetworkDataProvider).
             if (UpgradeSpeeds.available()) {
-                CompoundTag server = accessor.getServerData();
                 if (server.contains(PipeNetworkDataProvider.BEST)) {
                     int machines = server.getInt(PipeNetworkDataProvider.MACHINES);
                     if (machines == 0) {

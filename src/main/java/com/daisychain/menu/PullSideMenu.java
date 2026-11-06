@@ -8,6 +8,7 @@ import com.daisychain.filter.ItemFilter;
 import com.daisychain.filter.MatchMode;
 import com.daisychain.item.UpgradeItem;
 import com.daisychain.network.NetworkManager;
+import com.daisychain.network.SideStatus;
 import com.daisychain.registry.ModDataComponents;
 import com.daisychain.registry.ModMenus;
 import net.minecraft.core.BlockPos;
@@ -109,6 +110,8 @@ public final class PullSideMenu extends AbstractContainerMenu {
     /** Only set on the server. */
     @Nullable
     private final PipeDataBlockEntity data;
+    /** Step 108: where the pull side's status sits in the keepPaused value (bits 8-128; bit 4 is insert-only). */
+    private static final int STATUS_SHIFT = 3;
     /** 1 = Keep in source is paused because the source is too big to count. Synced to the client by vanilla. */
     private final DataSlot keepPaused;
     /**
@@ -146,9 +149,11 @@ public final class PullSideMenu extends AbstractContainerMenu {
                         // Bit 4: this destination's Max stock skipped it (too many slots to count).
                         return manager.isStockPaused(pos, side, PullSideMenu.this.resource) ? 4 : 0;
                     }
-                    // Bit 1: Keep in source paused. Bit 2: Fill destination to skipped a destination.
+                    // Bit 1: Keep in source paused. Bit 2: Fill destination to skipped a destination. Bits 8-128
+                    // (step 108): the side's status (SideStatus) for the shown resource.
                     int r = PullSideMenu.this.resource;
-                    return (manager.isKeepPaused(pos, side, r) ? 1 : 0) | (manager.isFillPaused(pos, side, r) ? 2 : 0);
+                    return (manager.isKeepPaused(pos, side, r) ? 1 : 0) | (manager.isFillPaused(pos, side, r) ? 2 : 0)
+                            | manager.sideStatus(pos, side, r) << STATUS_SHIFT;
                 }
                 return 0;
             }
@@ -337,6 +342,11 @@ public final class PullSideMenu extends AbstractContainerMenu {
     /** Client (insert side): the server says Max stock skipped this inventory because it's too big to count. */
     public boolean isStockPaused() {
         return (keepPaused.get() & 4) != 0;
+    }
+
+    /** Client, step 108: the pull side's status for the shown resource (SideStatus); STARTING on insert sides. */
+    public int sideStatus() {
+        return insert ? SideStatus.STARTING : SideStatus.valid((keepPaused.get() >> STATUS_SHIFT) & 15);
     }
 
     /** Client: the server says Fill destination to skipped a destination that is too big to count. */

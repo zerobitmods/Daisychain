@@ -18,6 +18,7 @@ import com.daisychain.filter.ItemFilter;
 import com.daisychain.filter.MatchMode;
 import com.daisychain.item.UpgradeTier;
 import com.daisychain.menu.PullSideMenu;
+import com.daisychain.network.SideStatus;
 import com.daisychain.net.SetFilterMatchPayload;
 import com.daisychain.net.SetFilterNumberPayload;
 import com.daisychain.net.UpdatePullSettingPayload;
@@ -1164,11 +1165,36 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         return false;
     }
 
+    /** Step 108: left edge of the pull side's status dot (5x5, right end of the header, caps line). */
+    private int statusDotX() {
+        return panelX + MAIN_WIDTH - 8 - 5;
+    }
+
+    /** Step 108: the mouse is on the status dot (a little bigger than the dot, so it's easy to hit). */
+    private boolean overStatusDot(int mouseX, int mouseY) {
+        int dotX = statusDotX();
+        return !insert && mouseX >= dotX - 2 && mouseX < dotX + 7 && mouseY >= panelY + 6 && mouseY < panelY + 17;
+    }
+
+    /** Step 108: "Status: Waiting" in the status color, then what it means. */
+    private List<Component> statusTooltip() {
+        int status = menu.sideStatus();
+        String key = "screen.daisychain.status." + SideStatus.name(status);
+        int color = SideStatus.color(status);
+        return List.of(Component.translatable("screen.daisychain.status",
+                        Component.translatable(key).withStyle(style -> style.withColor(color))),
+                Component.translatable(key + ".help").withStyle(ChatFormatting.GRAY));
+    }
+
     @Override
     public void render(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         // 1.20.1: container screens dim the world themselves before drawing.
         renderBackground(graphics);
         super.render(graphics, mouseX, mouseY, partialTick);
+        if (overStatusDot(mouseX, mouseY) && menu.getCarried().isEmpty()) {
+            graphics.renderComponentTooltip(font, statusTooltip(), mouseX, mouseY);
+            return;
+        }
         // The empty upgrade slot explains itself (a filled one shows the upgrade's own tooltip plus its rate).
         if (!menu.upgradeParked() && hoveredSlot != null && hoveredSlot.index == 0 && !hoveredSlot.hasItem()
                 && menu.getCarried().isEmpty()) {
@@ -1351,9 +1377,16 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
             graphics.renderFakeItem(neighborIcon, 0, 0);
             graphics.pose().popPose();
         }
-        // Long block names are cut short with "..." so they stay inside the panel.
-        FlowGui.text(graphics, font, fitted(neighborName, panelX + MAIN_WIDTH - 8 - (iconX + 15)), iconX + 15,
+        // Step 74: long block names are cut short with "..." so they stay inside the panel. Step 108: pull sides keep
+        // room at the right for the status dot.
+        int nameRight = insert ? panelX + MAIN_WIDTH - 8 : statusDotX() - 4;
+        FlowGui.text(graphics, font, fitted(neighborName, nameRight - (iconX + 15)), iconX + 15,
                 panelY + 8, FlowGui.DIM);
+        if (!insert) {
+            int dotX = statusDotX();
+            FlowGui.round(graphics, dotX, panelY + 9, dotX + 5, panelY + 14,
+                    0xFF000000 | SideStatus.color(menu.sideStatus()), 1);
+        }
 
         // Filter slots, tinted by the side's kind.
         int filterEdge = insert ? FlowGui.FILTER_EDGE_INSERT : FlowGui.FILTER_EDGE_PULL;
