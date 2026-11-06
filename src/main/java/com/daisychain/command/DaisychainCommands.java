@@ -73,7 +73,6 @@ public final class DaisychainCommands {
         String version = ModList.get().getModContainerById(Daisychain.MOD_ID)
                 .map(container -> container.getModInfo().getVersion().toString())
                 .orElse("?");
-        // Drawn in the mod's Flowline font (step 32), which also shows the font loads.
         source.sendSuccess(() -> Component.literal("Daisychain " + version + ", step " + Daisychain.DEV_STEP), false);
         return 1;
     }

@@ -10,7 +10,6 @@ import com.daisychain.registry.ModDataComponents;
 import com.daisychain.registry.ModItems;
 import com.daisychain.registry.ModMenus;
 import com.mojang.logging.LogUtils;
-import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.ModList;
@@ -24,9 +23,7 @@ public final class Daisychain {
     public static final String MOD_ID = "daisychain";
     public static final Logger LOGGER = LogUtils.getLogger();
     /** Development step this build is at. Shown by /daisychain version; bumped with every step. */
-    public static final String DEV_STEP = "105";
-    /** The Flowline bitmap font (assets/daisychain/font/flowline.json; made from VT323, see font/OFL.txt). */
-    public static final ResourceLocation FLOWLINE_FONT = ResourceLocation.fromNamespaceAndPath(MOD_ID, "flowline");
+    public static final String DEV_STEP = "106";
 
     public Daisychain(IEventBus modEventBus, ModContainer modContainer) {
         ModBlocks.register(modEventBus);

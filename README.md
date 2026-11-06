@@ -52,5 +52,3 @@ Operators (permission level 2) can use `/daisychain stats` to see how much work 
 ## License and credits
 
 Code: MIT, see `LICENSE.txt`. Made by zerobit.
-
-Font: Flowline, a bitmap font based on VT323 © 2011 The VT323 Project Authors, under the SIL Open Font License 1.1 (the license text ships in `assets/daisychain/font/`). The screens use Minecraft's own font.
