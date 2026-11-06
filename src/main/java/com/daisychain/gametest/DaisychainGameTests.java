@@ -5,7 +5,10 @@ import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.block.FlowPipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.PipeKind;
+import com.daisychain.block.RedstoneMode;
 import com.daisychain.block.SideState;
+import com.daisychain.network.NetworkManager;
+import com.daisychain.network.SideStatus;
 import com.daisychain.registry.ModBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -352,6 +355,71 @@ public final class DaisychainGameTests {
             helper.assertTrue(level >= 0 && level <= 5, "Upgrade level " + level + " on " + side);
         }
         helper.succeed();
+    }
+
+    // ---------------------------------------------------------------- pull side status (step 108)
+
+    /** Items leaving a full chest for an empty one: the pull side says Moving. */
+    @GameTest(template = EMPTY, timeoutTicks = 100)
+    public static void statusMoving(GameTestHelper helper) {
+        itemLine(helper, 0);
+        helper.succeedWhen(() -> assertStatus(helper, SideStatus.MOVING));
+    }
+
+    /** The only destination is full: Waiting, never Moving. */
+    @GameTest(template = EMPTY, timeoutTicks = 100)
+    public static void statusWaiting(GameTestHelper helper) {
+        chest(helper, A, new ItemStack(Items.DIRT, 64));
+        ItemStack[] stone = new ItemStack[27];
+        for (int i = 0; i < stone.length; i++) {
+            stone[i] = new ItemStack(Items.STONE, 64);
+        }
+        chest(helper, B, stone);
+        line(helper, A.east(), 3, ModBlocks.ITEM_PIPE.get());
+        pull(helper, A.east(), Direction.WEST, 0);
+        helper.succeedWhen(() -> assertStatus(helper, SideStatus.WAITING));
+    }
+
+    /** An empty source: Nothing to pull. */
+    @GameTest(template = EMPTY, timeoutTicks = 100)
+    public static void statusNothingToPull(GameTestHelper helper) {
+        chest(helper, A);
+        chest(helper, B);
+        line(helper, A.east(), 3, ModBlocks.ITEM_PIPE.get());
+        pull(helper, A.east(), Direction.WEST, 0);
+        helper.succeedWhen(() -> assertStatus(helper, SideStatus.NOTHING_TO_PULL));
+    }
+
+    /** Pipes that lead nowhere: Nowhere to send, and the items stay put. */
+    @GameTest(template = EMPTY, timeoutTicks = 100)
+    public static void statusNoDestination(GameTestHelper helper) {
+        chest(helper, A, new ItemStack(Items.DIRT, 64));
+        line(helper, A.east(), 3, ModBlocks.ITEM_PIPE.get());
+        pull(helper, A.east(), Direction.WEST, 0);
+        helper.succeedWhen(() -> {
+            assertStatus(helper, SideStatus.NO_DESTINATION);
+            helper.assertTrue(count(helper, A) == 64, "Source has " + count(helper, A) + " dirt (should be 64)");
+        });
+    }
+
+    /** Redstone setting "on with signal" and no signal: Off by redstone, and nothing moves. */
+    @GameTest(template = EMPTY, timeoutTicks = 100)
+    public static void statusRedstoneOff(GameTestHelper helper) {
+        itemLine(helper, 0);
+        data(helper, A.east()).applySetting(Direction.WEST, PipeDataBlockEntity.SETTING_REDSTONE,
+                RedstoneMode.ON_WITH_SIGNAL.ordinal(), PipeKind.ITEMS);
+        helper.succeedWhen(() -> {
+            assertStatus(helper, SideStatus.REDSTONE_OFF);
+            helper.assertTrue(count(helper, B) == 0, "Destination got " + count(helper, B) + " items");
+        });
+    }
+
+    /** The status of the pull side every status test uses: the pipe east of A, pulling from the west. */
+    private static void assertStatus(GameTestHelper helper, int expected) {
+        int status = NetworkManager.get(helper.getLevel())
+                .sideStatus(helper.absolutePos(A.east()), Direction.WEST, -1);
+        helper.assertTrue(status == expected, "Status is " + SideStatus.name(status) + ", not "
+                + SideStatus.name(expected));
     }
 
     // ---------------------------------------------------------------- helpers

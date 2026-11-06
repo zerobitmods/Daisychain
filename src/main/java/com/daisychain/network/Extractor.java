@@ -56,6 +56,8 @@ final class Extractor {
     final long[] resourceLastRun = new long[PipeKind.RESOURCE_COUNT * 6];
     /** Round robin position per side per resource (index = resource * 6 + side). */
     final int[] roundRobin = new int[PipeKind.RESOURCE_COUNT * 6];
+    /** Step 108: SideStatus per side per resource (index = resource * 6 + side), from the side's last run. */
+    final byte[] sideStatus = new byte[PipeKind.RESOURCE_COUNT * 6];
     /** Calls into other blocks' inventories made by the current/last transfer (counts toward the tick budget). */
     int calls;
     /**
@@ -289,6 +291,13 @@ final class Extractor {
         int index = destination.index;
         if (kind == PipeKind.ENERGY && index >= 0 && index < routeSent.length) {
             routeSent[index] += amount;
+        }
+    }
+
+    /** Step 108: sets the status of every resource of a side (redstone and "nothing attached" apply to all of them). */
+    void setStatus(int side, int status) {
+        for (int resource = 0; resource < PipeKind.RESOURCE_COUNT; resource++) {
+            sideStatus[resource * 6 + side] = (byte) status;
         }
     }
 

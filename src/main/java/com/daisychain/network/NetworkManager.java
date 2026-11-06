@@ -216,6 +216,46 @@ public final class NetworkManager {
         extractor.index = -1;
     }
 
+    /** Step 108: a pull side's status after one transfer of one resource. */
+    private static int status(int moved, boolean noDestination, boolean sawItems) {
+        if (moved > 0) {
+            return SideStatus.MOVING;
+        }
+        if (noDestination) {
+            return SideStatus.NO_DESTINATION;
+        }
+        return sawItems ? SideStatus.WAITING : SideStatus.NOTHING_TO_PULL;
+    }
+
+    /**
+     * Step 108: what this pull side did last time it ran (SideStatus), for one resource, or for all of the pipe's
+     * resources together when resource is -1 (the most useful one wins). A few array reads; called by the open Pull
+     * side screen (each tick) and by Jade (a few times a second), never by the transfer itself.
+     */
+    public int sideStatus(BlockPos pos, Direction side, int resource) {
+        Extractor extractor = extractorsByPos.get(pos.asLong());
+        if (extractor == null) {
+            return SideStatus.STARTING;
+        }
+        int i = side.get3DDataValue();
+        PipeDataBlockEntity data = extractor.data;
+        if (resource >= 0) {
+            if (data != null && !data.pullsResource(side, resource)) {
+                return SideStatus.SWITCHED_OFF;
+            }
+            return SideStatus.valid(extractor.sideStatus[resource * 6 + i]);
+        }
+        int best = -1;
+        for (int r = 0; r < PipeKind.RESOURCE_COUNT; r++) {
+            if (!extractor.kind.carries(r) || (data != null && !data.pullsResource(side, r))) {
+                continue;
+            }
+            int status = SideStatus.valid(extractor.sideStatus[r * 6 + i]);
+            best = best < 0 ? status : SideStatus.better(best, status);
+        }
+        return best < 0 ? SideStatus.SWITCHED_OFF : best;
+    }
+
     /** True if this pull side's Keep in source is paused because its source is too big to count (for the screen). */
     public boolean isKeepPaused(BlockPos pos, Direction side, int resource) {
         Extractor extractor = extractorsByPos.get(pos.asLong());
@@ -570,6 +610,8 @@ public final class NetworkManager {
             if (!active) {
                 // Can't run until the redstone signal changes: sleep (costs nothing until then).
                 extractor.sideNextRun[side] = Long.MAX_VALUE;
+                extractor.setStatus(side, mode == RedstoneMode.PULSE ? SideStatus.WAITING_FOR_PULSE
+                        : SideStatus.REDSTONE_OFF);
                 continue;
             }
             if (!outOfBudget && budgetSpent()) {
@@ -593,9 +635,11 @@ public final class NetworkManager {
             extractor.sideLastRun[side] = now;
             int moved = 0;
             int calls = 0;
+            boolean noDestination = extractor.destinations.isEmpty();
             if (extractor.kind == PipeKind.UNIVERSAL) {
                 // Universal pipe (step 33): items, fluids and energy, each at its own speed. The side wakes as often
                 // as its fastest resource; a resource only runs once its own interval has passed.
+                boolean saw = false;
                 for (int resource = 0; resource < PipeKind.RESOURCE_COUNT; resource++) {
                     int slot = resource * 6 + side;
                     if (!data.pullsResource(direction, resource) || now < extractor.resourceLastRun[slot]
@@ -603,12 +647,19 @@ public final class NetworkManager {
                         continue; // switched off on this side (step 33a), or not due yet
                     }
                     extractor.resourceLastRun[slot] = now;
-                    moved += transfer(extractor, direction, resource, tier, data, maxSlots, maxCalls);
+                    extractor.sawItems = false;
+                    int movedNow = transfer(extractor, direction, resource, tier, data, maxSlots, maxCalls);
                     calls += extractor.calls;
+                    extractor.sideStatus[slot] = (byte) status(movedNow, noDestination, extractor.sawItems);
+                    saw |= extractor.sawItems;
+                    moved += movedNow;
                 }
+                extractor.sawItems = saw; // any resource had something to give (backoff below)
             } else if (data.pullsResource(direction, extractor.kind.resource())) {
                 moved = transfer(extractor, direction, extractor.kind.resource(), tier, data, maxSlots, maxCalls);
                 calls = extractor.calls;
+                extractor.sideStatus[extractor.kind.resource() * 6 + side] =
+                        (byte) status(moved, noDestination, extractor.sawItems);
             }
             tickCalls += Math.max(1, calls);
             if (moved == 0 && !extractor.sawItems && level.isLoaded(extractor.pos.relative(direction))
@@ -617,6 +668,7 @@ public final class NetworkManager {
                 // sleep at zero cost until a neighbor or its capability changes (Extractor.wakeIdleSides).
                 extractor.idleMask |= bit;
                 extractor.sideNextRun[side] = Long.MAX_VALUE;
+                extractor.setStatus(side, SideStatus.NO_SOURCE);
                 continue;
             }
             extractor.idleMask &= ~bit;

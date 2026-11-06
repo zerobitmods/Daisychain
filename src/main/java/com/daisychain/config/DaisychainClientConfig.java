@@ -10,15 +10,9 @@ public final class DaisychainClientConfig {
     public static final ModConfigSpec SPEC;
     public static final ModConfigSpec.BooleanValue SHOW_HINTS;
     public static final ModConfigSpec.BooleanValue SIDES_VIEW_3D;
-    public static final ModConfigSpec.EnumValue<MenuMode> DEFAULT_MENU_MODE;
+    public static final ModConfigSpec.BooleanValue OPEN_ADVANCED;
     public static final ModConfigSpec.BooleanValue WRENCH_HOLOGRAMS;
     public static final ModConfigSpec.BooleanValue ENERGY_GLOW;
-
-    /** How a pipe side screen opens when the pipe has no view stored yet (step 44). */
-    public enum MenuMode {
-        SIMPLE,
-        ADVANCED
-    }
 
     static {
         ModConfigSpec.Builder builder = new ModConfigSpec.Builder();
@@ -32,12 +26,14 @@ public final class DaisychainClientConfig {
                         "The button in the top corner of that screen switches it too.")
                 .translation("daisychain.configuration.sides_view_3d")
                 .define("sides_view_3d", false);
-        DEFAULT_MENU_MODE = builder
-                .comment("How pipe side screens open when nobody has picked a view for that pipe yet: SIMPLE (9 filter",
-                        "slots, icons) or ADVANCED (54 filter slots in 2 pages and all settings). The sliders key in the",
-                        "screen switches a pipe's view for everyone.")
-                .translation("daisychain.configuration.default_menu_mode")
-                .defineEnum("default_menu_mode", MenuMode.SIMPLE);
+        // Step 108: a true/false setting (was default_menu_mode SIMPLE|ADVANCED): config screens show it as ON/OFF
+        // like the others. An old default_menu_mode line in an existing file is no longer read.
+        OPEN_ADVANCED = builder
+                .comment("Pipe side screens open in Advanced view (54 filter slots in 2 pages and all settings) when",
+                        "nobody has picked a view for that pipe yet. false = Simple view (9 filter slots, icons). The",
+                        "sliders key in the screen switches a pipe's view for everyone.")
+                .translation("daisychain.configuration.open_advanced")
+                .define("open_advanced", false);
         WRENCH_HOLOGRAMS = builder
                 .comment("While sneaking with a wrench, show a see-through \"ghost arm\" on each side without an arm and let",
                         "it be clicked. Turn off to only change a side by clicking the pipe's actual face on that side.",
@@ -62,7 +58,7 @@ public final class DaisychainClientConfig {
 
     /** True if pipe side screens open in Advanced view when the pipe has no stored view. */
     public static boolean defaultAdvanced() {
-        return SPEC.isLoaded() && DEFAULT_MENU_MODE.get() == MenuMode.ADVANCED;
+        return SPEC.isLoaded() && OPEN_ADVANCED.getAsBoolean();
     }
 
     /** Step 72: false if the player turned the wrench holograms (and their click area) off. */

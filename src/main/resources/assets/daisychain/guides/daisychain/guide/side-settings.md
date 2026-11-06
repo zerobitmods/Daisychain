@@ -12,6 +12,21 @@ them (or with the <ItemLink id="daisychain:bloom_wrench" />, or pretty much anyt
 
 The tag at the top says whether you're looking at a **PULL** side or an **INSERT** side, next to the block it's touching.
 
+## Status
+
+Pull sides have a small dot at the top right that tells you how their last turn went. Hover over it for the details.
+
+- **Green, Moving:** things are on their way.
+- **Amber, Waiting:** there's something to move, but nothing took it. The destinations may be full, filtered or at a
+  limit, or Keep is holding it back.
+- **Amber, Nowhere to send:** the network has no insert sides yet.
+- **Grey, Nothing to pull:** the block here is empty, or has nothing the filter lets through. **Nothing to pull from**
+  means there's no block with an inventory, tank or battery here at all.
+- **Red, Off by redstone** or **Switched off:** the Redstone setting or the power key is keeping it off.
+- **Violet, Waiting for a pulse:** set to Once per pulse and ready for the next one.
+
+With Jade installed, the same status shows when you look at a pull side.
+
 ## Simple and Advanced
 
 There are two views, and the pipe remembers which one you picked:

@@ -14,9 +14,9 @@ import snownee.jade.api.BlockAccessor;
 import snownee.jade.api.IServerDataProvider;
 
 /**
- * Step 85 (zerobit): Jade, server side. For the energy pipe pull side you're looking at, sends the route tiers its
- * network speed comes from (worked out when the network was built, so this is a few lookups). Only runs while someone
- * looks at an energy pull side, about 4 times a second.
+ * Step 85 (zerobit): Jade, server side. For the pull side you're looking at, sends its status (step 108, SideStatus) and,
+ * on energy pipes, the route tiers its network speed comes from (worked out when the network was built, so this is a
+ * few lookups). Only runs while someone looks at a pull side, about 4 times a second.
  */
 public enum PipeNetworkDataProvider implements IServerDataProvider<BlockAccessor> {
     INSTANCE;
@@ -24,6 +24,7 @@ public enum PipeNetworkDataProvider implements IServerDataProvider<BlockAccessor
     static final String BEST = "DaisychainBestRoute";
     static final String SLOWEST = "DaisychainSlowestRoute";
     static final String MACHINES = "DaisychainMachines";
+    static final String STATUS = "DaisychainStatus";
     private static final ResourceLocation UID = ResourceLocation.fromNamespaceAndPath(Daisychain.MOD_ID, "pipe_network");
 
     @Override
@@ -34,7 +35,7 @@ public enum PipeNetworkDataProvider implements IServerDataProvider<BlockAccessor
     @Override
     public boolean shouldRequestData(BlockAccessor accessor) {
         BlockState state = accessor.getBlockState();
-        if (!(state.getBlock() instanceof EnergyPipeBlock)) {
+        if (!(state.getBlock() instanceof FlowPipeBlock)) {
             return false;
         }
         Direction looked = FlowPipeBlock.targetedSide(state, accessor.getPosition(), accessor.getHitResult());
@@ -43,12 +44,21 @@ public enum PipeNetworkDataProvider implements IServerDataProvider<BlockAccessor
 
     @Override
     public void appendServerData(CompoundTag data, BlockAccessor accessor) {
-        if (!(accessor.getLevel() instanceof ServerLevel level)
-                || !(accessor.getBlockState().getBlock() instanceof EnergyPipeBlock)) {
+        BlockState state = accessor.getBlockState();
+        if (!(accessor.getLevel() instanceof ServerLevel level) || !(state.getBlock() instanceof FlowPipeBlock)) {
             return;
         }
         BlockPos pos = accessor.getPosition();
-        int[] summary = NetworkManager.get(level).routeSummary(pos);
+        Direction looked = FlowPipeBlock.targetedSide(state, pos, accessor.getHitResult());
+        if (!FlowPipeBlock.isPullSide(level, pos, state, looked)) {
+            return;
+        }
+        NetworkManager manager = NetworkManager.get(level);
+        data.putByte(STATUS, (byte) manager.sideStatus(pos, looked, -1));
+        if (!(state.getBlock() instanceof EnergyPipeBlock)) {
+            return;
+        }
+        int[] summary = manager.routeSummary(pos);
         if (summary == null) {
             return;
         }
