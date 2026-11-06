@@ -58,7 +58,7 @@ public final class DaisychainClientConfig {
 
     /** True if pipe side screens open in Advanced view when the pipe has no stored view. */
     public static boolean defaultAdvanced() {
-        return SPEC.isLoaded() && OPEN_ADVANCED.getAsBoolean();
+        return SPEC.isLoaded() && OPEN_ADVANCED.get();
     }
 
     /** Step 72: false if the player turned the wrench holograms (and their click area) off. */
