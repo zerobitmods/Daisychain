@@ -4,6 +4,7 @@ import com.daisychain.filter.FluidGhost;
 import com.daisychain.filter.ItemFilter;
 import com.daisychain.filter.MatchMode;
 import com.daisychain.item.UpgradeItem;
+import com.daisychain.network.EnergyInput;
 import com.daisychain.network.NetworkManager;
 import com.daisychain.registry.ModItems;
 import com.daisychain.registry.ModBlockEntities;
@@ -25,6 +26,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.energy.IEnergyStorage;
 
 import javax.annotation.Nullable;
 
@@ -112,6 +114,36 @@ public final class PipeDataBlockEntity extends BlockEntity {
 
     public PipeDataBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.PIPE_DATA.get(), pos, state);
+    }
+
+    /** Step 109: energy inputs of this pipe's pull sides, made when another block first asks (see energyInput). */
+    @Nullable
+    private EnergyInput[] energyInputs;
+
+    /**
+     * Step 109: the energy storage this pipe shows on one side: only pull sides of energy and universal pipes have one
+     * (it takes pushed energy and passes it straight on; see EnergyInput). Null on every other side.
+     */
+    @Nullable
+    public IEnergyStorage energyInput(@Nullable Direction side) {
+        if (side == null || isRemoved()) {
+            return null;
+        }
+        BlockState state = getBlockState();
+        if (!(state.getBlock() instanceof FlowPipeBlock pipe) || !pipe.kind().carries(PipeKind.ENERGY_RES)
+                || state.getValue(FlowPipeBlock.propertyFor(side)) != SideState.EXTRACT) {
+            return null;
+        }
+        if (energyInputs == null) {
+            energyInputs = new EnergyInput[6];
+        }
+        int i = side.get3DDataValue();
+        EnergyInput input = energyInputs[i];
+        if (input == null) {
+            input = new EnergyInput(this, side);
+            energyInputs[i] = input;
+        }
+        return input;
     }
 
     private static int slot(Direction side, int resource) {

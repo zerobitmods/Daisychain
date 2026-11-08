@@ -243,17 +243,148 @@ public final class NetworkManager {
             if (data != null && !data.pullsResource(side, resource)) {
                 return SideStatus.SWITCHED_OFF;
             }
-            return SideStatus.valid(extractor.sideStatus[resource * 6 + i]);
+            return storedStatus(extractor, resource, i);
         }
         int best = -1;
         for (int r = 0; r < PipeKind.RESOURCE_COUNT; r++) {
             if (!extractor.kind.carries(r) || (data != null && !data.pullsResource(side, r))) {
                 continue;
             }
-            int status = SideStatus.valid(extractor.sideStatus[r * 6 + i]);
+            int status = storedStatus(extractor, r, i);
             best = best < 0 ? status : SideStatus.better(best, status);
         }
         return best < 0 ? SideStatus.SWITCHED_OFF : best;
+    }
+
+    /** Step 109: a side that had energy pushed into it in the last second shows Moving, whatever its own pull found. */
+    private int storedStatus(Extractor extractor, int resource, int side) {
+        if (resource == PipeKind.ENERGY_RES && level.getGameTime() - extractor.energyPushTick[side] <= PUSH_STATUS_TICKS) {
+            return SideStatus.MOVING;
+        }
+        return SideStatus.valid(extractor.sideStatus[resource * 6 + side]);
+    }
+
+    // ---------------------------------------------------------------- energy pushed into pull sides (step 109)
+
+    /** Ticks a pull side shows Moving after energy was last pushed into it. */
+    private static final int PUSH_STATUS_TICKS = 20;
+
+    /**
+     * Energy a block pushes into a pull side of an energy or universal pipe (a Flux Point only pushes and never lets
+     * energy be pulled; many generators and cables push too). The FE goes straight on to the network's destinations
+     * by the side's own rules and speed, shared with what the side pulls; the pipe keeps none, so whatever isn't
+     * taken stays in the pushing block. Called from other mods' code, outside our tick (not counted in the tick budget,
+     * bounded by the side's speed and max_handler_calls_per_transfer). Returns the FE taken.
+     */
+    public int receivePushedEnergy(BlockPos pos, Direction side, int maxReceive, boolean simulate) {
+        if (maxReceive <= 0) {
+            return 0;
+        }
+        Extractor extractor = pushTarget(pos, side);
+        if (extractor == null) {
+            return 0;
+        }
+        PipeDataBlockEntity data = extractor.data;
+        PipeNetwork network = pushNetwork(extractor);
+        if (network == null || data == null || extractor.cachedState == null
+                || extractor.cachedState.getValue(FlowPipeBlock.propertyFor(side)) != SideState.EXTRACT) {
+            return 0;
+        }
+        int s = side.get3DDataValue();
+        int tier = extractor.speedTier(data, side);
+        int perTransfer = UpgradeSpeeds.energyFe(tier);
+        int batch = data.batch(side, PipeKind.ENERGY_RES);
+        if (batch > 0) {
+            perTransfer = Math.min(perTransfer, batch);
+        }
+        long now = level.getGameTime();
+        int allowance = extractor.energyAllowance(s, now, UpgradeSpeeds.energyInterval(tier), perTransfer);
+        if (allowance <= 0) {
+            return 0;
+        }
+        int moved;
+        extractor.busy = true;
+        try {
+            moved = EnergyTransfer.push(level, extractor, side, extractor.destinations, data.distribution(side),
+                    data.allowsSelfFeed(side), Math.min(maxReceive, allowance),
+                    data.fillDestinationTo(side, PipeKind.ENERGY_RES),
+                    DaisychainConfig.MAX_HANDLER_CALLS_PER_TRANSFER.getAsInt(), simulate);
+        } finally {
+            extractor.busy = false;
+        }
+        if (!simulate && moved > 0) {
+            extractor.addEnergyUsed(s, moved);
+            extractor.energyPushTick[s] = now;
+        }
+        return moved;
+    }
+
+    /** Step 109: true if this pull side takes pushed energy right now (asked by pushing blocks before they push). */
+    public boolean acceptsPushedEnergy(BlockPos pos, Direction side) {
+        return pushTarget(pos, side) != null;
+    }
+
+    /** Step 109: the most FE this pull side moves per transfer (shown as the capacity of its energy input). */
+    public int pushedEnergyCapacity(BlockPos pos, Direction side) {
+        Extractor extractor = extractorsByPos.get(pos.asLong());
+        return extractor == null || extractor.data == null ? 0
+                : UpgradeSpeeds.energyFe(extractor.speedTier(extractor.data, side));
+    }
+
+    /**
+     * Step 109: the pulling pipe at pos if this side may take pushed energy now: server thread, the side pulls energy,
+     * redstone lets it run (pulse mode never takes pushes), and the pipe isn't already moving something (no loops).
+     */
+    @Nullable
+    private Extractor pushTarget(BlockPos pos, Direction side) {
+        if (!level.getServer().isSameThread()) {
+            return null;
+        }
+        Extractor extractor = extractorsByPos.get(pos.asLong());
+        if (extractor == null || extractor.busy || !extractor.kind.carries(PipeKind.ENERGY_RES)) {
+            return null;
+        }
+        PipeDataBlockEntity data = extractor.data;
+        if (data == null || (extractor.extractMask & (1 << side.get3DDataValue())) == 0
+                || !data.pullsResource(side, PipeKind.ENERGY_RES)) {
+            return null;
+        }
+        if (!extractor.poweredKnown && signalReadable(extractor.pos)) {
+            extractor.lastPowered = level.hasNeighborSignal(extractor.pos);
+            extractor.poweredKnown = true;
+        }
+        boolean allowed = switch (data.redstoneMode(side)) {
+            case ALWAYS -> true;
+            case ON_WITH_SIGNAL -> extractor.lastPowered;
+            case OFF_WITH_SIGNAL -> !extractor.lastPowered;
+            case PULSE -> false;
+        };
+        return allowed ? extractor : null;
+    }
+
+    /** Step 109: the pipe's network with its destinations sorted, the same way runExtractor gets it. Null if not ready. */
+    @Nullable
+    private PipeNetwork pushNetwork(Extractor extractor) {
+        BlockState state = extractor.cachedState;
+        PipeNetwork network = extractor.sortedFor;
+        if (state == null || network == null || !network.valid) {
+            if (!level.isLoaded(extractor.pos)) {
+                return null;
+            }
+            state = level.getBlockState(extractor.pos);
+            network = state.getBlock() instanceof FlowPipeBlock ? getOrBuild(extractor.pos) : null;
+            extractor.cachedState = network != null ? state : null;
+            if (network == null) {
+                return null;
+            }
+        }
+        if (extractor.sortedFor != network) {
+            long bindStart = System.nanoTime();
+            extractor.bindTo(network);
+            peakBinds++;
+            peakBindNanos += System.nanoTime() - bindStart;
+        }
+        return network;
     }
 
     /** True if this pull side's Keep in source is paused because its source is too big to count (for the screen). */
@@ -516,6 +647,16 @@ public final class NetworkManager {
      */
     private int transfer(Extractor extractor, Direction direction, int resource, int tier, PipeDataBlockEntity data,
                          int maxSlots, int maxCalls) {
+        extractor.busy = true; // step 109: a push into this pipe from inside this transfer is refused
+        try {
+            return transferNow(extractor, direction, resource, tier, data, maxSlots, maxCalls);
+        } finally {
+            extractor.busy = false;
+        }
+    }
+
+    private int transferNow(Extractor extractor, Direction direction, int resource, int tier, PipeDataBlockEntity data,
+                            int maxSlots, int maxCalls) {
         if (resource == PipeKind.FLUIDS) {
             return FluidTransfer.transfer(level, extractor, direction, extractor.destinations,
                     data.distribution(direction), data.allowsSelfFeed(direction),
@@ -525,10 +666,21 @@ public final class NetworkManager {
                     maxCounted, maxSlots, maxCalls);
         }
         if (resource == PipeKind.ENERGY_RES) {
-            return EnergyTransfer.transfer(level, extractor, direction, extractor.destinations,
+            // Step 109: what this side pulls and what blocks push into it share the side's speed.
+            int side = direction.get3DDataValue();
+            int perTransfer = UpgradeSpeeds.energyFe(tier);
+            int batch = data.batch(direction, resource);
+            if (batch > 0) {
+                perTransfer = Math.min(perTransfer, batch);
+            }
+            int allowance = extractor.energyAllowance(side, level.getGameTime(), UpgradeSpeeds.energyInterval(tier),
+                    perTransfer);
+            int moved = EnergyTransfer.transfer(level, extractor, direction, extractor.destinations,
                     data.distribution(direction), data.allowsSelfFeed(direction),
-                    UpgradeSpeeds.energyFe(tier), data.batch(direction, resource),
+                    allowance, data.batch(direction, resource),
                     data.keepInSource(direction, resource), data.fillDestinationTo(direction, resource), maxCalls);
+            extractor.addEnergyUsed(side, moved);
+            return moved;
         }
         return ItemTransfer.transfer(level, extractor, direction, extractor.destinations,
                 data.distribution(direction), data.allowsSelfFeed(direction),

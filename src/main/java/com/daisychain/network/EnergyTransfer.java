@@ -52,16 +52,7 @@ final class EnergyTransfer {
         if (source == null) {
             return 0;
         }
-        if (extractor.kind == PipeKind.ENERGY) {
-            // Step 84: each destination gets at most what the route to it carries in this transfer. Routes slower to
-            // refill than this side's interval carry proportionally less (all equal with the default config).
-            int sideInterval = UpgradeSpeeds.energyInterval(extractor.bestRouteTier);
-            for (int t = 0; t < extractor.tierCap.length; t++) {
-                long cap = (long) UpgradeSpeeds.energyFe(t) * sideInterval / Math.max(1, UpgradeSpeeds.energyInterval(t));
-                extractor.tierCap[t] = (int) Math.max(1L, Math.min(Integer.MAX_VALUE, cap));
-            }
-            java.util.Arrays.fill(extractor.routeSent, 0);
-        }
+        setUpRoutes(extractor);
         int limit = sideBatch > 0 ? Math.min(sideBatch, tierAmount) : tierAmount;
         if (keep > 0) {
             int stored = source.getEnergyStored();
@@ -86,6 +77,150 @@ final class EnergyTransfer {
                 : sendInOrder(level, extractor, source, offer,
                         distribution == Distribution.FARTHEST ? extractor.destinationsFarthest : destinations,
                         sourcePos, allowSelfFeed, fill, maxCalls);
+    }
+
+    /** Step 84: each destination gets at most what the route to it carries in this transfer (energy pipes only). */
+    private static void setUpRoutes(Extractor extractor) {
+        if (extractor.kind != PipeKind.ENERGY) {
+            return;
+        }
+        // Routes slower to refill than this side's interval carry proportionally less (all equal with the default
+        // config).
+        int sideInterval = UpgradeSpeeds.energyInterval(extractor.bestRouteTier);
+        for (int t = 0; t < extractor.tierCap.length; t++) {
+            long cap = (long) UpgradeSpeeds.energyFe(t) * sideInterval / Math.max(1, UpgradeSpeeds.energyInterval(t));
+            extractor.tierCap[t] = (int) Math.max(1L, Math.min(Integer.MAX_VALUE, cap));
+        }
+        java.util.Arrays.fill(extractor.routeSent, 0);
+    }
+
+    /**
+     * Step 109: energy a block pushes into this pull side (a Flux Point, a cable, a generator that pushes). The pipe
+     * still stores nothing: the FE goes straight on to the destinations by the side's usual rules (priority, Send to,
+     * Fill destination to, Max stock, route speed) and whatever they don't take is refused, so it stays in the block
+     * that pushed it. amount is already capped by the side's speed. Returns the FE taken (simulate: the FE that would
+     * be taken). No allocation.
+     */
+    static int push(ServerLevel level, Extractor extractor, Direction side, List<PipeNetwork.Endpoint> destinations,
+                    Distribution distribution, boolean allowSelfFeed, int amount, int fill, int maxCalls,
+                    boolean simulate) {
+        extractor.calls = 0;
+        if (destinations.isEmpty() || amount <= 0) {
+            return 0;
+        }
+        setUpRoutes(extractor);
+        BlockPos sourcePos = extractor.pos.relative(side);
+        if (simulate) {
+            return simulatePush(level, extractor, amount, destinations, sourcePos, allowSelfFeed, fill, maxCalls);
+        }
+        PushSource source = extractor.pushSource;
+        source.offer(amount);
+        int taken;
+        try {
+            if (distribution == Distribution.ROUND_ROBIN) {
+                splitRoundRobin(level, extractor, side.get3DDataValue(), source, amount, destinations, sourcePos,
+                        allowSelfFeed, fill, maxCalls);
+            } else {
+                sendInOrder(level, extractor, source, amount,
+                        distribution == Distribution.FARTHEST ? extractor.destinationsFarthest : destinations,
+                        sourcePos, allowSelfFeed, fill, maxCalls);
+            }
+            taken = source.taken;
+        } finally {
+            source.offer(0);
+        }
+        return taken;
+    }
+
+    /** Step 109: how much a push of amount FE would be taken, asking each destination in simulation only. */
+    private static int simulatePush(ServerLevel level, Extractor extractor, int amount,
+                                    List<PipeNetwork.Endpoint> destinations, BlockPos sourcePos, boolean allowSelfFeed,
+                                    int fill, int maxCalls) {
+        int remaining = amount;
+        int total = 0;
+        for (int i = 0; i < destinations.size() && remaining > 0 && extractor.calls < maxCalls; i++) {
+            PipeNetwork.Endpoint destination = destinations.get(i);
+            if ((!allowSelfFeed && destination.targetPos().equals(sourcePos)) || !destination.acceptsEnergy()) {
+                continue;
+            }
+            IEnergyStorage target = destination.energyHandler(level);
+            if (target == null) {
+                continue;
+            }
+            int want = Math.min(remaining, extractor.routeCap(destination));
+            if (want <= 0) {
+                continue;
+            }
+            long room = roomFor(extractor, destination, target, fill);
+            if (room != NO_LIMIT) {
+                if (room <= 0) {
+                    continue;
+                }
+                want = (int) Math.min(want, room);
+            }
+            int accepted = Math.min(want, target.receiveEnergy(want, true));
+            extractor.calls++;
+            if (accepted > 0) {
+                total += accepted;
+                remaining -= accepted;
+            }
+        }
+        return total;
+    }
+
+    /**
+     * Step 109: stands in for the block that pushes energy, so a push runs through the same safe move code as a pull.
+     * "Extracting" takes from the pushed amount; "receiving" (energy a destination took back out of a promise) hands
+     * it back. taken = FE that left the pushing block.
+     */
+    static final class PushSource implements IEnergyStorage {
+        private int available;
+        private int taken;
+
+        void offer(int amount) {
+            available = Math.max(0, amount);
+            taken = 0;
+        }
+
+        @Override
+        public int receiveEnergy(int maxReceive, boolean simulate) {
+            int n = Math.max(0, Math.min(maxReceive, taken));
+            if (!simulate) {
+                taken -= n;
+                available += n;
+            }
+            return n;
+        }
+
+        @Override
+        public int extractEnergy(int maxExtract, boolean simulate) {
+            int n = Math.max(0, Math.min(maxExtract, available));
+            if (!simulate) {
+                available -= n;
+                taken += n;
+            }
+            return n;
+        }
+
+        @Override
+        public int getEnergyStored() {
+            return available;
+        }
+
+        @Override
+        public int getMaxEnergyStored() {
+            return available + taken;
+        }
+
+        @Override
+        public boolean canExtract() {
+            return true;
+        }
+
+        @Override
+        public boolean canReceive() {
+            return false;
+        }
     }
 
     /**
