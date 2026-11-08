@@ -4,6 +4,7 @@ import com.daisychain.filter.FluidGhost;
 import com.daisychain.filter.ItemFilter;
 import com.daisychain.filter.MatchMode;
 import com.daisychain.item.UpgradeItem;
+import com.daisychain.network.EnergyInput;
 import com.daisychain.network.NetworkManager;
 import com.daisychain.registry.ModItems;
 import com.daisychain.registry.ModBlockEntities;
@@ -25,6 +26,10 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.common.capabilities.Capability;
+import net.minecraftforge.common.capabilities.ForgeCapabilities;
+import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.energy.IEnergyStorage;
 
 import javax.annotation.Nullable;
 
@@ -112,6 +117,78 @@ public final class PipeDataBlockEntity extends BlockEntity {
 
     public PipeDataBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.PIPE_DATA.get(), pos, state);
+    }
+
+    /**
+     * Step 109: energy inputs of this pipe's pull sides (see EnergyInput), made when another block first asks. Forge
+     * 1.20.1 hands capabilities out as LazyOptionals; a side's is invalidated when it stops being a pull side
+     * (refreshEnergyInputs) and all of them when the block entity goes away (invalidateCaps).
+     */
+    @SuppressWarnings("unchecked")
+    private final LazyOptional<IEnergyStorage>[] energyInputs = new LazyOptional[6];
+
+    /**
+     * Step 109: the energy storage this pipe shows on one side: only pull sides of energy and universal pipes have one
+     * (it takes pushed energy and passes it straight on). Null on every other side.
+     */
+    @Nullable
+    public IEnergyStorage energyInput(@Nullable Direction side) {
+        return energyInputOptional(side).resolve().orElse(null);
+    }
+
+    private LazyOptional<IEnergyStorage> energyInputOptional(@Nullable Direction side) {
+        if (side == null || isRemoved() || !offersEnergyInput(getBlockState(), side)) {
+            return LazyOptional.empty();
+        }
+        int i = side.get3DDataValue();
+        LazyOptional<IEnergyStorage> input = energyInputs[i];
+        if (input == null) {
+            EnergyInput storage = new EnergyInput(this, side);
+            input = LazyOptional.of(() -> storage);
+            energyInputs[i] = input;
+        }
+        return input;
+    }
+
+    private static boolean offersEnergyInput(BlockState state, Direction side) {
+        return state.getBlock() instanceof FlowPipeBlock pipe && pipe.kind().carries(PipeKind.ENERGY_RES)
+                && state.getValue(FlowPipeBlock.propertyFor(side)) == SideState.EXTRACT;
+    }
+
+    /**
+     * Step 109: the pipe's block state changed (FlowPipeBlock.onPlace, with the new state, which this block entity
+     * doesn't hold yet): sides that no longer offer an energy input drop the one they handed out.
+     */
+    public void refreshEnergyInputs(BlockState newState) {
+        for (Direction side : Direction.values()) {
+            int i = side.get3DDataValue();
+            if (energyInputs[i] != null && !offersEnergyInput(newState, side)) {
+                energyInputs[i].invalidate();
+                energyInputs[i] = null;
+            }
+        }
+    }
+
+    @Override
+    public <T> LazyOptional<T> getCapability(Capability<T> cap, @Nullable Direction side) {
+        if (cap == ForgeCapabilities.ENERGY) {
+            LazyOptional<IEnergyStorage> input = energyInputOptional(side);
+            if (input.isPresent()) {
+                return input.cast();
+            }
+        }
+        return super.getCapability(cap, side);
+    }
+
+    @Override
+    public void invalidateCaps() {
+        super.invalidateCaps();
+        for (int i = 0; i < energyInputs.length; i++) {
+            if (energyInputs[i] != null) {
+                energyInputs[i].invalidate();
+                energyInputs[i] = null;
+            }
+        }
     }
 
     private static int slot(Direction side, int resource) {

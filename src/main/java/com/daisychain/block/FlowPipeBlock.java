@@ -129,6 +129,15 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
      */
     protected abstract boolean canConnectToBlock(Level level, BlockPos targetPos, Direction targetSide);
 
+    /**
+     * True if this pipe connects (as an insert side) to the block next to it. Never to another of our pipes: pipes of
+     * other types don't connect, even now that pull sides of energy and universal pipes take pushed energy (step 109).
+     */
+    private boolean connectsToBlock(Level level, BlockPos neighborPos, BlockState neighborState, Direction side) {
+        return !neighborState.isAir() && !(neighborState.getBlock() instanceof FlowPipeBlock)
+                && canConnectToBlock(level, neighborPos, side.getOpposite());
+    }
+
     public static EnumProperty<SideState> propertyFor(Direction direction) {
         return PROPERTY_BY_DIRECTION[direction.get3DDataValue()];
     }
@@ -260,7 +269,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         if (!(level instanceof Level realLevel)) {
             return null;
         }
-        return canConnectToBlock(realLevel, neighborPos, direction.getOpposite()) ? SideState.CONNECTED : SideState.NONE;
+        return connectsToBlock(realLevel, neighborPos, neighborState, direction) ? SideState.CONNECTED : SideState.NONE;
     }
 
     /** Recomputes all six sides. Never loads chunks: a pull side next to an unloaded chunk stays a pull side. */
@@ -491,7 +500,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         if (linksWith(neighborState)) {
             return (1 << MODE_NORMAL) | (1 << MODE_DISCONNECTED);
         }
-        boolean inventory = !neighborState.isAir() && canConnectToBlock(level, neighborPos, side.getOpposite());
+        boolean inventory = connectsToBlock(level, neighborPos, neighborState, side);
         return inventory ? (1 << MODE_NORMAL) | (1 << MODE_PULL) | (1 << MODE_DISCONNECTED)
                 : (1 << MODE_NORMAL) | (1 << MODE_PULL);
     }
@@ -515,8 +524,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         }
         BlockState neighborState = level.getBlockState(neighborPos);
         boolean neighborIsPipe = linksWith(neighborState);
-        boolean neighborIsInventory = !neighborIsPipe && !neighborState.isAir()
-                && canConnectToBlock(level, neighborPos, side.getOpposite());
+        boolean neighborIsInventory = !neighborIsPipe && connectsToBlock(level, neighborPos, neighborState, side);
 
         int bit = 1 << side.get3DDataValue();
         int current = (disconnectMask(level, pos, state) & bit) != 0 ? MODE_DISCONNECTED
@@ -552,8 +560,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         }
         BlockState neighborState = level.getBlockState(neighborPos);
         boolean neighborIsPipe = linksWith(neighborState);
-        boolean neighborIsInventory = !neighborIsPipe && !neighborState.isAir()
-                && canConnectToBlock(level, neighborPos, side.getOpposite());
+        boolean neighborIsInventory = !neighborIsPipe && connectsToBlock(level, neighborPos, neighborState, side);
 
         int extract = extractMask(level, pos, state);
         int disconnect = disconnectMask(level, pos, state);
@@ -680,6 +687,11 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         // Called for new pipes and for arm/settings changes on existing pipes.
         if (level instanceof ServerLevel serverLevel && oldState != state) {
             NetworkManager.get(serverLevel).onPipeChanged(pos);
+            // Step 109: a side may have stopped being a pull side, which decides whether that side offers an energy
+            // input; blocks holding the old one are told to drop it. (New pull sides are found by neighbor updates.)
+            if (oldState.is(state.getBlock()) && serverLevel.getBlockEntity(pos) instanceof PipeDataBlockEntity data) {
+                data.refreshEnergyInputs(state);
+            }
             // Step 101: a pipe put here by something else (a building tool's paste, a schematic) can say "pull side" in
             // its block state with no pull settings stored. Check again in 2 ticks (our own code stores the settings by
             // then, e.g. a tier swap) and, if it still doesn't match, work the arms out from what is stored.

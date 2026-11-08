@@ -287,6 +287,94 @@ public final class DaisychainGameTests {
                 helper.getLevel().getBlockEntity(helper.absolutePos(lectern)));
     }
 
+    // ---------------------------------------------------------------- pushed energy (step 109)
+
+    /** A block that only pushes energy (like a Flux Point) feeds an energy pipe through its pull side. */
+    @GameTest(template = EMPTY, timeoutTicks = 120)
+    public static void pushedEnergyEnergyPipe(GameTestHelper helper) {
+        pushedEnergy(helper, ModBlocks.energyPipes()[0]);
+    }
+
+    /** The same through a universal pipe. */
+    @GameTest(template = EMPTY, timeoutTicks = 120)
+    public static void pushedEnergyUniversalPipe(GameTestHelper helper) {
+        pushedEnergy(helper, ModBlocks.UNIVERSAL_PIPE.get());
+    }
+
+    /**
+     * Stone (stands in for the pushing block) | pipe with a pull side facing it | pipe | lectern (counting sink).
+     * The pull side offers an energy input and the linked side doesn't; a simulated push moves nothing; real pushes
+     * (two per tick, as much as possible) arrive at the lectern exactly, at no more than the side's speed.
+     */
+    private static void pushedEnergy(GameTestHelper helper, Block pipe) {
+        helper.setBlock(A, Blocks.STONE.defaultBlockState());
+        BlockPos sink = A.east(3);
+        helper.setBlock(sink, Blocks.LECTERN.defaultBlockState());
+        helper.setBlock(A.east(1), pipe.defaultBlockState());
+        helper.setBlock(A.east(2), pipe.defaultBlockState());
+        FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east(1)));
+        FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east(2)));
+        pull(helper, A.east(), Direction.WEST, 0);
+        BlockPos pipePos = helper.absolutePos(A.east());
+        long[] pushed = new long[1];
+        long[] start = new long[1];
+        helper.runAfterDelay(10, () -> {
+            var input = energyInputAt(helper, pipePos, Direction.WEST);
+            helper.assertTrue(input != null && input.canReceive(), "Pull side has no energy input");
+            helper.assertTrue(energyInputAt(helper, pipePos, Direction.EAST)
+                    == null, "Linked side must not have an energy input");
+            start[0] = received(helper, sink);
+            int promised = input.receiveEnergy(1000, true);
+            helper.assertTrue(promised == 1000, "Simulated push took " + promised + ", expected 1000");
+            helper.assertTrue(received(helper, sink) == start[0], "A simulated push moved energy");
+        });
+        int ticks = 40;
+        for (int t = 0; t < ticks; t++) {
+            helper.runAfterDelay(20 + t, () -> {
+                var input = energyInputAt(helper, pipePos, Direction.WEST);
+                if (input != null) {
+                    pushed[0] += input.receiveEnergy(Integer.MAX_VALUE, false);
+                    pushed[0] += input.receiveEnergy(Integer.MAX_VALUE, false);
+                }
+            });
+        }
+        helper.runAfterDelay(20 + ticks + 1, () -> {
+            long got = received(helper, sink) - start[0];
+            helper.assertTrue(got == pushed[0], "Pipe took " + pushed[0] + " FE but the lectern got " + got);
+            long perTransfer = com.daisychain.config.UpgradeSpeeds.energyFe(0);
+            long windows = (ticks + com.daisychain.config.UpgradeSpeeds.energyInterval(0) - 1)
+                    / Math.max(1, com.daisychain.config.UpgradeSpeeds.energyInterval(0));
+            helper.assertTrue(got > 0 && got <= (windows + 1) * perTransfer,
+                    "Got " + got + " FE in " + ticks + " ticks, at most " + (windows + 1) * perTransfer + " allowed");
+            int status = NetworkManager.get(helper.getLevel()).sideStatus(pipePos, Direction.WEST, PipeKind.ENERGY_RES);
+            helper.assertTrue(status == SideStatus.MOVING, "Status " + status + ", expected Moving");
+            helper.succeed();
+        });
+    }
+
+    @javax.annotation.Nullable
+    private static net.minecraftforge.energy.IEnergyStorage energyInputAt(GameTestHelper helper, BlockPos absolutePos,
+                                                                           Direction side) {
+        var blockEntity = helper.getLevel().getBlockEntity(absolutePos);
+        return blockEntity == null ? null : blockEntity.getCapability(
+                net.minecraftforge.common.capabilities.ForgeCapabilities.ENERGY, side).resolve().orElse(null);
+    }
+
+    /** A universal pipe's pull side takes pushed energy, but an energy pipe next to it still doesn't connect to it. */
+    @GameTest(template = EMPTY, timeoutTicks = 60)
+    public static void otherPipeTypesStayApart(GameTestHelper helper) {
+        helper.setBlock(A, ModBlocks.UNIVERSAL_PIPE.get().defaultBlockState());
+        pull(helper, A, Direction.EAST, 0);
+        helper.setBlock(A.east(), ModBlocks.energyPipes()[0].defaultBlockState());
+        FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east()));
+        helper.runAfterDelay(5, () -> {
+            BlockState energy = helper.getBlockState(A.east());
+            helper.assertTrue(energy.getValue(FlowPipeBlock.propertyFor(Direction.WEST)) == SideState.NONE,
+                    "Energy pipe connected to the universal pipe: " + energy);
+            helper.succeed();
+        });
+    }
+
     // ---------------------------------------------------------------- odd data (step 100)
 
     /**

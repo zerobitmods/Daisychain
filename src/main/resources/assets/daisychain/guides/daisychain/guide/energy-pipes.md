@@ -38,6 +38,16 @@ Energy pipes of every tier connect to each other and make one network. Energy go
 
 So you can upgrade a long line one stretch at a time and it keeps working the whole way.
 
+## Blocks that push power
+
+Some blocks never hand their power over when a pipe asks for it. They push it out on their own instead: a **Flux Point**
+is the classic, and plenty of generators and cables work the same way. Point a **pull side** at one and it catches what
+gets pushed in, then sends it straight on to your machines. That works on energy pipes and universal pipes.
+
+The pipe still keeps nothing. Power only goes in when a machine down the line wants it, at the pull side's speed, and the
+rest stays in the block that pushed it. Priority, Send to and Fill to work as usual. A side set to **once per pulse** won't
+take pushed power.
+
 ## Swapping in place
 
 Hold a faster energy pipe, sneak and right-click a slower one: it's swapped on the spot. Its sides, pull settings and

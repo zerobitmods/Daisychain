@@ -140,6 +140,25 @@ final class Extractor {
     /** FE sent to each endpoint (by Endpoint.index) during the transfer in progress, so a route's cap holds per transfer. */
     int[] routeSent = new int[0];
 
+    /**
+     * Step 109: energy that other blocks push into a pull side (a Flux Point, cables, generators that push) shares that
+     * side's speed with what the side pulls itself. Per side: start of the current speed window (game tick), FE used in
+     * it, and the last tick anything was pushed in (the status shows Moving for a second after that).
+     */
+    final long[] energyWindowStart = {Long.MIN_VALUE / 2, Long.MIN_VALUE / 2, Long.MIN_VALUE / 2,
+            Long.MIN_VALUE / 2, Long.MIN_VALUE / 2, Long.MIN_VALUE / 2};
+    final int[] energyUsed = new int[6];
+    final long[] energyPushTick = {Long.MIN_VALUE / 2, Long.MIN_VALUE / 2, Long.MIN_VALUE / 2,
+            Long.MIN_VALUE / 2, Long.MIN_VALUE / 2, Long.MIN_VALUE / 2};
+    /**
+     * Step 109: true while this pipe is moving something. A block that pushes energy back into this pipe from inside
+     * that move (directly or through other blocks) is refused, so the transfer state below is never used twice at once
+     * and nothing can loop.
+     */
+    boolean busy;
+    /** Step 109: stands in for the pushing block during a push (reused, no allocation). */
+    final EnergyTransfer.PushSource pushSource = new EnergyTransfer.PushSource();
+
     @SuppressWarnings("unchecked")
     private final CapCache<IItemHandler>[] sourceCaches = new CapCache[6];
     final int[] slotCursor = new int[6];
@@ -290,6 +309,25 @@ final class Extractor {
         int index = destination.index;
         if (kind == PipeKind.ENERGY && index >= 0 && index < routeSent.length) {
             routeSent[index] += amount;
+        }
+    }
+
+    /**
+     * Step 109: FE this side may still move in its current speed window (perTransfer per interval ticks), pulled and
+     * pushed in together. Starts a new window when the old one has passed.
+     */
+    int energyAllowance(int side, long now, int interval, int perTransfer) {
+        if (now >= energyWindowStart[side] + Math.max(1, interval) || now < energyWindowStart[side]) {
+            energyWindowStart[side] = now;
+            energyUsed[side] = 0;
+        }
+        return Math.max(0, perTransfer - energyUsed[side]);
+    }
+
+    /** Step 109: counts FE moved by this side in its current speed window (never more than the window allows). */
+    void addEnergyUsed(int side, int amount) {
+        if (amount > 0) {
+            energyUsed[side] = (int) Math.min(Integer.MAX_VALUE, (long) energyUsed[side] + amount);
         }
     }
 
