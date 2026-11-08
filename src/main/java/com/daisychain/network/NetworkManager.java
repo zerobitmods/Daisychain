@@ -308,7 +308,7 @@ public final class NetworkManager {
             moved = EnergyTransfer.push(level, extractor, side, extractor.destinations, data.distribution(side),
                     data.allowsSelfFeed(side), Math.min(maxReceive, allowance),
                     data.fillDestinationTo(side, PipeKind.ENERGY_RES),
-                    DaisychainConfig.MAX_HANDLER_CALLS_PER_TRANSFER.getAsInt(), simulate);
+                    DaisychainConfig.MAX_HANDLER_CALLS_PER_TRANSFER.get(), simulate);
         } finally {
             extractor.busy = false;
         }
