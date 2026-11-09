@@ -7,6 +7,7 @@ import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.PipeKind;
 import com.daisychain.block.RedstoneMode;
 import com.daisychain.block.SideState;
+import com.daisychain.network.SideRecheck;
 import com.daisychain.network.NetworkManager;
 import com.daisychain.network.SideStatus;
 import com.daisychain.registry.ModBlocks;
@@ -401,6 +402,27 @@ public final class DaisychainGameTests {
         });
         helper.runAfterDelay(20, () -> {
             assertEastSide(helper, SideState.CONNECTED, "table opened again");
+            SwitchableInventory.set(table, false);
+            helper.succeed();
+        });
+    }
+
+    /**
+     * F40: the block starts offering an inventory with no signal at all (Functional Storage's Controller Access Point
+     * when it gets linked, on 1.20.1). The pipe finds it on its slow re-check.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 120)
+    public static void armAfterSilentChange(GameTestHelper helper) {
+        BlockPos table = helper.absolutePos(A.east());
+        SwitchableInventory.set(table, false);
+        helper.setBlock(A, ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        helper.setBlock(A.east(), Blocks.ENCHANTING_TABLE.defaultBlockState());
+        helper.runAfterDelay(5, () -> {
+            assertEastSide(helper, SideState.NONE, "table closed at the start");
+            SwitchableInventory.set(table, true); // no neighbor update, no block update
+        });
+        helper.runAfterDelay(5 + SideRecheck.SWEEP_TICKS + 10, () -> {
+            assertEastSide(helper, SideState.CONNECTED, "table opened silently");
             SwitchableInventory.set(table, false);
             helper.succeed();
         });

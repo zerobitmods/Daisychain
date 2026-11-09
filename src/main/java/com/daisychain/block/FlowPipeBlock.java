@@ -132,8 +132,9 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
     /**
      * True if this pipe connects (as an insert side) to the block next to it. Never to another of our pipes: pipes of
      * other types don't connect, even now that pull sides of energy and universal pipes take pushed energy (step 109).
+     * Public for SideRecheck (F40); doesn't keep neighborPos.
      */
-    private boolean connectsToBlock(Level level, BlockPos neighborPos, BlockState neighborState, Direction side) {
+    public boolean connectsToBlock(Level level, BlockPos neighborPos, BlockState neighborState, Direction side) {
         return !neighborState.isAir() && !(neighborState.getBlock() instanceof FlowPipeBlock)
                 && canConnectToBlock(level, neighborPos, side.getOpposite());
     }
@@ -269,7 +270,16 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         if (!(level instanceof Level realLevel)) {
             return null;
         }
-        return connectsToBlock(realLevel, neighborPos, neighborState, direction) ? SideState.CONNECTED : SideState.NONE;
+        if (connectsToBlock(realLevel, neighborPos, neighborState, direction)) {
+            return SideState.CONNECTED;
+        }
+        // F40: a block entity that offers nothing yet may start to without telling anyone (Functional Storage's
+        // Controller Access Point once it's linked): look again every couple of seconds while the side shows no arm.
+        if (realLevel instanceof ServerLevel serverLevel && neighborState.hasBlockEntity()
+                && !(neighborState.getBlock() instanceof FlowPipeBlock)) {
+            NetworkManager.get(serverLevel).sideRecheck.add(neighborPos.relative(direction.getOpposite()), direction);
+        }
+        return SideState.NONE;
     }
 
     /** Recomputes all six sides. Never loads chunks: a pull side next to an unloaded chunk stays a pull side. */
