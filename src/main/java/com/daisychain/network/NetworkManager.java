@@ -25,7 +25,9 @@ import net.minecraft.core.SectionPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraft.world.level.chunk.LevelChunk;
 
 import javax.annotation.Nullable;
 import java.util.IdentityHashMap;
@@ -43,6 +45,8 @@ public final class NetworkManager {
     private static final Direction[] DIRECTIONS = Direction.values();
     /** Chunk events that arrived off the server thread; handled at the start of the next server tick. */
     private static final Queue<PendingChunkEvent> PENDING_CHUNK_EVENTS = new ConcurrentLinkedQueue<>();
+    /** Step 111: chunk loads/unloads for the neighbor watches; always handled at the start of the next server tick. */
+    private static final Queue<PendingWatchEvent> PENDING_WATCH_EVENTS = new ConcurrentLinkedQueue<>();
 
     private final ServerLevel level;
     private final Long2ObjectOpenHashMap<PipeNetwork> networkByPipe = new Long2ObjectOpenHashMap<>();
@@ -52,6 +56,8 @@ public final class NetworkManager {
     /** Pipes with at least one pulling side, registered by their block entity. */
     private final Long2ObjectOpenHashMap<Extractor> extractorsByPos = new Long2ObjectOpenHashMap<>();
     private final ObjectArrayList<Extractor> extractors = new ObjectArrayList<>();
+    /** Step 111: block entities next to our pipes whose capability changes we listen to, by chunk, then position. */
+    private final Long2ObjectOpenHashMap<Long2ObjectOpenHashMap<NeighborWatch>> watchesByChunk = new Long2ObjectOpenHashMap<>();
 
     private NetworkManager(ServerLevel level) {
         this.level = level;
@@ -856,6 +862,7 @@ public final class NetworkManager {
     public static void clearAll() {
         MANAGERS.clear();
         PENDING_CHUNK_EVENTS.clear();
+        PENDING_WATCH_EVENTS.clear();
     }
 
     /**
@@ -875,6 +882,9 @@ public final class NetworkManager {
 
     /** Called at the start of every server tick. Does nothing unless chunk events were queued. */
     public static void processPendingChunkEvents() {
+        if (!PENDING_WATCH_EVENTS.isEmpty()) {
+            processPendingWatchEvents();
+        }
         if (PENDING_CHUNK_EVENTS.isEmpty()) {
             return;
         }
@@ -894,6 +904,122 @@ public final class NetworkManager {
         }
         for (int i = 0; i < affected.size(); i++) {
             invalidate(affected.get(i));
+        }
+    }
+
+    // ---------------------------------------------------------------- neighbor watches (step 111)
+
+    /** True if the block entity at pos already has a live watch. */
+    public boolean isWatched(BlockPos pos) {
+        Long2ObjectOpenHashMap<NeighborWatch> inChunk = watchesByChunk.get(ChunkPos.asLong(pos));
+        NeighborWatch watch = inChunk == null ? null : inChunk.get(pos.asLong());
+        return watch != null && !watch.removed;
+    }
+
+    /**
+     * Starts listening to capability changes of the block entity at pos (next to one of our pipes). Server thread only,
+     * and never from inside NeoForge's invalidation callbacks (only from a pipe's scheduled tick).
+     */
+    public void watch(BlockPos pos) {
+        long chunk = ChunkPos.asLong(pos);
+        Long2ObjectOpenHashMap<NeighborWatch> inChunk = watchesByChunk.get(chunk);
+        if (inChunk == null) {
+            inChunk = new Long2ObjectOpenHashMap<>();
+            watchesByChunk.put(chunk, inChunk);
+        }
+        NeighborWatch watch = inChunk.get(pos.asLong());
+        if (watch != null && !watch.removed) {
+            return;
+        }
+        watch = new NeighborWatch(this, level, pos.immutable());
+        inChunk.put(pos.asLong(), watch);
+        level.registerCapabilityListener(watch.pos, watch);
+    }
+
+    /** The watch has nothing left to do; NeoForge drops it because onInvalidate returns false. */
+    void dropWatch(NeighborWatch watch) {
+        watch.removed = true;
+        long chunk = ChunkPos.asLong(watch.pos);
+        Long2ObjectOpenHashMap<NeighborWatch> inChunk = watchesByChunk.get(chunk);
+        if (inChunk != null && inChunk.get(watch.pos.asLong()) == watch) {
+            inChunk.remove(watch.pos.asLong());
+            if (inChunk.isEmpty()) {
+                watchesByChunk.remove(chunk);
+            }
+        }
+    }
+
+    public int watchCount() {
+        int count = 0;
+        for (Long2ObjectOpenHashMap<NeighborWatch> inChunk : watchesByChunk.values()) {
+            count += inChunk.size();
+        }
+        return count;
+    }
+
+    /** Queues a chunk load or unload for the watches (handled at the start of the next server tick). */
+    public static void onChunkEventForWatches(ServerLevel level, long chunkPos, boolean loaded) {
+        PENDING_WATCH_EVENTS.add(new PendingWatchEvent(level, chunkPos, loaded));
+    }
+
+    private static void processPendingWatchEvents() {
+        PendingWatchEvent event;
+        while ((event = PENDING_WATCH_EVENTS.poll()) != null) {
+            if (event.loaded()) {
+                scanLoadedChunk(event.level(), event.chunkPos());
+            } else {
+                NetworkManager manager = MANAGERS.get(event.level());
+                if (manager != null) {
+                    manager.dropWatchesIn(event.chunkPos());
+                }
+            }
+        }
+    }
+
+    private void dropWatchesIn(long chunkPos) {
+        Long2ObjectOpenHashMap<NeighborWatch> inChunk = watchesByChunk.remove(chunkPos);
+        if (inChunk != null) {
+            for (NeighborWatch watch : inChunk.values()) {
+                watch.removed = true;
+            }
+        }
+    }
+
+    /**
+     * A chunk loaded: every pipe of ours touching a block entity in it (or touching one across its edge) re-checks its
+     * arms next tick, which also starts the watches again. Only block entities are looked at, never every block.
+     */
+    private static void scanLoadedChunk(ServerLevel level, long chunkPos) {
+        int chunkX = ChunkPos.getX(chunkPos);
+        int chunkZ = ChunkPos.getZ(chunkPos);
+        LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
+        if (chunk == null) {
+            return;
+        }
+        for (Map.Entry<BlockPos, BlockEntity> entry : chunk.getBlockEntities().entrySet()) {
+            if (!(entry.getValue() instanceof PipeDataBlockEntity)) {
+                NeighborWatch.scheduleRechecks(level, entry.getKey());
+            }
+        }
+        // Block entities in the four chunks around it that sit on the shared edge: a pipe in this chunk may touch them.
+        scanEdge(level, chunkX - 1, chunkZ, chunkX * 16 - 1, Integer.MIN_VALUE);
+        scanEdge(level, chunkX + 1, chunkZ, chunkX * 16 + 16, Integer.MIN_VALUE);
+        scanEdge(level, chunkX, chunkZ - 1, Integer.MIN_VALUE, chunkZ * 16 - 1);
+        scanEdge(level, chunkX, chunkZ + 1, Integer.MIN_VALUE, chunkZ * 16 + 16);
+    }
+
+    /** Block entities of chunk (x, z) on the column edgeX or the row edgeZ (MIN_VALUE = any). */
+    private static void scanEdge(ServerLevel level, int chunkX, int chunkZ, int edgeX, int edgeZ) {
+        LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
+        if (chunk == null) {
+            return;
+        }
+        for (Map.Entry<BlockPos, BlockEntity> entry : chunk.getBlockEntities().entrySet()) {
+            BlockPos pos = entry.getKey();
+            if ((edgeX == Integer.MIN_VALUE || pos.getX() == edgeX) && (edgeZ == Integer.MIN_VALUE || pos.getZ() == edgeZ)
+                    && !(entry.getValue() instanceof PipeDataBlockEntity)) {
+                NeighborWatch.scheduleRechecks(level, pos);
+            }
         }
     }
 
@@ -1121,6 +1247,9 @@ public final class NetworkManager {
         addToChunkIndex(network, network.chunks);
         addToChunkIndex(network, network.missingChunks);
         return network;
+    }
+
+    private record PendingWatchEvent(ServerLevel level, long chunkPos, boolean loaded) {
     }
 
     private record PendingChunkEvent(ServerLevel level, long chunkPos) {

@@ -371,6 +371,66 @@ public final class DaisychainGameTests {
         });
     }
 
+    // ---------------------------------------------------------------- blocks that change sides quietly (step 111)
+
+    /**
+     * A block switches its inventory off and on again with no block update, like a Mekanism Side Config change.
+     * The insert arm follows each time (before step 111 it disconnected and never came back).
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 60)
+    public static void armFollowsQuietSideChanges(GameTestHelper helper) {
+        BlockPos table = helper.absolutePos(A.east());
+        SwitchableInventory.set(table, false);
+        helper.setBlock(A, ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        helper.setBlock(A.east(), Blocks.ENCHANTING_TABLE.defaultBlockState());
+        helper.runAfterDelay(5, () -> {
+            assertEastSide(helper, SideState.NONE, "table closed at the start");
+            switchTable(helper, table, true);
+        });
+        helper.runAfterDelay(10, () -> {
+            assertEastSide(helper, SideState.CONNECTED, "table opened");
+            switchTable(helper, table, false);
+        });
+        helper.runAfterDelay(15, () -> {
+            assertEastSide(helper, SideState.NONE, "table closed");
+            switchTable(helper, table, true);
+        });
+        helper.runAfterDelay(20, () -> {
+            assertEastSide(helper, SideState.CONNECTED, "table opened again");
+            SwitchableInventory.set(table, false);
+            helper.succeed();
+        });
+    }
+
+    /**
+     * A block placed next to a pipe that only opens its sides right after it is placed (Mekanism on 1.21.1 applies a
+     * machine's side config after the block is set). The pipe still connects.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void armAfterLateSideConfig(GameTestHelper helper) {
+        BlockPos table = helper.absolutePos(A.east());
+        SwitchableInventory.set(table, false);
+        helper.setBlock(A, ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        helper.setBlock(A.east(), Blocks.ENCHANTING_TABLE.defaultBlockState());
+        switchTable(helper, table, true); // same tick, right after placing
+        helper.runAfterDelay(5, () -> {
+            assertEastSide(helper, SideState.CONNECTED, "side config arrived after placing");
+            SwitchableInventory.set(table, false);
+            helper.succeed();
+        });
+    }
+
+    private static void switchTable(GameTestHelper helper, BlockPos table, boolean open) {
+        SwitchableInventory.set(table, open);
+        helper.getLevel().invalidateCapabilities(table); // no block update, as Mekanism does
+    }
+
+    private static void assertEastSide(GameTestHelper helper, SideState expected, String when) {
+        BlockState pipe = helper.getBlockState(A);
+        helper.assertTrue(pipe.getValue(FlowPipeBlock.propertyFor(Direction.EAST)) == expected,
+                "Pipe side toward the table should be " + expected + " (" + when + "): " + pipe);
+    }
+
     // ---------------------------------------------------------------- odd data (step 100)
 
     /**

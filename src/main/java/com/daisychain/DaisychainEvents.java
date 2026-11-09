@@ -79,12 +79,14 @@ public final class DaisychainEvents {
     public static void onChunkLoad(ChunkEvent.Load event) {
         if (event.getLevel() instanceof ServerLevel serverLevel) {
             NetworkManager.onChunkEvent(serverLevel, event.getChunk().getPos().toLong());
+            NetworkManager.onChunkEventForWatches(serverLevel, event.getChunk().getPos().toLong(), true);
         }
     }
 
     public static void onChunkUnload(ChunkEvent.Unload event) {
         if (event.getLevel() instanceof ServerLevel serverLevel) {
             NetworkManager.onChunkEvent(serverLevel, event.getChunk().getPos().toLong());
+            NetworkManager.onChunkEventForWatches(serverLevel, event.getChunk().getPos().toLong(), false);
         }
     }
 

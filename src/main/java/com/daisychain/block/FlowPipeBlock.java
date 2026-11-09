@@ -274,6 +274,14 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         if (!(level instanceof Level realLevel)) {
             return null;
         }
+        // Step 111: a block entity can change what it offers without a block update (Mekanism's Side Config, or its
+        // side config arriving just after it was placed). The first time a pipe meets one, a re-check one tick later
+        // starts listening to it (see tick).
+        if (realLevel instanceof ServerLevel serverLevel && neighborState.hasBlockEntity()
+                && !(neighborState.getBlock() instanceof FlowPipeBlock)
+                && !NetworkManager.get(serverLevel).isWatched(neighborPos)) {
+            serverLevel.scheduleTick(neighborPos.relative(direction.getOpposite()), this, 1);
+        }
         return connectsToBlock(realLevel, neighborPos, neighborState, direction) ? SideState.CONNECTED : SideState.NONE;
     }
 
@@ -416,6 +424,14 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
     public void neighborChanged(BlockState state, Level level, BlockPos pos, Block neighborBlock,
                                 BlockPos neighborPos, boolean movedByPiston) {
         super.neighborChanged(state, level, pos, neighborBlock, neighborPos, movedByPiston);
+        // Step 111: a block entity next to us said it changed (Mekanism does this on 1.20.1 when a side's config changes;
+        // other mods too). Its block state may be the same, so updateShape never runs: re-check the arms next tick.
+        if (level instanceof ServerLevel serverLevel && pos.distManhattan(neighborPos) == 1) {
+            BlockState neighborState = level.getBlockState(neighborPos);
+            if (neighborState.hasBlockEntity() && !(neighborState.getBlock() instanceof FlowPipeBlock)) {
+                serverLevel.scheduleTick(pos, this, 1);
+            }
+        }
         // Only pipes with settings can have pull sides or redstone-controlled pull sides.
         if (level instanceof ServerLevel serverLevel && state.getValue(HAS_DATA)) {
             NetworkManager manager = NetworkManager.getExisting(serverLevel);
@@ -723,11 +739,46 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         return false;
     }
 
-    /** Step 101: only scheduled by onPlace for a pasted pipe whose arms disagree with its settings (pipes never tick). */
+    /**
+     * A scheduled re-check (pipes never tick on their own). Scheduled by onPlace for a pasted pipe whose arms disagree
+     * with its settings (step 101), and since step 111 when a block entity next to the pipe may offer something
+     * different now: the pipe is new next to it, its capabilities changed (NeighborWatch), it sent a neighbor update,
+     * or its chunk loaded.
+     */
     @Override
     protected void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
+        NetworkManager manager = NetworkManager.get(level);
+        for (Direction direction : DIRECTIONS) {
+            BlockPos neighborPos = pos.relative(direction);
+            if (level.isLoaded(neighborPos)) {
+                BlockState neighborState = level.getBlockState(neighborPos);
+                if (neighborState.hasBlockEntity() && !(neighborState.getBlock() instanceof FlowPipeBlock)) {
+                    manager.watch(neighborPos);
+                }
+            }
+        }
         if (armsDisagreeWithSettings(level, pos, state)) {
             refreshArms(level, pos);
+            return;
+        }
+        // Same rules as updateShape, side by side. A side next to an unloaded chunk keeps what it had (a link to a pipe
+        // in a chunk that isn't loaded must not be dropped).
+        int extract = extractMask(level, pos, state);
+        int disconnect = disconnectMask(level, pos, state);
+        BlockState newState = state;
+        for (Direction direction : DIRECTIONS) {
+            BlockPos neighborPos = pos.relative(direction);
+            if (!level.isLoaded(neighborPos)) {
+                continue;
+            }
+            SideState side = computeSide(level, direction, neighborPos, level.getBlockState(neighborPos), extract,
+                    disconnect);
+            if (side != null) {
+                newState = newState.setValue(propertyFor(direction), side);
+            }
+        }
+        if (newState != state) {
+            level.setBlock(pos, newState, Block.UPDATE_ALL);
         }
     }
 
