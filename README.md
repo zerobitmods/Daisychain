@@ -2,7 +2,7 @@
 
 Fast, lag-friendly pipes for items, fluids and energy, built for big modpacks and busy servers.
 
-Minecraft 1.21.1 · NeoForge 21.1.49+ · MIT license · version 1.1.1
+Minecraft 1.21.1 · NeoForge 21.1.49+ · MIT license · version 1.1.2
 
 ## What it adds
 
