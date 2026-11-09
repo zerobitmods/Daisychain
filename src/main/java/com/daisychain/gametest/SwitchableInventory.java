@@ -29,8 +29,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Mod.EventBusSubscriber(modid = Daisychain.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class SwitchableInventory {
     private static final ResourceLocation ID = new ResourceLocation(Daisychain.MOD_ID, "switchable_inventory");
-    private static final Map<BlockPos, ItemStackHandler> HANDLERS = new ConcurrentHashMap<>();
     private static final Map<BlockPos, LazyOptional<IItemHandler>> OPEN = new ConcurrentHashMap<>();
+    private static final Map<BlockPos, ItemStackHandler> HANDLERS = new ConcurrentHashMap<>();
 
     private SwitchableInventory() {
     }
@@ -49,10 +49,13 @@ public final class SwitchableInventory {
         }
     }
 
-    /** The table's inventory while it is switched on (null when off). */
-    @Nullable
-    public static ItemStackHandler handler(BlockPos pos) {
-        return HANDLERS.get(pos);
+    /**
+     * F41: the table offers this handler from now on, and the old one is NOT invalidated (what Functional Storage's
+     * Controller Access Point does when it gets linked on 1.20.1).
+     */
+    public static void setQuietly(BlockPos pos, ItemStackHandler handler) {
+        HANDLERS.put(pos.immutable(), handler);
+        OPEN.put(pos.immutable(), LazyOptional.of(() -> handler));
     }
 
     @SubscribeEvent

@@ -7,7 +7,6 @@ import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.PipeKind;
 import com.daisychain.block.RedstoneMode;
 import com.daisychain.block.SideState;
-import com.daisychain.network.SideRecheck;
 import com.daisychain.network.NetworkManager;
 import com.daisychain.network.SideStatus;
 import com.daisychain.registry.ModBlocks;
@@ -21,6 +20,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.items.ItemStackHandler;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
@@ -408,46 +408,32 @@ public final class DaisychainGameTests {
     }
 
     /**
-     * F40: the block starts offering an inventory with no signal at all (Functional Storage's Controller Access Point
-     * when it gets linked, on 1.20.1). The pipe finds it on its slow re-check.
+     * F41: the destination switches to a different handler without invalidating the old one (Functional Storage's
+     * Controller Access Point: its own upgrade slot until linked, then the controller's inventory). Items go into the
+     * new handler without re-placing any pipe.
      */
-    @GameTest(template = EMPTY, timeoutTicks = 120)
-    public static void armAfterSilentChange(GameTestHelper helper) {
-        BlockPos table = helper.absolutePos(A.east());
-        SwitchableInventory.set(table, false);
-        helper.setBlock(A, ModBlocks.ITEM_PIPE.get().defaultBlockState());
-        helper.setBlock(A.east(), Blocks.ENCHANTING_TABLE.defaultBlockState());
-        helper.runAfterDelay(5, () -> {
-            assertEastSide(helper, SideState.NONE, "table closed at the start");
-            SwitchableInventory.set(table, true); // no neighbor update, no block update
+    @GameTest(template = EMPTY, timeoutTicks = 260)
+    public static void insertFollowsQuietHandlerSwap(GameTestHelper helper) {
+        BlockPos table = helper.absolutePos(B);
+        SwitchableInventory.setQuietly(table, new ItemStackHandler(1) {
+            @Override
+            public boolean isItemValid(int slot, ItemStack stack) {
+                return false; // like the access point's upgrade slot: refuses ordinary items
+            }
         });
-        helper.runAfterDelay(5 + SideRecheck.SWEEP_TICKS + 10, () -> {
-            assertEastSide(helper, SideState.CONNECTED, "table opened silently");
-            SwitchableInventory.set(table, false);
-            helper.succeed();
-        });
-    }
-
-    /**
-     * F40: a pull side asleep next to a block that offers nothing wakes up once the block starts offering items with
-     * no signal at all, and moves them.
-     */
-    @GameTest(template = EMPTY, timeoutTicks = 200)
-    public static void pullWakesAfterSilentChange(GameTestHelper helper) {
-        BlockPos table = helper.absolutePos(A);
-        SwitchableInventory.set(table, false);
-        helper.setBlock(A, Blocks.ENCHANTING_TABLE.defaultBlockState());
-        chest(helper, B);
+        helper.setBlock(B, Blocks.ENCHANTING_TABLE.defaultBlockState());
+        chest(helper, A, new ItemStack(Items.DIRT, 4));
         line(helper, A.east(), 3, ModBlocks.ITEM_PIPE.get());
         pull(helper, A.east(), Direction.WEST, 0);
-        helper.runAfterDelay(40, () -> {
-            assertStatus(helper, SideStatus.NO_SOURCE);
-            SwitchableInventory.set(table, true); // no neighbor update, no block update
-            SwitchableInventory.handler(table).setStackInSlot(0, new ItemStack(Items.DIRT, 4));
+        ItemStackHandler storage = new ItemStackHandler(1);
+        helper.runAfterDelay(60, () -> {
+            helper.assertTrue(count(helper, A) == 4, "Chest has " + count(helper, A) + " dirt before the switch (should be 4)");
+            SwitchableInventory.setQuietly(table, storage);
         });
-        helper.runAfterDelay(40 + SideRecheck.SWEEP_TICKS + 60, () -> {
-            helper.assertTrue(count(helper, B) == 4, "Chest has " + count(helper, B) + " dirt (should be 4)");
+        helper.runAfterDelay(200, () -> {
+            int moved = storage.getStackInSlot(0).getCount();
             SwitchableInventory.set(table, false);
+            helper.assertTrue(moved == 4, "New handler has " + moved + " dirt (should be 4)");
             helper.succeed();
         });
     }

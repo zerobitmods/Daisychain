@@ -25,9 +25,7 @@ import net.minecraft.core.SectionPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
-import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
-import net.minecraft.world.level.chunk.LevelChunk;
 
 import javax.annotation.Nullable;
 import java.util.IdentityHashMap;
@@ -45,8 +43,6 @@ public final class NetworkManager {
     private static final Direction[] DIRECTIONS = Direction.values();
     /** Chunk events that arrived off the server thread; handled at the start of the next server tick. */
     private static final Queue<PendingChunkEvent> PENDING_CHUNK_EVENTS = new ConcurrentLinkedQueue<>();
-    /** F40: chunks that loaded, scanned at the start of the next server tick for pipes touching block entities. */
-    private static final Queue<PendingChunkEvent> PENDING_CHUNK_SCANS = new ConcurrentLinkedQueue<>();
 
     private final ServerLevel level;
     private final Long2ObjectOpenHashMap<PipeNetwork> networkByPipe = new Long2ObjectOpenHashMap<>();
@@ -56,12 +52,9 @@ public final class NetworkManager {
     /** Pipes with at least one pulling side, registered by their block entity. */
     private final Long2ObjectOpenHashMap<Extractor> extractorsByPos = new Long2ObjectOpenHashMap<>();
     private final ObjectArrayList<Extractor> extractors = new ObjectArrayList<>();
-    /** F40: pipe sides waiting for a block entity next to them to start offering something. */
-    public final SideRecheck sideRecheck;
 
     private NetworkManager(ServerLevel level) {
         this.level = level;
-        this.sideRecheck = new SideRecheck(this, level);
     }
 
     public static NetworkManager get(ServerLevel level) {
@@ -505,7 +498,6 @@ public final class NetworkManager {
      * and go first next time, so every pipe still gets its turn, just slower.
      */
     public void tick() {
-        sideRecheck.tick();
         if (extractors.isEmpty()) {
             recordTick(0, 0L, false, 0);
             return;
@@ -829,12 +821,6 @@ public final class NetworkManager {
                 extractor.idleMask |= bit;
                 extractor.sideNextRun[side] = Long.MAX_VALUE;
                 extractor.setStatus(side, SideStatus.NO_SOURCE);
-                // F40: a block entity there may start offering something without any neighbor update (a Functional
-                // Storage access point when it gets linked): check it again every couple of seconds.
-                BlockState neighborState = level.getBlockState(extractor.pos.relative(direction));
-                if (neighborState.hasBlockEntity() && !(neighborState.getBlock() instanceof FlowPipeBlock)) {
-                    sideRecheck.addPull(extractor.pos.asLong(), direction);
-                }
                 continue;
             }
             extractor.idleMask &= ~bit;
@@ -870,7 +856,6 @@ public final class NetworkManager {
     public static void clearAll() {
         MANAGERS.clear();
         PENDING_CHUNK_EVENTS.clear();
-        PENDING_CHUNK_SCANS.clear();
     }
 
     /**
@@ -888,69 +873,8 @@ public final class NetworkManager {
         }
     }
 
-    /** F40: a chunk loaded; queue it for the block-entity scan (always done at the next server tick start). */
-    public static void onChunkLoadedForScan(ServerLevel level, long chunkPos) {
-        PENDING_CHUNK_SCANS.add(new PendingChunkEvent(level, chunkPos));
-    }
-
-    /**
-     * F40: every pipe of ours touching a block entity in the chunk (or across its edge) re-checks its arms next tick.
-     * That puts sides still waiting for a block entity back on the SideRecheck list after a restart, and fixes arms
-     * saved before F39/F40. Only block entities are looked at, never every block.
-     */
-    private static void scanLoadedChunk(ServerLevel level, long chunkPos) {
-        int chunkX = ChunkPos.getX(chunkPos);
-        int chunkZ = ChunkPos.getZ(chunkPos);
-        LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
-        if (chunk == null) {
-            return;
-        }
-        for (Map.Entry<BlockPos, BlockEntity> entry : chunk.getBlockEntities().entrySet()) {
-            if (!(entry.getValue() instanceof PipeDataBlockEntity)) {
-                scheduleRechecksAround(level, entry.getKey());
-            }
-        }
-        scanEdge(level, chunkX - 1, chunkZ, chunkX * 16 - 1, Integer.MIN_VALUE);
-        scanEdge(level, chunkX + 1, chunkZ, chunkX * 16 + 16, Integer.MIN_VALUE);
-        scanEdge(level, chunkX, chunkZ - 1, Integer.MIN_VALUE, chunkZ * 16 - 1);
-        scanEdge(level, chunkX, chunkZ + 1, Integer.MIN_VALUE, chunkZ * 16 + 16);
-    }
-
-    /** Block entities of chunk (x, z) on the column edgeX or the row edgeZ (MIN_VALUE = any). */
-    private static void scanEdge(ServerLevel level, int chunkX, int chunkZ, int edgeX, int edgeZ) {
-        LevelChunk chunk = level.getChunkSource().getChunkNow(chunkX, chunkZ);
-        if (chunk == null) {
-            return;
-        }
-        for (Map.Entry<BlockPos, BlockEntity> entry : chunk.getBlockEntities().entrySet()) {
-            BlockPos pos = entry.getKey();
-            if ((edgeX == Integer.MIN_VALUE || pos.getX() == edgeX) && (edgeZ == Integer.MIN_VALUE || pos.getZ() == edgeZ)
-                    && !(entry.getValue() instanceof PipeDataBlockEntity)) {
-                scheduleRechecksAround(level, pos);
-            }
-        }
-    }
-
-    private static void scheduleRechecksAround(ServerLevel level, BlockPos pos) {
-        for (Direction direction : Direction.values()) {
-            BlockPos pipePos = pos.relative(direction);
-            if (level.isLoaded(pipePos)) {
-                BlockState state = level.getBlockState(pipePos);
-                if (state.getBlock() instanceof FlowPipeBlock pipe) {
-                    level.scheduleTick(pipePos, pipe, 1);
-                }
-            }
-        }
-    }
-
     /** Called at the start of every server tick. Does nothing unless chunk events were queued. */
     public static void processPendingChunkEvents() {
-        if (!PENDING_CHUNK_SCANS.isEmpty()) {
-            PendingChunkEvent scan;
-            while ((scan = PENDING_CHUNK_SCANS.poll()) != null) {
-                scanLoadedChunk(scan.level(), scan.chunkPos());
-            }
-        }
         if (PENDING_CHUNK_EVENTS.isEmpty()) {
             return;
         }

@@ -17,7 +17,11 @@ import org.jetbrains.annotations.Nullable;
  *
  * <ul>
  *   <li>A found handler is reused until its LazyOptional is invalidated or its block entity is removed, so the hot
- *       path is two field reads and a loaded check, with no allocation.</li>
+ *       path is a few field reads and a loaded check, with no allocation.</li>
+ *   <li>F41: once per {@link #REVALIDATE_TICKS} it asks the block entity again, because some blocks switch to a
+ *       different handler without invalidating the old one (Functional Storage's Controller Access Point offers its
+ *       own upgrade slot until it is linked, then the controller's inventory). A different handler replaces the
+ *       cached one.</li>
  *   <li>When nothing is there, the lookup is repeated at most once per {@link #RECHECK_TICKS} game ticks, so an empty
  *       side never costs a block entity lookup every tick.</li>
  *   <li>Never loads chunks: an unloaded position gives null.</li>
@@ -28,6 +32,8 @@ import org.jetbrains.annotations.Nullable;
 public final class CapCache<T> {
     /** How often an empty side looks again for a handler that appeared without a neighbor update. */
     private static final int RECHECK_TICKS = 20;
+    /** F41: how often a cached handler is compared with what the block entity offers now. */
+    static final int REVALIDATE_TICKS = 20;
 
     private final Capability<T> capability;
     private final ServerLevel level;
@@ -49,6 +55,8 @@ public final class CapCache<T> {
     private CauldronFluidHandler cauldron;
     /** Game time of the last lookup that found nothing; Long.MIN_VALUE = look now. */
     private long emptySince = Long.MIN_VALUE;
+    /** F41: game time the cached handler was last confirmed. */
+    private long checkedAt;
 
     private CapCache(Capability<T> capability, ServerLevel level, BlockPos pos, Direction side,
                      @Nullable BooleanSupplier isValid, @Nullable Runnable onInvalidate) {
@@ -78,7 +86,25 @@ public final class CapCache<T> {
         T current = value;
         BlockEntity be = owner;
         if (current != null && be != null && !be.isRemoved()) {
-            return current;
+            long now = level.getGameTime();
+            if (now - checkedAt < REVALIDATE_TICKS) {
+                return current;
+            }
+            checkedAt = now;
+            LazyOptional<T> found = be.getCapability(capability, side);
+            if (found == optional) {
+                return current;
+            }
+            T resolved = found.isPresent() ? found.orElse(null) : null;
+            if (resolved == current) {
+                return current; // a new LazyOptional around the same handler
+            }
+            // F41: the block offers a different handler (or none) without invalidating the old one.
+            invalidate();
+            if (onInvalidate != null && (isValid == null || isValid.getAsBoolean())) {
+                onInvalidate.run();
+            }
+            return lookUp();
         }
         if (current != null && cauldron != null) {
             if (cauldron.stillThere()) {
@@ -119,6 +145,7 @@ public final class CapCache<T> {
                 owner = be;
                 optional = found;
                 emptySince = Long.MIN_VALUE;
+                checkedAt = level.getGameTime();
                 // Weak: a network rebuild drops this cache, and the neighbor's listener must not keep it alive.
                 WeakReference<CapCache<T>> self = new WeakReference<>(this);
                 found.addListener(gone -> {
