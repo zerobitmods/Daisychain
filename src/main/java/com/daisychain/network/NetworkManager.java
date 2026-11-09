@@ -61,7 +61,7 @@ public final class NetworkManager {
 
     private NetworkManager(ServerLevel level) {
         this.level = level;
-        this.sideRecheck = new SideRecheck(level);
+        this.sideRecheck = new SideRecheck(this, level);
     }
 
     public static NetworkManager get(ServerLevel level) {
@@ -829,6 +829,12 @@ public final class NetworkManager {
                 extractor.idleMask |= bit;
                 extractor.sideNextRun[side] = Long.MAX_VALUE;
                 extractor.setStatus(side, SideStatus.NO_SOURCE);
+                // F40: a block entity there may start offering something without any neighbor update (a Functional
+                // Storage access point when it gets linked): check it again every couple of seconds.
+                BlockState neighborState = level.getBlockState(extractor.pos.relative(direction));
+                if (neighborState.hasBlockEntity() && !(neighborState.getBlock() instanceof FlowPipeBlock)) {
+                    sideRecheck.addPull(extractor.pos.asLong(), direction);
+                }
                 continue;
             }
             extractor.idleMask &= ~bit;

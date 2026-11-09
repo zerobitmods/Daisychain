@@ -428,6 +428,30 @@ public final class DaisychainGameTests {
         });
     }
 
+    /**
+     * F40: a pull side asleep next to a block that offers nothing wakes up once the block starts offering items with
+     * no signal at all, and moves them.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 200)
+    public static void pullWakesAfterSilentChange(GameTestHelper helper) {
+        BlockPos table = helper.absolutePos(A);
+        SwitchableInventory.set(table, false);
+        helper.setBlock(A, Blocks.ENCHANTING_TABLE.defaultBlockState());
+        chest(helper, B);
+        line(helper, A.east(), 3, ModBlocks.ITEM_PIPE.get());
+        pull(helper, A.east(), Direction.WEST, 0);
+        helper.runAfterDelay(40, () -> {
+            assertStatus(helper, SideStatus.NO_SOURCE);
+            SwitchableInventory.set(table, true); // no neighbor update, no block update
+            SwitchableInventory.handler(table).setStackInSlot(0, new ItemStack(Items.DIRT, 4));
+        });
+        helper.runAfterDelay(40 + SideRecheck.SWEEP_TICKS + 60, () -> {
+            helper.assertTrue(count(helper, B) == 4, "Chest has " + count(helper, B) + " dirt (should be 4)");
+            SwitchableInventory.set(table, false);
+            helper.succeed();
+        });
+    }
+
     private static void switchTable(GameTestHelper helper, BlockPos table, boolean open) {
         SwitchableInventory.set(table, open);
         helper.getLevel().updateNeighborsAt(table, Blocks.ENCHANTING_TABLE); // what Mekanism 1.20.1 does

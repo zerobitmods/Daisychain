@@ -29,6 +29,7 @@ import java.util.concurrent.ConcurrentHashMap;
 @Mod.EventBusSubscriber(modid = Daisychain.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class SwitchableInventory {
     private static final ResourceLocation ID = new ResourceLocation(Daisychain.MOD_ID, "switchable_inventory");
+    private static final Map<BlockPos, ItemStackHandler> HANDLERS = new ConcurrentHashMap<>();
     private static final Map<BlockPos, LazyOptional<IItemHandler>> OPEN = new ConcurrentHashMap<>();
 
     private SwitchableInventory() {
@@ -37,13 +38,21 @@ public final class SwitchableInventory {
     /** Switches the table at pos (absolute) on or off. The caller then tells the neighbors, as Mekanism does. */
     public static void set(BlockPos pos, boolean open) {
         if (open) {
-            OPEN.computeIfAbsent(pos.immutable(), p -> LazyOptional.of(() -> new ItemStackHandler(1)));
+            ItemStackHandler handler = HANDLERS.computeIfAbsent(pos.immutable(), p -> new ItemStackHandler(1));
+            OPEN.computeIfAbsent(pos.immutable(), p -> LazyOptional.of(() -> handler));
         } else {
+            HANDLERS.remove(pos);
             LazyOptional<IItemHandler> old = OPEN.remove(pos);
             if (old != null) {
                 old.invalidate();
             }
         }
+    }
+
+    /** The table's inventory while it is switched on (null when off). */
+    @Nullable
+    public static ItemStackHandler handler(BlockPos pos) {
+        return HANDLERS.get(pos);
     }
 
     @SubscribeEvent
