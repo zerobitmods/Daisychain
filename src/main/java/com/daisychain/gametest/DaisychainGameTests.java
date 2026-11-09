@@ -375,6 +375,48 @@ public final class DaisychainGameTests {
         });
     }
 
+    // ---------------------------------------------------------------- blocks that change sides quietly (F39)
+
+    /**
+     * A block switches its inventory off and on again and only tells its neighbors (no block state change), like a
+     * Mekanism Side Config change. The insert arm follows each time.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 60)
+    public static void armFollowsQuietSideChanges(GameTestHelper helper) {
+        BlockPos table = helper.absolutePos(A.east());
+        SwitchableInventory.set(table, false);
+        helper.setBlock(A, ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        helper.setBlock(A.east(), Blocks.ENCHANTING_TABLE.defaultBlockState());
+        helper.runAfterDelay(5, () -> {
+            assertEastSide(helper, SideState.NONE, "table closed at the start");
+            switchTable(helper, table, true);
+        });
+        helper.runAfterDelay(10, () -> {
+            assertEastSide(helper, SideState.CONNECTED, "table opened");
+            switchTable(helper, table, false);
+        });
+        helper.runAfterDelay(15, () -> {
+            assertEastSide(helper, SideState.NONE, "table closed");
+            switchTable(helper, table, true);
+        });
+        helper.runAfterDelay(20, () -> {
+            assertEastSide(helper, SideState.CONNECTED, "table opened again");
+            SwitchableInventory.set(table, false);
+            helper.succeed();
+        });
+    }
+
+    private static void switchTable(GameTestHelper helper, BlockPos table, boolean open) {
+        SwitchableInventory.set(table, open);
+        helper.getLevel().updateNeighborsAt(table, Blocks.ENCHANTING_TABLE); // what Mekanism 1.20.1 does
+    }
+
+    private static void assertEastSide(GameTestHelper helper, SideState expected, String when) {
+        BlockState pipe = helper.getBlockState(A);
+        helper.assertTrue(pipe.getValue(FlowPipeBlock.propertyFor(Direction.EAST)) == expected,
+                "Pipe side toward the table should be " + expected + " (" + when + "): " + pipe);
+    }
+
     // ---------------------------------------------------------------- odd data (step 100)
 
     /**
