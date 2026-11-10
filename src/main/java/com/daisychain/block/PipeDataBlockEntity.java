@@ -800,7 +800,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
         for (int i = 0; i < upgrades.length; i++) {
             UpgradeItem item = ModItems.upgradeFor(upgrades[i]);
             if (item != null) {
-                Block.popResource(world, pos, new ItemStack(item));
+                FlowPipeBlock.dropAt(world, pos, new ItemStack(item)); // review R2: not popResource (doTileDrops)
             }
             upgrades[i] = 0;
         }
@@ -873,26 +873,63 @@ public final class PipeDataBlockEntity extends BlockEntity {
         }
     }
 
-    /** Everything clients need (sent in block updates): no filters. */
+    /**
+     * Everything clients need (sent in block updates): no filters.
+     * Review R14 (2026-11-09): a value that is all zero (its default) is left out, and every loader already reads a
+     * missing key as zero, in old and new versions alike. A pipe with one plain pull side saves and sends a few bytes
+     * instead of about 600. "Extract" is always written: a client ignores an update with nothing in it, and would
+     * then keep the values it had.
+     */
     private void saveSettings(CompoundTag tag) {
         tag.putByte("Extract", extractMask);
-        tag.putByte("Disconnect", disconnectMask);
-        tag.putByteArray("Redstone", redstone);
-        tag.putByteArray("Distribution", distribution);
-        tag.putByte("SelfFeed", selfFeedMask);
-        tag.putByteArray("Upgrades", upgrades);
-        tag.putInt("FilterDeny", filterDenyBits);
-        tag.putByte("FilterMask", filterMask);
-        tag.putIntArray("Batch", batch);
-        tag.putIntArray("Keep", keep);
-        tag.putIntArray("Fill", fill);
-        tag.putIntArray("Priority", priority);
-        tag.putInt("InsertDeny", insertDenyBits);
-        tag.putIntArray("MaxStock", maxStock);
-        tag.putInt("PullOff", pullOffBits);
-        tag.putInt("InsertOff", insertOffBits);
-        tag.putByteArray("InsertRedstone", insertRedstone);
-        tag.putByte("View", viewMode);
+        putByteIfSet(tag, "Disconnect", disconnectMask);
+        putBytesIfSet(tag, "Redstone", redstone);
+        putBytesIfSet(tag, "Distribution", distribution);
+        putByteIfSet(tag, "SelfFeed", selfFeedMask);
+        putBytesIfSet(tag, "Upgrades", upgrades);
+        putIntIfSet(tag, "FilterDeny", filterDenyBits);
+        putByteIfSet(tag, "FilterMask", filterMask);
+        putIntsIfSet(tag, "Batch", batch);
+        putIntsIfSet(tag, "Keep", keep);
+        putIntsIfSet(tag, "Fill", fill);
+        putIntsIfSet(tag, "Priority", priority);
+        putIntIfSet(tag, "InsertDeny", insertDenyBits);
+        putIntsIfSet(tag, "MaxStock", maxStock);
+        putIntIfSet(tag, "PullOff", pullOffBits);
+        putIntIfSet(tag, "InsertOff", insertOffBits);
+        putBytesIfSet(tag, "InsertRedstone", insertRedstone);
+        putByteIfSet(tag, "View", viewMode);
+    }
+
+    // Each writes the same kind of tag as before (the loaders tell old saves apart by the kind of tag).
+    private static void putByteIfSet(CompoundTag tag, String key, byte value) {
+        if (value != 0) {
+            tag.putByte(key, value);
+        }
+    }
+
+    private static void putIntIfSet(CompoundTag tag, String key, int value) {
+        if (value != 0) {
+            tag.putInt(key, value);
+        }
+    }
+
+    private static void putBytesIfSet(CompoundTag tag, String key, byte[] values) {
+        for (byte value : values) {
+            if (value != 0) {
+                tag.putByteArray(key, values);
+                return;
+            }
+        }
+    }
+
+    private static void putIntsIfSet(CompoundTag tag, String key, int[] values) {
+        for (int value : values) {
+            if (value != 0) {
+                tag.putIntArray(key, values);
+                return;
+            }
+        }
     }
 
     @Override

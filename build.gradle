@@ -102,8 +102,12 @@ configurations {
 }
 
 dependencies {
-    // GuideME: REQUIRED. It shows the in-game guide.
-    modImplementation "maven.modrinth:guideme:${guideme_version}"
+    // GuideME: optional since the 2026-11-09 review (decision 5). It shows the in-game guide, which is plain data
+    // files; no Daisychain code calls GuideME, so it is only put in the dev game, like JEI and Jade. To check that
+    // everything still works without it:  ./gradlew runGameTestServer -Pwithout_guideme
+    if (!project.hasProperty('without_guideme')) {
+        modRuntimeOnly "maven.modrinth:guideme:${guideme_version}"
+    }
 
     // JEI (optional): compile against its API only; the full JEI is only in the dev game.
     modCompileOnly "mezz.jei:jei-${minecraft_version}-common-api:${jei_version}"

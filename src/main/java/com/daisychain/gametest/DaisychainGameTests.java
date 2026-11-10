@@ -12,6 +12,8 @@ import com.daisychain.network.SideStatus;
 import com.daisychain.registry.ModBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.gametest.framework.AfterBatch;
+import net.minecraft.gametest.framework.BeforeBatch;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
@@ -20,8 +22,10 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
+import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemStackHandler;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.GameRules;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.LayeredCauldronBlock;
@@ -583,7 +587,137 @@ public final class DaisychainGameTests {
                 + SideStatus.name(expected));
     }
 
+    // ---------------------------------------------------------------- awkward inventories (review 2026-11-09)
+
+    /**
+     * Review R1: a drawer that offers its one space through two slots (Storage Drawers does this), fed from a machine
+     * output that takes nothing back. Only what fits may leave the source, and nothing may land on the ground.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 100)
+    public static void sharedSlotsNeverOverPromise(GameTestHelper helper) {
+        TestInventories.OutputOnly source = new TestInventories.OutputOnly(new ItemStack(Items.COBBLESTONE, 64));
+        TestInventories.DrawerLike drawer = new TestInventories.DrawerLike(64, new ItemStack(Items.COBBLESTONE, 54));
+        table(helper, A, source);
+        table(helper, B, drawer);
+        line(helper, A.east(), 3, ModBlocks.ITEM_PIPE.get());
+        pull(helper, A.east(), Direction.WEST, 3); // Diamond: 64 items per transfer, room for only 10
+        helper.runAfterDelay(40, () -> {
+            int ground = itemsOnGround(helper);
+            SwitchableInventory.set(helper.absolutePos(A), false);
+            SwitchableInventory.set(helper.absolutePos(B), false);
+            helper.assertTrue(ground == 0, ground + " stack(s) of items were dropped at the pipe");
+            helper.assertTrue(drawer.count() == 64, "Drawer holds " + drawer.count() + " (should be 64)");
+            helper.assertTrue(source.count() == 54, "Source holds " + source.count() + " (should be 54)");
+            helper.succeed();
+        });
+    }
+
+    /**
+     * Review R7: a source whose one slot shows the next stack once the first is gone (storage networks do this). The
+     * pull filter allows only dirt: when the dirt runs out in the middle of a transfer, the stone that takes its place
+     * in the slot must stay where it is.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 100)
+    public static void filterHoldsWhenSlotShifts(GameTestHelper helper) {
+        TestInventories.Shifting source = new TestInventories.Shifting(new ItemStack(Items.DIRT, 10),
+                new ItemStack(Items.STONE, 64));
+        BlockPos near = A.east(2).north();
+        table(helper, A, source);
+        chest(helper, near); // nearest destination: gets the dirt
+        chest(helper, B);    // next destination: got the stone before the fix
+        line(helper, A.east(), 3, ModBlocks.ITEM_PIPE.get());
+        pull(helper, A.east(), Direction.WEST, 3); // Diamond: up to 64 per transfer, more than the 10 dirt
+        data(helper, A.east()).setFilterEntry(Direction.WEST, 0, new ItemStack(Items.DIRT), false, PipeKind.ITEMS);
+        helper.runAfterDelay(40, () -> {
+            SwitchableInventory.set(helper.absolutePos(A), false);
+            int arrived = count(helper, near) + count(helper, B);
+            helper.assertTrue(source.count(Items.STONE) == 64,
+                    "Stone got past the dirt-only filter: " + source.count(Items.STONE) + " of 64 left in the source");
+            helper.assertTrue(arrived == 10, arrived + " items arrived (should be the 10 dirt)");
+            helper.succeed();
+        });
+    }
+
+    /**
+     * Review R2: with the doTileDrops game rule off, a removed pipe still drops its upgrade, the way a chest still drops
+     * its contents. Runs in its own batch because the game rule is for the whole world.
+     */
+    @GameTest(template = EMPTY, batch = "noTileDrops", timeoutTicks = 40)
+    public static void upgradeDropsWithoutTileDrops(GameTestHelper helper) {
+        chest(helper, A);
+        helper.setBlock(A.east(), ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east()));
+        pull(helper, A.east(), Direction.WEST, 2);
+        helper.runAfterDelay(2, () -> helper.setBlock(A.east(), Blocks.AIR.defaultBlockState()));
+        helper.runAfterDelay(6, () -> {
+            helper.assertTrue(itemsOnGround(helper) == 1, "The upgrade was deleted instead of dropped");
+            helper.succeed();
+        });
+    }
+
+    @BeforeBatch(batch = "noTileDrops")
+    public static void tileDropsOff(ServerLevel level) {
+        level.getGameRules().getRule(GameRules.RULE_DOBLOCKDROPS).set(false, level.getServer());
+    }
+
+    @AfterBatch(batch = "noTileDrops")
+    public static void tileDropsOn(ServerLevel level) {
+        level.getGameRules().getRule(GameRules.RULE_DOBLOCKDROPS).set(true, level.getServer());
+    }
+
+    // ---------------------------------------------------------------- Forge listeners (review R8)
+
+    /**
+     * Review R8 (Forge only): every network rebuild used to leave one more listener behind on each destination's
+     * handler, for as long as that block stood. Ten rebuilds while items move: the destination may hold the current
+     * network's listener, not one per rebuild.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 100)
+    public static void rebuildsLeaveNoListeners(GameTestHelper helper) {
+        ItemStack[] stacks = new ItemStack[27];
+        java.util.Arrays.setAll(stacks, i -> new ItemStack(Items.COBBLESTONE, 64));
+        chest(helper, A, stacks);
+        BlockPos table = helper.absolutePos(B);
+        SwitchableInventory.setQuietly(table, new ItemStackHandler(27));
+        helper.setBlock(B, Blocks.ENCHANTING_TABLE.defaultBlockState());
+        line(helper, A.east(), 3, ModBlocks.ITEM_PIPE.get());
+        pull(helper, A.east(), Direction.WEST, 0);
+        BlockPos pipe = helper.absolutePos(A.east(2));
+        for (int i = 1; i <= 10; i++) {
+            helper.runAfterDelay(i * 4L, () -> NetworkManager.get(helper.getLevel()).onPipeChanged(pipe));
+        }
+        helper.runAfterDelay(50, () -> {
+            int listeners = SwitchableInventory.listenerCount(table);
+            SwitchableInventory.set(table, false);
+            helper.assertTrue(listeners >= 1 && listeners <= 2,
+                    listeners + " listener(s) on the destination after 10 rebuilds (should be 1 or 2)");
+            helper.succeed();
+        });
+    }
+
+    // ---------------------------------------------------------------- optional GuideME (decision 5, 2026-11-09)
+
+    /**
+     * GuideME is optional: the guide book recipe is there exactly when GuideME is installed. The tests normally run
+     * with GuideME; ./gradlew runGameTestServer -Pwithout_guideme checks the other half.
+     */
+    @GameTest(template = EMPTY)
+    public static void guideRecipeNeedsGuideMe(GameTestHelper helper) {
+        boolean guideMe = net.minecraftforge.fml.ModList.get().isLoaded("guideme");
+        boolean recipe = helper.getLevel().getRecipeManager()
+                .byKey(new net.minecraft.resources.ResourceLocation(Daisychain.MOD_ID, "guide")).isPresent();
+        helper.assertTrue(recipe == guideMe, guideMe ? "GuideME is installed but the guide book recipe is missing"
+                : "The guide book recipe was loaded without GuideME");
+        helper.succeed();
+    }
+
     // ---------------------------------------------------------------- helpers
+
+    /** An enchanting table at pos that offers this inventory (dev-only, see SwitchableInventory). */
+    private static void table(GameTestHelper helper, BlockPos pos, IItemHandler inventory) {
+        SwitchableInventory.setHandler(helper.absolutePos(pos), inventory);
+        helper.setBlock(pos, Blocks.ENCHANTING_TABLE.defaultBlockState());
+    }
 
     /** Chest A (64 cobble, dirt, sand) -> 3 item pipes pulling from A with this upgrade -> empty chest B. */
     private static void itemLine(GameTestHelper helper, int upgrade) {

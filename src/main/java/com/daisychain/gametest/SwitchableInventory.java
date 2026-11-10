@@ -58,6 +58,30 @@ public final class SwitchableInventory {
         OPEN.put(pos.immutable(), LazyOptional.of(() -> handler));
     }
 
+    /** Review R1/R7: the table at pos (absolute) offers exactly this inventory (see TestInventories). */
+    public static void setHandler(BlockPos pos, IItemHandler handler) {
+        HANDLERS.remove(pos);
+        OPEN.put(pos.immutable(), LazyOptional.of(() -> handler));
+    }
+
+    /**
+     * Review R8: how many listeners the table's handler holder has right now, or -1 if the table offers nothing.
+     * Development game only: it reads a private field of Forge's LazyOptional.
+     */
+    public static int listenerCount(BlockPos pos) {
+        LazyOptional<IItemHandler> holder = OPEN.get(pos);
+        if (holder == null) {
+            return -1;
+        }
+        try {
+            java.lang.reflect.Field field = LazyOptional.class.getDeclaredField("listeners");
+            field.setAccessible(true);
+            return ((java.util.Set<?>) field.get(holder)).size();
+        } catch (ReflectiveOperationException | RuntimeException e) {
+            throw new IllegalStateException("Can't read LazyOptional.listeners", e);
+        }
+    }
+
     @SubscribeEvent
     public static void attach(AttachCapabilitiesEvent<BlockEntity> event) {
         if (FMLEnvironment.production || !(event.getObject() instanceof EnchantmentTableBlockEntity table)) {

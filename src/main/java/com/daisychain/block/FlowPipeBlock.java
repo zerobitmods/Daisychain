@@ -4,6 +4,8 @@ import com.daisychain.item.SettingsCopierItem;
 import com.daisychain.item.UpgradeItem;
 import com.daisychain.item.UpgradeTier;
 import com.daisychain.menu.PullSideMenu;
+import com.daisychain.net.PipeAccess;
+import com.daisychain.network.Loaded;
 import com.daisychain.network.NetworkManager;
 import com.daisychain.network.PipeNetwork;
 import com.daisychain.registry.ModItems;
@@ -13,6 +15,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.util.RandomSource;
+import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.entity.LivingEntity;
@@ -242,6 +245,17 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         return (mask & (1 << direction.get3DDataValue())) != 0;
     }
 
+    /**
+     * Review R2 (2026-11-09): drops a stack at a pipe (server side). Not Block.popResource: that drops nothing while
+     * the doTileDrops game rule is off, so an upgrade or returned items would be deleted. This is the call vanilla uses
+     * for a chest's contents, which has no such rule.
+     */
+    public static void dropAt(Level level, BlockPos pos, ItemStack stack) {
+        if (!level.isClientSide() && !stack.isEmpty()) {
+            Containers.dropItemStack(level, pos.getX(), pos.getY(), pos.getZ(), stack);
+        }
+    }
+
     // ---------------------------------------------------------------- connections
 
     /**
@@ -284,6 +298,12 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
                 if (computed != null) {
                     side = computed;
                 }
+            } else if (state.getValue(propertyFor(direction)) == SideState.CONNECTED
+                    && !hasBit(disconnectMask, direction)) {
+                // Review R4: the neighbor's chunk isn't loaded, so what is there can't be looked at. A connected side
+                // stays connected (the scheduled tick below already works this way). Dropping it cut the link to a pipe
+                // across the chunk border, and it did not come back when that chunk loaded.
+                side = SideState.CONNECTED;
             }
             state = state.setValue(propertyFor(direction), side);
         }
@@ -325,7 +345,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
                 openScreen(state, level, pos, player, hit);
                 return InteractionResult.sidedSuccess(level.isClientSide());
             }
-            if (level instanceof ServerLevel serverLevel) {
+            if (level instanceof ServerLevel serverLevel && player.mayBuild()) { // review R12
                 cycleSide(serverLevel, pos, state, targetedSide(state, pos, hit), player, false);
             }
             return InteractionResult.sidedSuccess(level.isClientSide());
@@ -341,7 +361,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
             return InteractionResult.sidedSuccess(level.isClientSide());
         }
         if (stack.getItem() instanceof UpgradeItem upgrade && hand == InteractionHand.MAIN_HAND) {
-            if (level instanceof ServerLevel serverLevel) {
+            if (level instanceof ServerLevel serverLevel && player.mayBuild()) { // review R12
                 installUpgrade(serverLevel, pos, state, targetedSide(state, pos, hit), player, stack, upgrade);
             }
             return InteractionResult.sidedSuccess(level.isClientSide());
@@ -352,7 +372,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
             Direction side = targetedSide(state, pos, hit);
             PipeDataBlockEntity data = getData(level, pos, state);
             if (data != null && data.upgradeLevel(side) > 0) {
-                if (level instanceof ServerLevel serverLevel) {
+                if (level instanceof ServerLevel serverLevel && player.mayBuild()) { // review R12
                     removeUpgrade(serverLevel, pos, side, player);
                 }
                 return InteractionResult.sidedSuccess(level.isClientSide());
@@ -382,6 +402,11 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
      * Client and server make the same choice from the same synced state, so only one screen opens.
      */
     private static void openScreen(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        if (player instanceof ServerPlayer clicker) {
+            // Review R3: the server ran this click (no claim mod or spawn protection stopped it), so the packets of
+            // the screens it opens are accepted for this pipe (net/PipeAccess).
+            PipeAccess.grant(clicker, pos);
+        }
         Direction side = targetedSide(state, pos, hit);
         boolean sideSettings = !isCoreHit(state, pos, hit.getLocation())
                 && (isPullSide(level, pos, state, side) || isInsertSide(level, pos, state, side));
@@ -694,6 +719,13 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         super.onPlace(state, level, pos, oldState, movedByPiston);
         // Called for new pipes and for arm/settings changes on existing pipes.
         if (level instanceof ServerLevel serverLevel && oldState != state) {
+            if (oldState.is(this) && oldState.setValue(HAS_DATA, state.getValue(HAS_DATA)) == state) {
+                // Review R13: only the "has settings" flag changed (a settings screen was opened, or closed unused).
+                // The arms and what the pipe offers are the same, so the network isn't rebuilt. Settings that
+                // destinations read still rebuild it themselves (PipeDataBlockEntity).
+                NetworkManager.get(serverLevel).onPipeDataFlagChanged(pos);
+                return;
+            }
             NetworkManager.get(serverLevel).onPipeChanged(pos);
             // Step 109: a side may have stopped being a pull side, which decides whether that side offers an energy
             // input; blocks holding the old one are told to drop it. (New pull sides are found by neighbor updates.)
@@ -738,11 +770,12 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         BlockState newState = state;
         for (Direction direction : DIRECTIONS) {
             BlockPos neighborPos = pos.relative(direction);
-            if (!level.isLoaded(neighborPos)) {
+            // Review R4: never waits for a neighbor chunk that is still loading (see network/Loaded).
+            BlockState neighborState = Loaded.stateIfLoaded(level, neighborPos);
+            if (neighborState == null) {
                 continue;
             }
-            SideState side = computeSide(level, direction, neighborPos, level.getBlockState(neighborPos), extract,
-                    disconnect);
+            SideState side = computeSide(level, direction, neighborPos, neighborState, extract, disconnect);
             if (side != null) {
                 newState = newState.setValue(propertyFor(direction), side);
             }
@@ -796,7 +829,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         UpgradeItem item = ModItems.upgradeFor(data.upgradeLevel(side));
         if (item != null) {
             data.setUpgradeLevel(side, 0);
-            Block.popResource(level, pipePos, new ItemStack(item));
+            dropAt(level, pipePos, new ItemStack(item)); // review R2
         }
     }
 
@@ -811,7 +844,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
             data.setUpgradeLevel(side, 0);
             UpgradeItem item = ModItems.upgradeFor(upgrade);
             if (item != null) {
-                Block.popResource(level, pipePos, new ItemStack(item));
+                dropAt(level, pipePos, new ItemStack(item)); // review R2
             }
         }
         BlockState updated = level.getBlockState(pipePos);

@@ -10,6 +10,7 @@ import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.util.LazyOptional;
+import net.minecraftforge.common.util.NonNullConsumer;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -57,6 +58,14 @@ public final class CapCache<T> {
     private long emptySince = Long.MIN_VALUE;
     /** F41: game time the cached handler was last confirmed. */
     private long checkedAt;
+    /**
+     * Review R8 (2026-11-09): the one listener this cache ever registers (made on first use; it holds the cache
+     * weakly), and the LazyOptional it is registered on right now (null = none). See listenTo.
+     */
+    @Nullable
+    private NonNullConsumer<LazyOptional<T>> listener;
+    @Nullable
+    private LazyOptional<T> listening;
 
     private CapCache(Capability<T> capability, ServerLevel level, BlockPos pos, Direction side,
                      @Nullable BooleanSupplier isValid, @Nullable Runnable onInvalidate) {
@@ -146,14 +155,7 @@ public final class CapCache<T> {
                 optional = found;
                 emptySince = Long.MIN_VALUE;
                 checkedAt = level.getGameTime();
-                // Weak: a network rebuild drops this cache, and the neighbor's listener must not keep it alive.
-                WeakReference<CapCache<T>> self = new WeakReference<>(this);
-                found.addListener(gone -> {
-                    CapCache<T> cache = self.get();
-                    if (cache != null) {
-                        cache.onGone(gone);
-                    }
-                });
+                listenTo(found);
                 return resolved;
             }
         }
@@ -172,7 +174,54 @@ public final class CapCache<T> {
         return null;
     }
 
+    /**
+     * Review R8 (2026-11-09): asks to be told when this handler goes away. Before, every lookup added a new listener
+     * to the neighbor's LazyOptional and none was ever taken off; Forge keeps them in a plain set until the neighbor
+     * itself is removed, so each network rebuild left one more object behind per destination, for as long as that
+     * block stood. Now a cache has one listener, registered on one LazyOptional at a time, and release() takes it off.
+     */
+    private void listenTo(LazyOptional<T> found) {
+        if (found == listening) {
+            return; // already listening to this one (a lookup after invalidate() found the same handler again)
+        }
+        stopListening();
+        if (listener == null) {
+            // Weak: if a cache is ever dropped without release(), the neighbor's listener must not keep it alive.
+            WeakReference<CapCache<T>> self = new WeakReference<>(this);
+            listener = gone -> {
+                CapCache<T> cache = self.get();
+                if (cache != null) {
+                    cache.onGone(gone);
+                }
+            };
+        }
+        listening = found; // set first: a LazyOptional that is already invalid calls the listener at once
+        found.addListener(listener);
+    }
+
+    private void stopListening() {
+        LazyOptional<T> old = listening;
+        listening = null;
+        // An invalid LazyOptional has dropped its listeners already, or is going through them right now (and must not
+        // be changed while it does): leave it alone.
+        if (old != null && listener != null && old.isPresent()) {
+            old.removeListener(listener);
+        }
+    }
+
+    /**
+     * Review R8: the owner is done with this cache (its network was dropped, or its pipe stopped pulling). Takes the
+     * listener off the neighbor's handler, so nothing of ours stays behind on another mod's block.
+     */
+    public void release() {
+        stopListening();
+        invalidate();
+    }
+
     private void onGone(LazyOptional<T> gone) {
+        if (gone == listening) {
+            listening = null; // Forge drops every listener of a LazyOptional when it is invalidated
+        }
         if (gone != optional) {
             return; // an older handler we already replaced
         }

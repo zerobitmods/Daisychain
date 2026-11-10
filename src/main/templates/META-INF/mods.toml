@@ -30,10 +30,11 @@ versionRange="${minecraft_version_range}"
 ordering="NONE"
 side="BOTH"
 
-# GuideME runs Daisychain's in-game guide (hold G over any Daisychain item).
+# GuideME runs Daisychain's in-game guide (hold G over any Daisychain item). Optional since the 2026-11-09 review
+# (decision 5): without it everything works, there is just no guide book. If it is installed it must be this new.
 [[dependencies.${mod_id}]]
 modId="guideme"
-mandatory=true
+mandatory=false
 versionRange="${guideme_version_range}"
 ordering="NONE"
 side="BOTH"

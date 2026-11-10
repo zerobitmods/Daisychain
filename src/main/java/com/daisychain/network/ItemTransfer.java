@@ -2,6 +2,7 @@ package com.daisychain.network;
 
 import com.daisychain.Daisychain;
 import com.daisychain.block.Distribution;
+import com.daisychain.block.FlowPipeBlock;
 import com.daisychain.block.PipeKind;
 import com.daisychain.filter.ItemFilter;
 import net.minecraft.core.BlockPos;
@@ -9,7 +10,6 @@ import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.level.block.Block;
 import net.minecraftforge.items.IItemHandler;
 import net.minecraftforge.items.ItemHandlerHelper;
 
@@ -58,6 +58,7 @@ final class ItemTransfer {
         extractor.fillSize = 0;
         extractor.fillSkipped = false;
         extractor.fillChecked = false;
+        extractor.refusedSize = 0;
         int destinationCount = destinations.size();
         if (destinationCount == 0) {
             return 0;
@@ -192,6 +193,11 @@ final class ItemTransfer {
             extractor.fillTargets[i] = null; // don't keep other mods' handlers alive between transfers
         }
         extractor.fillSize = 0;
+        for (int i = 0; i < extractor.refusedSize; i++) {
+            extractor.refusedTargets[i] = null; // same here: nothing of another mod's is kept between transfers
+            extractor.refusedItems[i] = null;
+        }
+        extractor.refusedSize = 0;
         return moved;
     }
 
@@ -348,11 +354,15 @@ final class ItemTransfer {
             if (remaining <= 0) {
                 break;
             }
-            offer = source.extractItem(slot, remaining, true);
+            ItemStack next = source.extractItem(slot, remaining, true);
             extractor.calls++;
-            if (offer.isEmpty()) {
+            if (next.isEmpty() || !ItemStack.isSameItemSameTags(next, offer)) {
+                // Empty, or (review R7) the slot shows a different item now: some inventories put "the next thing"
+                // in a slot once it is emptied. The filter, Keep and Batch were checked for the first item only, so
+                // the new one waits for the main loop, which checks it properly.
                 break;
             }
+            offer = next;
         }
         return moved;
     }
@@ -388,8 +398,12 @@ final class ItemTransfer {
             groupStart = groupEnd;
             if (remaining > 0 && groupStart < count) {
                 // Whatever this priority couldn't take: see what the slot still has for the next priority.
-                offer = source.extractItem(slot, remaining, true);
+                ItemStack next = source.extractItem(slot, remaining, true);
                 extractor.calls++;
+                if (!next.isEmpty() && !ItemStack.isSameItemSameTags(next, offer)) {
+                    break; // review R7: the slot shows a different item now; its rules weren't checked
+                }
+                offer = next;
             }
         }
         return moved;
@@ -465,8 +479,12 @@ final class ItemTransfer {
                 break; // done, or nobody accepted anything more
             }
             // Someone took less than their share: spread what's left over another pass.
-            offer = source.extractItem(slot, remaining, true);
+            ItemStack next = source.extractItem(slot, remaining, true);
             extractor.calls++;
+            if (!next.isEmpty() && !ItemStack.isSameItemSameTags(next, offer)) {
+                break; // review R7: the slot shows a different item now; its rules weren't checked
+            }
+            offer = next;
         }
         extractor.roundRobin[RESOURCE * 6 + sideIndex] = position;
         return moved;
@@ -490,21 +508,30 @@ final class ItemTransfer {
 
     /**
      * One safe move of up to offer.getCount() items from source slot to target. Returns items inserted, 0 if the target
-     * won't take any, or SOURCE_CHANGED. Adds to extractor.calls the same way as before step 36 (the whole simulated
-     * insert counts as 1 call, a move as 3), so the per-tick call budget means what it did.
-     * Step 36: the simulated insert goes slot by slot and remembers which slots took how many; the real insert then only
-     * touches those slots (instead of walking every slot twice). If a slot takes less than it promised, the rest goes
-     * through a normal insert into any slot, then back to the source; never lost.
+     * won't take any, or SOURCE_CHANGED.
+     * <p>
+     * Review R1 (2026-11-09): the target is filled one slot at a time. Simulate a slot, take exactly what that slot
+     * accepted out of the source, put it into that slot, then ask the next slot against what is really there now.
+     * Before, every slot's simulated answer was added up first and the total extracted in one go. That promised the
+     * same space twice on inventories whose slots share it (Storage Drawers shows each drawer through its own slot and
+     * through an "anywhere" slot), and the surplus bounced back to the source, or was dropped at the pipe when the
+     * source would not take it back (a machine's output).
+     * If a slot takes less than it just promised, the rest goes through a normal insert into any slot, then back to
+     * the source; never lost.
+     * <p>
+     * extractor.calls counts as before step 36 for the usual move into one slot (1 for the simulated sweep, 2 for the
+     * move), plus 2 for each further slot a move is spread over.
      */
     private static int tryMove(ServerLevel level, Extractor extractor, IItemHandler source, int slot, ItemStack offer,
                                IItemHandler target, BlockPos pipePos) {
-        int[] slots = extractor.insertSlots;
-        int[] amounts = extractor.insertAmounts;
+        if (refusedBefore(extractor, target, offer)) {
+            return 0; // review R6: it took none of this item a moment ago; don't walk all its slots again
+        }
         int targetSlots = target.getSlots();
-        int recorded = 0;
-        int accepted = 0;
+        int moved = 0;
         ItemStack rest = offer;
-        for (int s = 0; s < targetSlots && !rest.isEmpty() && recorded < slots.length; s++) {
+        extractor.calls++;
+        for (int s = 0; s < targetSlots && !rest.isEmpty(); s++) {
             ItemStack after = target.insertItem(s, rest, true);
             int took = rest.getCount() - after.getCount();
             if (took <= 0) {
@@ -513,41 +540,57 @@ final class ItemTransfer {
             if (!after.isEmpty() && !ItemStack.isSameItemSameTags(after, rest)) {
                 continue; // the slot answered with a different item; don't trust it
             }
-            slots[recorded] = s;
-            amounts[recorded] = took;
-            recorded++;
-            accepted += took;
+            ItemStack extracted = source.extractItem(slot, took, false);
+            extractor.calls += 2;
+            if (extracted.isEmpty()) {
+                return moved > 0 ? moved : SOURCE_CHANGED;
+            }
+            int got = extracted.getCount();
+            ItemStack notTaken = target.insertItem(s, extracted.copy(), false);
+            // Clamped, so a handler that answers nonsense can never make us count more than we extracted.
+            int in = Math.max(0, Math.min(got, got - notTaken.getCount()));
+            if (in < got) {
+                // The slot took less than it said it would: try the whole target once, then give the rest back.
+                ItemStack leftover = ItemHandlerHelper.insertItem(target, extracted.copyWithCount(got - in), false);
+                extractor.calls++;
+                if (!leftover.isEmpty()) {
+                    int back = Math.min(got, leftover.getCount());
+                    returnToSource(level, source, slot, leftover, pipePos);
+                    return moved + (got - back);
+                }
+            }
+            moved += got;
+            if (got != took) {
+                return moved; // the source gave something else than it offered: stop here, nothing is in doubt
+            }
             rest = after;
         }
-        extractor.calls++;
-        if (accepted <= 0) {
-            return 0;
+        if (!rest.isEmpty()) {
+            // Every slot was asked and part of the offer is left: this destination has no more room for this item.
+            noteRefused(extractor, target, offer);
         }
-        ItemStack extracted = source.extractItem(slot, accepted, false);
-        extractor.calls += 2;
-        if (extracted.isEmpty()) {
-            return SOURCE_CHANGED;
+        return moved;
+    }
+
+    /**
+     * Review R6: true if this destination already took none (or no more) of this item during this transfer. A full
+     * destination is asked slot by slot only once per item per transfer, however many source slots hold that item.
+     */
+    private static boolean refusedBefore(Extractor extractor, IItemHandler target, ItemStack offer) {
+        for (int i = 0; i < extractor.refusedSize; i++) {
+            if (extractor.refusedTargets[i] == target && ItemStack.isSameItemSameTags(extractor.refusedItems[i], offer)) {
+                return true;
+            }
         }
-        int extractedCount = extracted.getCount();
-        int left = extractedCount;
-        for (int i = 0; i < recorded && left > 0; i++) {
-            int want = Math.min(amounts[i], left);
-            ItemStack notTaken = target.insertItem(slots[i], extracted.copyWithCount(want), false);
-            // Clamped, so a handler that answers nonsense can never make us hand out more than we extracted.
-            left -= Math.max(0, Math.min(want, want - notTaken.getCount()));
+        return false;
+    }
+
+    private static void noteRefused(Extractor extractor, IItemHandler target, ItemStack offer) {
+        if (extractor.refusedSize < extractor.refusedTargets.length) {
+            extractor.refusedTargets[extractor.refusedSize] = target;
+            extractor.refusedItems[extractor.refusedSize] = offer;
+            extractor.refusedSize++;
         }
-        if (left <= 0) {
-            return extractedCount;
-        }
-        // A slot took less than it said it would: try the whole target once, then give the rest back to the source.
-        ItemStack leftover = ItemHandlerHelper.insertItem(target, extracted.copyWithCount(left), false);
-        extractor.calls++;
-        if (leftover.isEmpty()) {
-            return extractedCount;
-        }
-        int leftoverCount = leftover.getCount();
-        returnToSource(level, source, slot, leftover, pipePos);
-        return Math.max(0, extractedCount - leftoverCount);
     }
 
     /** Puts items back into the source. Only if that also fails are they dropped at the pipe, never deleted. */
@@ -557,7 +600,7 @@ final class ItemTransfer {
             rest = ItemHandlerHelper.insertItem(source, rest, false);
         }
         if (!rest.isEmpty()) {
-            Block.popResource(level, pipePos, rest);
+            FlowPipeBlock.dropAt(level, pipePos, rest); // review R2: not popResource (doTileDrops)
             if (!warnedAboutDrop) {
                 warnedAboutDrop = true;
                 Daisychain.LOGGER.warn("An inventory near {} refused items it had accepted in simulation; "

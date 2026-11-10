@@ -42,6 +42,7 @@ public final class DaisychainConfig {
     public static final ForgeConfigSpec.DoubleValue MAX_MILLISECONDS_PER_TICK;
     public static final ForgeConfigSpec.IntValue MAX_IDLE_BACKOFF;
     public static final ForgeConfigSpec.IntValue MAX_EMPTY_WAIT_TICKS;
+    public static final ForgeConfigSpec.IntValue BLOCKED_WAIT_TICKS;
     public static final ForgeConfigSpec.IntValue MAX_NETWORK_PASTE_SIDES;
 
     private static final int MAX_ITEMS = 1_000_000;
@@ -171,6 +172,13 @@ public final class DaisychainConfig {
                         "that is longer). Items that show up are picked up within this time. Lower = quicker to react,",
                         "higher = cheaper on servers with many idle pipes. 20 ticks = 1 second.")
                 .defineInRange("max_empty_wait_ticks", 10, 1, 1200);
+        BLOCKED_WAIT_TICKS = builder
+                .comment("Item pipes only. When a pulling side has items but every destination is full, it slows down",
+                        "until it waits at least this many ticks between tries (or max_backoff_multiplier times its",
+                        "interval, if that is longer). Without it the fastest upgrades check a full storage again every",
+                        "4 ticks, and every check looks at every slot of every destination. Lower = quicker to notice a",
+                        "freed slot, higher = cheaper while storage is full. 0 = off. 20 ticks = 1 second.")
+                .defineInRange("blocked_wait_ticks", 20, 0, 1200);
         builder.pop();
 
         builder.comment("Settings Copier").push("copier");

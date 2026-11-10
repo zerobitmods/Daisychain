@@ -94,6 +94,7 @@
   "daisychain.configuration.idle": "Idle behavior",
   "daisychain.configuration.max_backoff_multiplier": "Max slow-down when blocked",
   "daisychain.configuration.max_empty_wait_ticks": "Max wait when there is nothing to pull",
+  "daisychain.configuration.blocked_wait_ticks": "Item pipes: wait between tries when everything is full",
   "daisychain.configuration.copier": "Settings Copier",
   "daisychain.configuration.max_network_paste_sides": "Most sides per paste (and per undo)",
   "screen.daisychain.batch": "Batch: %s",

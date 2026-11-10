@@ -124,6 +124,14 @@ public final class DaisychainCommands {
                 manager.peakBinds(), manager.peakBindNanos() / 1_000_000.0);
         source.sendSuccess(() -> Component.literal(peaks), false);
         manager.resetPeaks();
+        // Review R17: what the chunk ticket listener did, to see what it costs on a busy server.
+        long[] tickets = NetworkManager.ticketCounters();
+        String ticketLine = String.format(Locale.ROOT,
+                "Chunk tickets since the last /daisychain stats (all dimensions): %d changes seen, %d crossed the "
+                        + "loaded line, %d of those in chunks with pipes, %d networks dropped to be rebuilt",
+                tickets[0], tickets[1], tickets[2], tickets[3]);
+        source.sendSuccess(() -> Component.literal(ticketLine), false);
+        NetworkManager.resetTicketCounters();
         return 1;
     }
 }

@@ -160,6 +160,9 @@ public final class DaisychainNetwork {
         if (!level.isLoaded(pos) || player.distanceToSqr(Vec3.atCenterOf(pos)) > MAX_DISTANCE_SQR) {
             return;
         }
+        if (!PipeAccess.allowed(player, level, pos)) {
+            return; // review R3: not the pipe this player last clicked with the server's consent
+        }
         PullSideMenu.openSettings(player, level, pos, Direction.from3DDataValue(payload.side()));
     }
 
@@ -175,6 +178,9 @@ public final class DaisychainNetwork {
         BlockPos pos = payload.pos();
         if (!level.isLoaded(pos) || player.distanceToSqr(Vec3.atCenterOf(pos)) > MAX_DISTANCE_SQR) {
             return;
+        }
+        if (!PipeAccess.allowed(player, level, pos)) {
+            return; // review R3: not the pipe this player last clicked with the server's consent
         }
         BlockState state = level.getBlockState(pos);
         if (state.getBlock() instanceof FlowPipeBlock pipe) {
@@ -196,6 +202,12 @@ public final class DaisychainNetwork {
             return;
         }
         Direction side = Direction.from3DDataValue(payload.side());
+        // Review R3: only for the side whose settings screen this player has open right now. The server opened that
+        // screen itself, after a click it allowed.
+        if (!(player.containerMenu instanceof PullSideMenu menu) || !menu.pos().equals(pos) || menu.side() != side
+                || !menu.stillValid(player)) {
+            return;
+        }
         BlockState state = level.getBlockState(pos);
         // Pull settings only on pull sides, insert settings only on insert sides.
         boolean allowed = PipeDataBlockEntity.isInsertSetting(payload.setting())

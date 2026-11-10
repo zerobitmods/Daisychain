@@ -75,11 +75,15 @@ public final class EnergyPipeBlock extends FlowPipeBlock {
         newState = newState.setValue(HAS_DATA, state.getValue(HAS_DATA));
         PipeDataBlockEntity oldData = getData(level, pos, state);
         CompoundTag saved = oldData != null ? oldData.saveWithoutMetadata() : null;
+        boolean placed;
         swappingTier = true;
         try {
-            level.setBlock(pos, newState, Block.UPDATE_ALL);
+            placed = level.setBlock(pos, newState, Block.UPDATE_ALL);
         } finally {
             swappingTier = false;
+        }
+        if (!placed) {
+            return false; // review: the world refused the change, so the old pipe stands and the player keeps the new one
         }
         if (saved != null && level.getBlockEntity(pos) instanceof PipeDataBlockEntity newData) {
             newData.takeOver(saved);

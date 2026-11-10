@@ -4,6 +4,7 @@ import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.block.FlowPipeBlock;
 import com.daisychain.command.DaisychainCommands;
 import com.daisychain.item.CopierSessions;
+import com.daisychain.net.PipeAccess;
 import com.daisychain.network.NetworkManager;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
@@ -15,6 +16,7 @@ import net.minecraftforge.event.RegisterCommandsEvent;
 import net.minecraftforge.event.entity.player.PlayerEvent;
 import net.minecraftforge.event.entity.player.PlayerInteractEvent;
 import net.minecraftforge.event.level.ChunkEvent;
+import net.minecraftforge.event.level.ChunkTicketLevelUpdatedEvent;
 import net.minecraftforge.event.level.LevelEvent;
 import net.minecraftforge.event.server.ServerStoppedEvent;
 import net.minecraftforge.event.TickEvent;
@@ -31,6 +33,7 @@ public final class DaisychainEvents {
         MinecraftForge.EVENT_BUS.addListener(DaisychainEvents::onServerStopped);
         MinecraftForge.EVENT_BUS.addListener(DaisychainEvents::onChunkLoad);
         MinecraftForge.EVENT_BUS.addListener(DaisychainEvents::onChunkUnload);
+        MinecraftForge.EVENT_BUS.addListener(DaisychainEvents::onChunkTicketLevel);
         MinecraftForge.EVENT_BUS.addListener(DaisychainEvents::onServerTickStart);
         MinecraftForge.EVENT_BUS.addListener(DaisychainEvents::onLevelTickEnd);
         MinecraftForge.EVENT_BUS.addListener(DaisychainEvents::onPlayerLoggedOut);
@@ -50,6 +53,7 @@ public final class DaisychainEvents {
     public static void onServerStopped(ServerStoppedEvent event) {
         NetworkManager.clearAll();
         CopierSessions.clearAll();
+        PipeAccess.clearAll();
     }
 
     /**
@@ -73,6 +77,7 @@ public final class DaisychainEvents {
     /** Forget the player's Settings Copier requests and undo history. */
     public static void onPlayerLoggedOut(PlayerEvent.PlayerLoggedOutEvent event) {
         CopierSessions.remove(event.getEntity().getUUID());
+        PipeAccess.remove(event.getEntity().getUUID());
     }
 
     public static void onChunkLoad(ChunkEvent.Load event) {
@@ -85,6 +90,15 @@ public final class DaisychainEvents {
         if (event.getLevel() instanceof ServerLevel serverLevel) {
             NetworkManager.onChunkEvent(serverLevel, event.getChunk().getPos().toLong());
         }
+    }
+
+    /**
+     * Review R17: a chunk that loses its ticket, or gets it back, while it stays in memory gets no load or unload
+     * event. This one fires for every ticket level change of every chunk, so the handler does next to nothing.
+     */
+    public static void onChunkTicketLevel(ChunkTicketLevelUpdatedEvent event) {
+        NetworkManager.onTicketLevel(event.getLevel(), event.getChunkPos(), event.getOldTicketLevel(),
+                event.getNewTicketLevel());
     }
 
     public static void onServerTickStart(TickEvent.ServerTickEvent event) {
