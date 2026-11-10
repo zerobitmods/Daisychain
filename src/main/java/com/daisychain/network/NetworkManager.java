@@ -22,6 +22,8 @@ import it.unimi.dsi.fastutil.objects.ReferenceOpenHashSet;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.SectionPos;
+import net.minecraft.server.level.ChunkLevel;
+import net.minecraft.server.level.FullChunkStatus;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.Block;
@@ -45,6 +47,14 @@ public final class NetworkManager {
     private static final Direction[] DIRECTIONS = Direction.values();
     /** Chunk events that arrived off the server thread; handled at the start of the next server tick. */
     private static final Queue<PendingChunkEvent> PENDING_CHUNK_EVENTS = new ConcurrentLinkedQueue<>();
+    /** Review R17: the highest ticket level at which a chunk counts as loaded (what ServerChunkCache.hasChunk uses). */
+    private static final int LOADED_TICKET_LEVEL = ChunkLevel.byStatus(FullChunkStatus.FULL);
+    // Review R17: what onTicketLevel did since the last /daisychain stats, for the whole server: calls, calls where the
+    // level crossed the loaded line, those for a chunk with pipes, and networks dropped because of it.
+    private static long ticketChanges;
+    private static long ticketLineCrossings;
+    private static long ticketChunksNoted;
+    private static long ticketNetworksDropped;
     /** Step 111: chunk loads/unloads for the neighbor watches; always handled at the start of the next server tick. */
     private static final Queue<PendingWatchEvent> PENDING_WATCH_EVENTS = new ConcurrentLinkedQueue<>();
 
@@ -58,6 +68,23 @@ public final class NetworkManager {
     private final ObjectArrayList<Extractor> extractors = new ObjectArrayList<>();
     /** Step 111: block entities next to our pipes whose capability changes we listen to, by chunk, then position. */
     private final Long2ObjectOpenHashMap<Long2ObjectOpenHashMap<NeighborWatch>> watchesByChunk = new Long2ObjectOpenHashMap<>();
+    /**
+     * Review R5: networks with an insert side that follows redstone but couldn't read its signal when the network was
+     * built (the area around its pipe wasn't loaded yet). Looked at again once a second (tick); almost always empty.
+     */
+    private final ReferenceArrayList<PipeNetwork> unknownRedstone = new ReferenceArrayList<>();
+    /**
+     * Review R17 (2026-11-10): chunks with pipes (or that a network waits for) whose ticket went across the loaded
+     * line since the last look. Filled by onTicketLevel, emptied by settleTicketCrossings; nearly always empty.
+     */
+    private final LongOpenHashSet ticketCrossings = new LongOpenHashSet();
+    /** Review R17: networks picked to be dropped while a chunk's list is read (reused; empty between uses). */
+    private final ReferenceArrayList<PipeNetwork> ticketScratch = new ReferenceArrayList<>();
+    /** Review R4: the chunk build() last read from (pipes sit next to each other, so this nearly always hits). */
+    @Nullable
+    private LevelChunk buildChunk;
+    private int buildChunkX;
+    private int buildChunkZ;
 
     private NetworkManager(ServerLevel level) {
         this.level = level;
@@ -201,7 +228,7 @@ public final class NetworkManager {
         int maxZ = SectionPos.blockToSectionCoord(pos.getZ() + 2);
         for (int x = minX; x <= maxX; x++) {
             for (int z = minZ; z <= maxZ; z++) {
-                if (!level.hasChunk(x, z)) {
+                if (Loaded.chunk(level, x, z) == null) { // review R4: really loaded, not just ticketed
                     return false;
                 }
             }
@@ -274,6 +301,10 @@ public final class NetworkManager {
 
     /** Ticks a pull side shows Moving after energy was last pushed into it. */
     private static final int PUSH_STATUS_TICKS = 20;
+    /** Review R5: how often redstone-controlled sides look again while their signal can't be read yet. */
+    private static final int SIGNAL_RETRY_TICKS = 20;
+    /** Decision 1: how often a pulling pipe in a chunk that isn't ticking checks whether it ticks again. */
+    private static final int NOT_TICKING_RETRY_TICKS = 20;
 
     /**
      * Energy a block pushes into a pull side of an energy or universal pipe (a Flux Point only pushes and never lets
@@ -371,13 +402,16 @@ public final class NetworkManager {
     /** Step 109: the pipe's network with its destinations sorted, the same way runExtractor gets it. Null if not ready. */
     @Nullable
     private PipeNetwork pushNetwork(Extractor extractor) {
+        if (!ticketCrossings.isEmpty()) {
+            settleTicketCrossings(); // review R17: pushes come in between our ticks; look before sending anything on
+        }
         BlockState state = extractor.cachedState;
         PipeNetwork network = extractor.sortedFor;
         if (state == null || network == null || !network.valid) {
-            if (!level.isLoaded(extractor.pos)) {
+            state = Loaded.stateIfLoaded(level, extractor.pos); // review R4
+            if (state == null) {
                 return null;
             }
-            state = level.getBlockState(extractor.pos);
             network = state.getBlock() instanceof FlowPipeBlock ? getOrBuild(extractor.pos) : null;
             extractor.cachedState = network != null ? state : null;
             if (network == null) {
@@ -471,6 +505,8 @@ public final class NetworkManager {
     private int maxCounted;
     /** Read from the config once per tick (step 38). */
     private int maxEmptyWait;
+    /** Read from the config once per tick (decision 2, review R6). */
+    private int blockedWait;
     /** Step 39: time spent re-sorting destinations this tick, and its limit (a quarter of the tick's time limit). */
     private long resortNanos;
     private long resortBudget;
@@ -504,6 +540,12 @@ public final class NetworkManager {
      * and go first next time, so every pipe still gets its turn, just slower.
      */
     public void tick() {
+        if (!ticketCrossings.isEmpty()) {
+            settleTicketCrossings(); // review R17: before any pipe moves anything this tick
+        }
+        if (!unknownRedstone.isEmpty() && level.getGameTime() % SIGNAL_RETRY_TICKS == 0) {
+            retryUnknownRedstone(); // review R5: from here, never from inside a chunk event (it reads the world)
+        }
         if (extractors.isEmpty()) {
             recordTick(0, 0L, false, 0);
             return;
@@ -515,6 +557,7 @@ public final class NetworkManager {
         int maxBackoff = DaisychainConfig.MAX_IDLE_BACKOFF.getAsInt();
         maxCounted = DaisychainConfig.MAX_SLOTS_COUNTED.getAsInt();
         maxEmptyWait = DaisychainConfig.MAX_EMPTY_WAIT_TICKS.getAsInt();
+        blockedWait = DaisychainConfig.BLOCKED_WAIT_TICKS.getAsInt();
         callBudget = DaisychainConfig.MAX_HANDLER_CALLS_PER_TICK.getAsInt();
         nanoBudget = (long) (DaisychainConfig.MAX_MILLISECONDS_PER_TICK.getAsDouble() * 1_000_000.0);
         tickCalls = 0;
@@ -529,6 +572,9 @@ public final class NetworkManager {
             int i = first + n;
             if (i >= size) {
                 i -= size;
+            }
+            if (i >= extractors.size()) {
+                continue; // review: a transfer this tick removed a pulling pipe, so the list is shorter than it was
             }
             Extractor extractor = extractors.get(i);
             if (now < extractor.nextRun) {
@@ -702,6 +748,14 @@ public final class NetworkManager {
      * If the tick budget runs out partway, the remaining due sides stay due and are tried first next tick.
      */
     private void runExtractor(Extractor extractor, long now, int maxSlots, int maxCalls, int maxBackoff) {
+        if (!level.shouldTickBlocksAt(extractor.chunkKey)) {
+            // Decision 1 (zerobit, 2026-11-09; review R9): pipes work where machines work. The game only ticks hoppers,
+            // furnaces and machines in chunks inside the simulation distance (or kept ticking by a chunk loader), and
+            // this is the very check it uses for them (Level.tickBlockEntities). A pulling pipe in a chunk that is only
+            // loaded for viewing does nothing and looks again in a second. One map lookup per run.
+            extractor.nextRun = now + NOT_TICKING_RETRY_TICKS;
+            return;
+        }
         PipeDataBlockEntity data = extractor.data;
         // Step 36: the pipe's block state and network are remembered between runs, and only looked up again when the
         // pipe changes (onPipeChanged / setExtractor clear cachedState) or the network was invalidated. Saves a chunk
@@ -765,6 +819,16 @@ public final class NetworkManager {
                 case OFF_WITH_SIGNAL -> !powered;
                 case PULSE -> (extractor.pendingPulse & bit) != 0;
             };
+            if (!extractor.poweredKnown && (mode == RedstoneMode.ON_WITH_SIGNAL || mode == RedstoneMode.OFF_WITH_SIGNAL)) {
+                // Review R5: part of the area around the pipe isn't loaded, so the signal can't be read yet. Don't
+                // guess "no signal" (that left "On with signal" sides asleep for good and let "Off with signal" sides
+                // run): look again in a second. Costs one loaded check per second for the few pipes this affects.
+                long retry = now + SIGNAL_RETRY_TICKS;
+                extractor.sideNextRun[side] = retry;
+                next = Math.min(next, retry);
+                extractor.setStatus(side, SideStatus.STARTING);
+                continue;
+            }
             if (!active) {
                 // Can't run until the redstone signal changes: sleep (costs nothing until then).
                 extractor.sideNextRun[side] = Long.MAX_VALUE;
@@ -793,6 +857,7 @@ public final class NetworkManager {
             extractor.sideLastRun[side] = now;
             int moved = 0;
             int calls = 0;
+            boolean itemsBlocked = false; // decision 2: this run had items to send and every destination refused them
             boolean noDestination = extractor.destinations.isEmpty();
             if (extractor.kind == PipeKind.UNIVERSAL) {
                 // Universal pipe (step 33): items, fluids and energy, each at its own speed. The side wakes as often
@@ -811,16 +876,21 @@ public final class NetworkManager {
                     extractor.sideStatus[slot] = (byte) status(movedNow, noDestination, extractor.sawItems);
                     saw |= extractor.sawItems;
                     moved += movedNow;
+                    itemsBlocked |= resource == PipeKind.ITEMS && movedNow == 0 && extractor.sawItems;
                 }
                 extractor.sawItems = saw; // any resource had something to give (backoff below)
             } else if (data.pullsResource(direction, extractor.kind.resource())) {
                 moved = transfer(extractor, direction, extractor.kind.resource(), tier, data, maxSlots, maxCalls);
                 calls = extractor.calls;
+                itemsBlocked = extractor.kind.resource() == PipeKind.ITEMS && moved == 0 && extractor.sawItems;
                 extractor.sideStatus[extractor.kind.resource() * 6 + side] =
                         (byte) status(moved, noDestination, extractor.sawItems);
             }
             tickCalls += Math.max(1, calls);
-            if (moved == 0 && !extractor.sawItems && level.isLoaded(extractor.pos.relative(direction))
+            if (extractor.index < 0) {
+                return; // the pipe was removed during its own transfer: nothing more to run or to schedule
+            }
+            if (moved == 0 && !extractor.sawItems && Loaded.isLoaded(level, extractor.pos.relative(direction))
                     && !extractor.hasAnySource(level, direction)) {
                 // Nothing next to this pull side to pull from (step 34: pull sides no longer need a block there):
                 // sleep at zero cost until a neighbor or its capability changes (Extractor.wakeIdleSides).
@@ -839,9 +909,16 @@ public final class NetworkManager {
                 // longer); items that show up are picked up within that time.
                 int cap = Math.max(1, maxEmptyWait / interval);
                 extractor.sideBackoff[side] = Math.min(cap, extractor.sideBackoff[side] * 2);
-            } else if (extractor.sideBackoff[side] < maxBackoff) {
+            } else {
                 // Items are waiting but every destination refused them: this is the expensive case, so slow down.
-                extractor.sideBackoff[side] = Math.min(maxBackoff, extractor.sideBackoff[side] * 2);
+                // Decision 2 (zerobit, 2026-11-09; review R6): for items, down to at least blocked_wait_ticks between
+                // tries. max_backoff_multiplier alone let the fastest upgrades (1 tick apart) walk a full storage
+                // again every 4 ticks. Fluids and energy keep the old limit: asking a full tank or machine is cheap,
+                // and a machine with a small buffer shouldn't wait a second for its power.
+                int cap = itemsBlocked ? Math.max(maxBackoff, (blockedWait + interval - 1) / interval) : maxBackoff;
+                if (extractor.sideBackoff[side] < cap) {
+                    extractor.sideBackoff[side] = Math.min(cap, extractor.sideBackoff[side] * 2);
+                }
             }
             // Spread pipes over the interval so they don't all run on the same tick.
             long offset = wasWoken ? Math.floorMod(HashCommon.mix(extractor.pos.asLong() + side), interval) : 0;
@@ -862,6 +939,7 @@ public final class NetworkManager {
     public static void clearAll() {
         MANAGERS.clear();
         PENDING_CHUNK_EVENTS.clear();
+        resetTicketCounters();
         PENDING_WATCH_EVENTS.clear();
     }
 
@@ -895,6 +973,79 @@ public final class NetworkManager {
                 manager.onChunkChanged(event.chunkPos());
             }
         }
+    }
+
+    /**
+     * Review R17 (2026-11-10): a chunk's ticket level changed.
+     * <p>
+     * A chunk a player walks away from first loses its ticket and only later leaves memory; if the player comes back
+     * in between, it just gets the ticket back. The game sends no load or unload event for either step, but for the
+     * pipes (see Loaded) the chunk did stop and start being loaded. Without this, a network rebuilt in between stayed
+     * cut at that chunk, and pipes kept delivering into a chunk without a ticket, where the game no longer marks a
+     * changed chest for saving (Level.blockEntityChanged), so what they delivered could be lost.
+     * <p>
+     * The game calls this for every level change of every chunk (thousands when a player moves), and reports a level
+     * that goes up as "down to unloaded, then up to the new level": a chunk that never stopped being loaded looks as
+     * if it left and came back. So this only compares two numbers and, for the few chunks that crossed the line, looks
+     * the chunk up and notes it; settleTicketCrossings checks what is really there, later. Never reads the world.
+     */
+    public static void onTicketLevel(ServerLevel level, long chunkPos, int oldLevel, int newLevel) {
+        ticketChanges++;
+        if ((oldLevel <= LOADED_TICKET_LEVEL) == (newLevel <= LOADED_TICKET_LEVEL)) {
+            return;
+        }
+        ticketLineCrossings++;
+        if (!level.getServer().isSameThread()) {
+            PENDING_CHUNK_EVENTS.add(new PendingChunkEvent(level, chunkPos)); // not expected: the plain, safe way
+            return;
+        }
+        NetworkManager manager = MANAGERS.get(level);
+        if (manager != null && manager.networksByChunk.containsKey(chunkPos)) {
+            manager.ticketCrossings.add(chunkPos);
+            ticketChunksNoted++;
+        }
+    }
+
+    /**
+     * Review R17: looks at the chunks onTicketLevel noted. A network is dropped (and rebuilt when next needed) if it
+     * has pipes in a chunk that isn't loaded any more, or waits at the edge of a chunk that is loaded now. A chunk
+     * whose level only dipped and came back changes nothing. Runs before pipes move anything (tick, pushNetwork).
+     */
+    private void settleTicketCrossings() {
+        LongIterator iterator = ticketCrossings.iterator();
+        while (iterator.hasNext()) {
+            long chunk = iterator.nextLong();
+            ReferenceArrayList<PipeNetwork> here = networksByChunk.get(chunk);
+            if (here == null) {
+                continue;
+            }
+            boolean loaded = Loaded.chunk(level, ChunkPos.getX(chunk), ChunkPos.getZ(chunk)) != null;
+            for (int i = 0; i < here.size(); i++) {
+                PipeNetwork network = here.get(i);
+                if (loaded ? network.missingChunks.contains(chunk) : network.chunks.contains(chunk)) {
+                    ticketScratch.add(network);
+                }
+            }
+            for (int i = 0; i < ticketScratch.size(); i++) {
+                invalidate(ticketScratch.get(i)); // takes it out of "here" too, hence the separate list
+            }
+            ticketNetworksDropped += ticketScratch.size();
+            ticketScratch.clear();
+        }
+        ticketCrossings.clear();
+    }
+
+    /** Review R17: {ticket changes seen, crossed the loaded line, of those in chunks with pipes, networks dropped}. */
+    public static long[] ticketCounters() {
+        return new long[] {ticketChanges, ticketLineCrossings, ticketChunksNoted, ticketNetworksDropped};
+    }
+
+    /** Review R17: starts a new count (called by /daisychain stats after showing it). */
+    public static void resetTicketCounters() {
+        ticketChanges = 0;
+        ticketLineCrossings = 0;
+        ticketChunksNoted = 0;
+        ticketNetworksDropped = 0;
     }
 
     private void onChunkChanged(long chunkPos) {
@@ -1023,6 +1174,70 @@ public final class NetworkManager {
         }
     }
 
+    /**
+     * Review R5: once a second while any are waiting, insert sides that follow redstone but couldn't read their
+     * signal when their network was built try again; one that opens wakes the network's pulling pipes. Called from
+     * tick(), not from the chunk events: the world must not be read while a chunk is in the middle of loading.
+     */
+    private void retryUnknownRedstone() {
+        for (int n = unknownRedstone.size() - 1; n >= 0; n--) {
+            PipeNetwork network = unknownRedstone.get(n);
+            boolean stillUnknown = false;
+            boolean opened = false;
+            if (network.valid) {
+                for (int i = 0; i < network.redstoneEndpoints.size(); i++) {
+                    PipeNetwork.Endpoint endpoint = network.redstoneEndpoints.get(i);
+                    if (!endpoint.redstoneUnknown()) {
+                        continue;
+                    }
+                    BlockPos pipePos = endpoint.pipePos();
+                    if (signalReadable(pipePos)) {
+                        endpoint.setPowered(level.hasNeighborSignal(pipePos));
+                        opened |= !endpoint.redstoneBlocked();
+                    } else {
+                        stillUnknown = true;
+                    }
+                }
+            }
+            if (opened) {
+                for (int i = 0; i < network.boundExtractors.size(); i++) {
+                    network.boundExtractors.get(i).wake();
+                }
+            }
+            if (!stillUnknown) {
+                unknownRedstone.remove(n);
+            }
+        }
+    }
+
+    /**
+     * Review R13: only the pipe's "has settings" flag changed (a settings screen was opened, or closed without a
+     * change). Its arms and the network are the same, so nothing is rebuilt; a pulling pipe just reads its block state
+     * again on its next run.
+     */
+    public void onPipeDataFlagChanged(BlockPos pos) {
+        Extractor changed = extractorsByPos.get(pos.asLong());
+        if (changed != null) {
+            changed.cachedState = null;
+        }
+    }
+
+    /** The chunk for build(), if it is really loaded (review R4). Remembers the last one. */
+    @Nullable
+    private LevelChunk chunkForBuild(int chunkX, int chunkZ) {
+        LevelChunk chunk = buildChunk;
+        if (chunk != null && chunkX == buildChunkX && chunkZ == buildChunkZ) {
+            return chunk;
+        }
+        chunk = Loaded.chunk(level, chunkX, chunkZ);
+        if (chunk != null) {
+            buildChunk = chunk;
+            buildChunkX = chunkX;
+            buildChunkZ = chunkZ;
+        }
+        return chunk;
+    }
+
     /** Called when a pipe is placed, removed, or changes its arms. */
     public void onPipeChanged(BlockPos pos) {
         long packed = pos.asLong();
@@ -1048,11 +1263,8 @@ public final class NetworkManager {
         if (network != null && network.valid) {
             return network;
         }
-        if (!level.isLoaded(pos)) {
-            return null;
-        }
-        BlockState state = level.getBlockState(pos);
-        if (!(state.getBlock() instanceof FlowPipeBlock)) {
+        BlockState state = Loaded.stateIfLoaded(level, pos); // review R4
+        if (state == null || !(state.getBlock() instanceof FlowPipeBlock)) {
             return null;
         }
         return build(pos, state.getBlock());
@@ -1082,6 +1294,9 @@ public final class NetworkManager {
             return;
         }
         network.valid = false;
+        if (!unknownRedstone.isEmpty()) {
+            unknownRedstone.remove(network);
+        }
         LongArrayList pipes = network.pipes;
         for (int i = 0; i < pipes.size(); i++) {
             long pipe = pipes.getLong(i);
@@ -1144,9 +1359,21 @@ public final class NetworkManager {
         visited.add(startPacked);
         queue.enqueue(startPacked);
 
+        boolean unknownSignal = false;
+        buildChunk = null;
         while (!queue.isEmpty()) {
             long pipe = queue.dequeueLong();
-            BlockState state = level.getBlockState(cursor.set(pipe));
+            // Review R4: block states are read straight from chunks that are really loaded, never through the level
+            // (which waits for a chunk that is still loading, and can keep one loaded that is on its way out).
+            int pipeChunkX = SectionPos.blockToSectionCoord(BlockPos.getX(pipe));
+            int pipeChunkZ = SectionPos.blockToSectionCoord(BlockPos.getZ(pipe));
+            LevelChunk pipeChunk = chunkForBuild(pipeChunkX, pipeChunkZ);
+            if (pipeChunk == null) {
+                // Pipes only get here through a loaded check, so this shouldn't happen; if it does, wait for the chunk.
+                network.missingChunks.add(ChunkPos.asLong(pipeChunkX, pipeChunkZ));
+                continue;
+            }
+            BlockState state = pipeChunk.getBlockState(cursor.set(pipe));
             if (!FlowPipeBlock.sameNetwork(pipeBlock, state.getBlock())) {
                 continue;
             }
@@ -1175,11 +1402,13 @@ public final class NetworkManager {
                 long neighbor = BlockPos.offset(pipe, direction);
                 int chunkX = SectionPos.blockToSectionCoord(BlockPos.getX(neighbor));
                 int chunkZ = SectionPos.blockToSectionCoord(BlockPos.getZ(neighbor));
-                if (!level.hasChunk(chunkX, chunkZ)) {
+                LevelChunk neighborChunk = chunkForBuild(chunkX, chunkZ);
+                if (neighborChunk == null) {
+                    // Not loaded, or (review R4) still loading: the network stops here until that chunk's load event.
                     network.missingChunks.add(ChunkPos.asLong(chunkX, chunkZ));
                     continue;
                 }
-                BlockState neighborState = level.getBlockState(cursor.set(neighbor));
+                BlockState neighborState = neighborChunk.getBlockState(cursor.set(neighbor));
                 if (FlowPipeBlock.sameNetwork(pipeBlock, neighborState.getBlock())) {
                     links |= 1 << direction.get3DDataValue();
                     if (visited.add(neighbor)) {
@@ -1203,8 +1432,13 @@ public final class NetworkManager {
                         if (insertRedstone != RedstoneMode.ALWAYS) {
                             // Step 40: follows the pipe's signal; unknown (area not loaded) counts as no signal.
                             BlockPos pipePos = endpoint.pipePos();
-                            endpoint.setRedstone(insertRedstone,
-                                    signalReadable(pipePos) && level.hasNeighborSignal(pipePos));
+                            if (signalReadable(pipePos)) {
+                                endpoint.setRedstone(insertRedstone, level.hasNeighborSignal(pipePos));
+                            } else {
+                                // Review R5: can't read the signal yet. Closed until it can be read, not guessed.
+                                endpoint.setRedstoneUnknown(insertRedstone);
+                                unknownSignal = true;
+                            }
                             network.redstoneEndpoints.add(endpoint);
                         }
                     }
@@ -1246,6 +1480,10 @@ public final class NetworkManager {
         networks.add(network);
         addToChunkIndex(network, network.chunks);
         addToChunkIndex(network, network.missingChunks);
+        buildChunk = null; // never hold on to a chunk between builds
+        if (unknownSignal) {
+            unknownRedstone.add(network);
+        }
         return network;
     }
 

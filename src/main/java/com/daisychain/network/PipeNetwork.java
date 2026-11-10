@@ -360,6 +360,8 @@ public final class PipeNetwork {
         private final Direction side;
         private final boolean extract;
         private final BlockPos targetPos;
+        /** Review R4: the target is in another chunk than the pipe. */
+        private final boolean crossChunk;
         /** Index of pipePos in the network's pipe list. */
         final int pipeIndex;
         /** Index of this endpoint in the network's endpoint list (step 84: per-destination route speeds). */
@@ -386,6 +388,8 @@ public final class PipeNetwork {
         /** Insert side redstone (step 40): the mode, and whether the current signal stops this destination. */
         private RedstoneMode redstoneMode = RedstoneMode.ALWAYS;
         private boolean redstoneBlocked;
+        /** Review R5: the signal couldn't be read when the network was built (area not loaded): closed until it can. */
+        private boolean redstoneUnknown;
 
         Endpoint(BlockPos pipePos, int pipeIndex, Direction side, boolean extract) {
             this.pipePos = pipePos;
@@ -393,6 +397,16 @@ public final class PipeNetwork {
             this.side = side;
             this.extract = extract;
             this.targetPos = pipePos.relative(side);
+            this.crossChunk = (targetPos.getX() >> 4) != (pipePos.getX() >> 4)
+                    || (targetPos.getZ() >> 4) != (pipePos.getZ() >> 4);
+        }
+
+        /**
+         * Review R4: false if the target block sits in a neighboring chunk that isn't really loaded (only checked for
+         * targets across a chunk border). Looking up its inventory then would make the server wait for that chunk.
+         */
+        private boolean targetLoaded(ServerLevel level) {
+            return !crossChunk || Loaded.isLoaded(level, targetPos);
         }
 
         public BlockPos pipePos() {
@@ -430,11 +444,27 @@ public final class PipeNetwork {
 
         /** The pipe's redstone signal changed: On with signal accepts only while powered, Off with signal only while not. */
         void setPowered(boolean powered) {
+            redstoneUnknown = false;
             redstoneBlocked = switch (redstoneMode) {
                 case ON_WITH_SIGNAL -> !powered;
                 case OFF_WITH_SIGNAL -> powered;
                 default -> false;
             };
+        }
+
+        /**
+         * Review R5: this insert side follows redstone, but the area around its pipe isn't loaded far enough to read
+         * the signal. It accepts nothing until the signal can be read (NetworkManager.retryUnknownRedstone, or the
+         * next neighbor update), instead of guessing "no signal".
+         */
+        void setRedstoneUnknown(RedstoneMode mode) {
+            redstoneMode = mode;
+            redstoneUnknown = true;
+            redstoneBlocked = true;
+        }
+
+        boolean redstoneUnknown() {
+            return redstoneUnknown;
         }
 
         /** True while redstone stops this destination from accepting anything. */
@@ -534,6 +564,9 @@ public final class PipeNetwork {
         /** The target's item handler, cached. Null if it has none or its chunk isn't loaded. */
         @Nullable
         public IItemHandler itemHandler(ServerLevel level) {
+            if (!targetLoaded(level)) {
+                return null;
+            }
             if (itemCache == null) {
                 itemCache = BlockCapabilityCache.create(Capabilities.ItemHandler.BLOCK, level, targetPos, side.getOpposite());
             }
@@ -543,6 +576,9 @@ public final class PipeNetwork {
         /** The target's energy storage (energy pipes), cached. Null if it has none or its chunk isn't loaded. */
         @Nullable
         public IEnergyStorage energyHandler(ServerLevel level) {
+            if (!targetLoaded(level)) {
+                return null;
+            }
             if (energyCache == null) {
                 energyCache = BlockCapabilityCache.create(Capabilities.EnergyStorage.BLOCK, level, targetPos,
                         side.getOpposite());
@@ -553,6 +589,9 @@ public final class PipeNetwork {
         /** The target's fluid handler (fluid pipes), cached. Null if it has none or its chunk isn't loaded. */
         @Nullable
         public IFluidHandler fluidHandler(ServerLevel level) {
+            if (!targetLoaded(level)) {
+                return null;
+            }
             if (fluidCache == null) {
                 fluidCache = BlockCapabilityCache.create(Capabilities.FluidHandler.BLOCK, level, targetPos,
                         side.getOpposite());

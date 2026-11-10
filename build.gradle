@@ -177,9 +177,13 @@ dependencies {
     // localRuntime: present in the dev game, never a dependency of Daisychain itself.
     localRuntime "mekanism:Mekanism:${mekanism_version}"
     localRuntime "mekanism:Mekanism:${mekanism_version}:generators"
-    // GuideME (step 45): REQUIRED by Daisychain. It shows the in-game guide (src/main/resources/assets/daisychain/guides).
-    // The guide is plain data files, so no Daisychain code calls GuideME yet; "implementation" puts it in the dev game too.
-    implementation "maven.modrinth:guideme:${guideme_version}"
+    // GuideME (step 45): optional since the 2026-11-09 review (decision 5). It shows the in-game guide
+    // (src/main/resources/assets/daisychain/guides). The guide is plain data files and no Daisychain code calls GuideME,
+    // so it is only put in the dev game (localRuntime), like JEI and Jade. To check that everything still works
+    // without it:  ./gradlew runGameTestServer -Pwithout_guideme
+    if (!project.hasProperty('without_guideme')) {
+        localRuntime "maven.modrinth:guideme:${guideme_version}"
+    }
     // spark profiler, only in the dev game, to measure the stress tests (step 35). Never a dependency of Daisychain.
     localRuntime "maven.modrinth:spark:${spark_version}"
     // Pipez, only in the dev game so the two mods can be compared side by side (step 56). Never shipped or required.

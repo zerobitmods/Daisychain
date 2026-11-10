@@ -6,10 +6,12 @@ import com.daisychain.filter.ItemFilter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.neoforge.capabilities.BlockCapabilityCache;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.material.Fluid;
 import net.neoforged.neoforge.energy.IEnergyStorage;
 import net.neoforged.neoforge.fluids.capability.IFluidHandler;
@@ -119,11 +121,14 @@ final class Extractor {
     @Nullable
     BlockState cachedState;
     /**
-     * Scratch for item inserts (step 36): which destination slots accepted how many in the simulated insert, so the
-     * real insert only touches those slots. Reused; never shrinks.
+     * Review R6 (2026-11-09): destinations that have no room for an item during the current transfer (each one's slots
+     * were all asked once), so the other source slots holding that item don't make the pipe walk them again. Reused
+     * every transfer; refusedSize = 0 empties it, and the references are cleared after each transfer. (The step 36
+     * scratch arrays that used to be here went with review R1: items are now committed one destination slot at a time.)
      */
-    final int[] insertSlots = new int[128];
-    final int[] insertAmounts = new int[128];
+    final IItemHandler[] refusedTargets = new IItemHandler[8];
+    final ItemStack[] refusedItems = new ItemStack[8];
+    int refusedSize;
 
     /** Destinations sorted nearest first, for the network they were computed from. */
     @Nullable
@@ -168,12 +173,44 @@ final class Extractor {
     @SuppressWarnings("unchecked")
     private final BlockCapabilityCache<IEnergyStorage, Direction>[] energySourceCaches = new BlockCapabilityCache[6];
 
+    /**
+     * Review R4: one bit per side whose neighbor block is in another chunk than this pipe. Only those sides need a
+     * "really loaded" check before their block is looked at; the pipe's own chunk is loaded while this object exists.
+     */
+    private final int crossChunkMask;
+    /**
+     * Decision 1 (zerobit, 2026-11-09): the pipe's chunk (as ChunkPos.asLong), to ask "do blocks tick here?" before
+     * the pipe runs (NetworkManager.runExtractor).
+     */
+    final long chunkKey;
+
     Extractor(BlockPos pos) {
         this.pos = pos;
+        this.chunkKey = ChunkPos.asLong(pos);
+        int mask = 0;
+        for (Direction side : Direction.values()) {
+            if (((pos.getX() + side.getStepX()) >> 4) != (pos.getX() >> 4)
+                    || ((pos.getZ() + side.getStepZ()) >> 4) != (pos.getZ() >> 4)) {
+                mask |= 1 << side.get3DDataValue();
+            }
+        }
+        this.crossChunkMask = mask;
+    }
+
+    /**
+     * Review R4: false if the block on this side sits in a neighboring chunk that isn't really loaded yet. Asking for
+     * its inventory then would make the server wait for that chunk; the side just tries again on its next turn.
+     */
+    private boolean neighborLoaded(ServerLevel level, Direction side) {
+        return (crossChunkMask & (1 << side.get3DDataValue())) == 0
+                || Loaded.chunk(level, (pos.getX() + side.getStepX()) >> 4, (pos.getZ() + side.getStepZ()) >> 4) != null;
     }
 
     @Nullable
     IItemHandler source(ServerLevel level, Direction side) {
+        if (!neighborLoaded(level, side)) {
+            return null;
+        }
         int i = side.get3DDataValue();
         BlockCapabilityCache<IItemHandler, Direction> cache = sourceCaches[i];
         if (cache == null) {
@@ -187,6 +224,9 @@ final class Extractor {
     /** The fluid handler of the block on this side (fluid pipes), cached. Null if it has none or isn't loaded. */
     @Nullable
     IFluidHandler fluidSource(ServerLevel level, Direction side) {
+        if (!neighborLoaded(level, side)) {
+            return null;
+        }
         int i = side.get3DDataValue();
         BlockCapabilityCache<IFluidHandler, Direction> cache = fluidSourceCaches[i];
         if (cache == null) {
@@ -200,6 +240,9 @@ final class Extractor {
     /** The energy storage of the block on this side (energy pipes), cached. Null if it has none or isn't loaded. */
     @Nullable
     IEnergyStorage energySource(ServerLevel level, Direction side) {
+        if (!neighborLoaded(level, side)) {
+            return null;
+        }
         int i = side.get3DDataValue();
         BlockCapabilityCache<IEnergyStorage, Direction> cache = energySourceCaches[i];
         if (cache == null) {

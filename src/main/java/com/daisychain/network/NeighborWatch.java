@@ -41,8 +41,8 @@ public final class NeighborWatch implements ICapabilityInvalidationListener {
         if (!level.getServer().isSameThread()) {
             return true; // a chunk event off the server thread: the queued chunk-load scan covers it
         }
-        if (!level.isLoaded(pos)) {
-            return true; // the chunk is unloading; the queued unload drops this watch
+        if (!Loaded.isLoaded(level, pos)) {
+            return true; // the chunk is unloading (the queued unload drops this watch) or still loading
         }
         int pipes = scheduleRechecks(level, pos);
         if (pipes == 0 || !level.getBlockState(pos).hasBlockEntity()) {
@@ -60,11 +60,9 @@ public final class NeighborWatch implements ICapabilityInvalidationListener {
         int count = 0;
         for (Direction direction : DIRECTIONS) {
             BlockPos pipePos = pos.relative(direction);
-            if (!level.isLoaded(pipePos)) {
-                continue;
-            }
-            BlockState state = level.getBlockState(pipePos);
-            if (state.getBlock() instanceof FlowPipeBlock pipe) {
+            // Review R4: never waits for a chunk that is still loading; that chunk's own load scan covers its pipes.
+            BlockState state = Loaded.stateIfLoaded(level, pipePos);
+            if (state != null && state.getBlock() instanceof FlowPipeBlock pipe) {
                 level.scheduleTick(pipePos, pipe, 1);
                 count++;
             }

@@ -13,7 +13,7 @@ Minecraft 1.21.1 · NeoForge 21.1.49+ · MIT license · version 1.1.2
 - **Stock control:** Batch size, Keep in source, Fill destination to and Max stock, per side or per filter entry.
 - **Redstone control** on pull and insert sides.
 - **Five upgrades** (iron to nether star) and a **Settings Copier**.
-- **In-game guide:** hold G over any Daisychain item to open its page.
+- **In-game guide** (with [GuideME](https://modrinth.com/mod/guideme) installed): hold G over any Daisychain item to open its page.
 
 ## Built to stay light
 
@@ -25,7 +25,7 @@ Minecraft 1.21.1 · NeoForge 21.1.49+ · MIT license · version 1.1.2
 
 ## Compatibility
 
-Daisychain uses only NeoForge's standard item, fluid and energy capabilities, so it works with any mod that uses them. It requires [GuideME](https://modrinth.com/mod/guideme), which runs the in-game guide. JEI is optional.
+Daisychain uses only NeoForge's standard item, fluid and energy capabilities, so it works with any mod that uses them. [GuideME](https://modrinth.com/mod/guideme) is optional: install it to get the in-game guide and its guide book. JEI, Jade and FTB Ultimine are optional too.
 
 ## Links
 
@@ -34,7 +34,7 @@ Daisychain uses only NeoForge's standard item, fluid and energy capabilities, so
 
 ## Installing
 
-Put the Daisychain and GuideME jars in the `mods` folder of the server and of every client.
+Put the Daisychain jar in the `mods` folder of the server and of every client. For the in-game guide, add GuideME in the same places.
 
 ## Building from source
 

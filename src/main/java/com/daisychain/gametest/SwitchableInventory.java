@@ -8,6 +8,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.fml.loading.FMLEnvironment;
 import net.neoforged.neoforge.capabilities.Capabilities;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
+import net.neoforged.neoforge.items.IItemHandler;
 import net.neoforged.neoforge.items.ItemStackHandler;
 
 import java.util.Map;
@@ -20,7 +21,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @EventBusSubscriber(modid = Daisychain.MOD_ID)
 public final class SwitchableInventory {
-    private static final Map<BlockPos, ItemStackHandler> OPEN = new ConcurrentHashMap<>();
+    private static final Map<BlockPos, IItemHandler> OPEN = new ConcurrentHashMap<>();
 
     private SwitchableInventory() {
     }
@@ -32,6 +33,11 @@ public final class SwitchableInventory {
         } else {
             OPEN.remove(pos);
         }
+    }
+
+    /** Review R1/R7: the table at pos (absolute) offers exactly this inventory (see TestInventories). */
+    public static void setHandler(BlockPos pos, IItemHandler handler) {
+        OPEN.put(pos.immutable(), handler);
     }
 
     // Capability registration is a mod-bus event; FML 1.21.1 sends it to the mod bus automatically.
