@@ -34,6 +34,8 @@ import java.util.Locale;
  * - items / universal: A is a chest a little under half full (cobblestone, dirt, sand), B an empty chest;
  * - fluids: A a full water cauldron, B an empty one (cauldrons move one whole bucket at a time).
  * - idle (step 37): like items, but both chests start empty, so every pull side only finds an empty chest each time.
+ * - bigitems: like items, but A and B are 1024-slot test crates (enchanting tables, development game only, see
+ *   StressTestItems) and A starts with 320 stacks, to measure big item batches (more stacks per transfer).
  * Universal pipes carry only items here, but still check for fluids and energy every transfer, like in a real base.
  * Networks sit two blocks apart so they never touch, in a square centred on the player, two blocks below their feet.
  *
@@ -57,7 +59,7 @@ final class StressTest {
 
     static LiteralArgumentBuilder<CommandSourceStack> command() {
         LiteralArgumentBuilder<CommandSourceStack> root = Commands.literal("stress");
-        for (String kind : new String[]{"items", "fluids", "universal", "idle", "energy"}) {
+        for (String kind : new String[]{"items", "fluids", "universal", "idle", "energy", "bigitems"}) {
             root.then(Commands.literal(kind)
                     .then(Commands.argument("networks", IntegerArgumentType.integer(1, MAX_NETWORKS))
                             .then(Commands.argument("length", IntegerArgumentType.integer(2, MAX_LENGTH))
@@ -82,6 +84,12 @@ final class StressTest {
         boolean universal = kind.equals("universal");
         boolean empty = kind.equals("idle");
         boolean energy = kind.equals("energy");
+        boolean big = kind.equals("bigitems");
+        if (big && !StressTestItems.AVAILABLE) {
+            source.sendFailure(Component.literal(
+                    "The bigitems stress test needs the development game (./gradlew runClient): its test crates only exist there."));
+            return 0;
+        }
         if (energy && !StressTestEnergy.AVAILABLE) {
             source.sendFailure(Component.literal(
                     "The energy stress test needs the development game (./gradlew runClient): its test batteries only exist there."));
@@ -103,7 +111,7 @@ final class StressTest {
             if (energy) {
                 buildEnergy(level, a, length, pipe);
             } else {
-                buildOne(level, a, length, pipe, fluids, empty, upgrade);
+                buildOne(level, a, length, pipe, fluids, empty, big, upgrade);
             }
         }
         String message = String.format(Locale.ROOT,
@@ -115,7 +123,7 @@ final class StressTest {
     }
 
     private static void buildOne(ServerLevel level, BlockPos a, int length, Block pipe, boolean fluids,
-                                 boolean empty, int upgrade) {
+                                 boolean empty, boolean big, int upgrade) {
         BlockPos b = a.east(length + 1);
         // Clear the strip and the row above it.
         for (int i = 0; i <= length + 1; i++) {
@@ -125,6 +133,12 @@ final class StressTest {
         if (fluids) {
             level.setBlock(a, fullCauldron(), Block.UPDATE_ALL);
             level.setBlock(b, Blocks.CAULDRON.defaultBlockState(), Block.UPDATE_ALL);
+        } else if (big) {
+            level.setBlock(a, Blocks.ENCHANTING_TABLE.defaultBlockState(), Block.UPDATE_ALL);
+            level.setBlock(b, Blocks.ENCHANTING_TABLE.defaultBlockState(), Block.UPDATE_ALL);
+            if (!empty) {
+                StressTestItems.fill(level, a);
+            }
         } else {
             level.setBlock(a, Blocks.CHEST.defaultBlockState(), Block.UPDATE_ALL);
             level.setBlock(b, Blocks.CHEST.defaultBlockState(), Block.UPDATE_ALL);
