@@ -157,6 +157,11 @@ public final class DaisychainCommands {
     // Step 114: cut-offs for the health summary, in ms of pipe work per tick on average (a tick is 50 ms).
     private static final double HEALTH_BUSY_MS = 2.0;
     private static final double HEALTH_EXPENSIVE_MS = 5.0;
+    /** Step 115: the rating word for an average pipe time per tick (also used by /daisychain stress measure). */
+    static String healthRating(double avgMs) {
+        return avgMs >= HEALTH_EXPENSIVE_MS ? "EXPENSIVE" : avgMs >= HEALTH_BUSY_MS ? "BUSY" : "HEALTHY";
+    }
+
     /** A single tick at least this slow marks the summary "spiky". */
     private static final double HEALTH_SPIKE_MS = 20.0;
 
