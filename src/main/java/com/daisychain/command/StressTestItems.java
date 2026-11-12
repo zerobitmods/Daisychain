@@ -25,7 +25,11 @@ import java.util.WeakHashMap;
  * an enchanting table gets a {@value #SLOTS}-slot item storage, like the big modded storages (drawers, storage-system
  * interfaces) that a bigger limit would matter for.
  *
- * The storage lives in memory only: after the world is reloaded the tables are empty, so build the test again.
+ * The storage lives in memory only: after the world is reloaded the tables are plain tables again, so build the test
+ * again.
+ *
+ * Only the tables that /daisychain stress bigitems builds are crates (make); every other enchanting table stays plain.
+ * Before step 116 every table was a crate, which broke the step 111 game tests that need a table without an inventory.
  */
 @EventBusSubscriber(modid = Daisychain.MOD_ID)
 public final class StressTestItems {
@@ -43,17 +47,23 @@ public final class StressTestItems {
     private StressTestItems() {
     }
 
-    private static ItemStackHandler crateFor(BlockEntity table) {
-        return CRATES.computeIfAbsent(table, unused -> new ItemStackHandler(SLOTS));
-    }
-
-    /** Fills the crate at pos with {@link #FILLED_STACKS} full stacks (cobblestone, dirt, sand). */
-    static void fill(ServerLevel level, BlockPos pos) {
+    /** Turns the enchanting table at pos into an empty test crate (call before placing the pipes next to it). */
+    static void make(ServerLevel level, BlockPos pos) {
         BlockEntity table = level.getBlockEntity(pos);
         if (table == null) {
             return;
         }
-        ItemStackHandler crate = crateFor(table);
+        CRATES.computeIfAbsent(table, unused -> new ItemStackHandler(SLOTS));
+        level.invalidateCapabilities(pos); // anything that already asked this table sees the crate now
+    }
+
+    /** Fills the crate at pos (made with make) with {@link #FILLED_STACKS} full stacks (cobblestone, dirt, sand). */
+    static void fill(ServerLevel level, BlockPos pos) {
+        BlockEntity table = level.getBlockEntity(pos);
+        ItemStackHandler crate = table == null ? null : CRATES.get(table);
+        if (crate == null) {
+            return;
+        }
         for (int slot = 0; slot < FILLED_STACKS; slot++) {
             crate.setStackInSlot(slot, FILL[slot % FILL.length].copy());
         }
@@ -66,6 +76,6 @@ public final class StressTestItems {
             return;
         }
         event.registerBlockEntity(Capabilities.ItemHandler.BLOCK, BlockEntityType.ENCHANTING_TABLE,
-                (blockEntity, side) -> crateFor(blockEntity));
+                (blockEntity, side) -> CRATES.get(blockEntity)); // null for every table that isn't a crate
     }
 }

@@ -170,6 +170,8 @@ final class StressTest {
         } else if (big) {
             level.setBlock(a, Blocks.ENCHANTING_TABLE.defaultBlockState(), Block.UPDATE_ALL);
             level.setBlock(b, Blocks.ENCHANTING_TABLE.defaultBlockState(), Block.UPDATE_ALL);
+            StressTestItems.make(level, a);
+            StressTestItems.make(level, b);
             if (!empty) {
                 StressTestItems.fill(level, a);
                 StressTestItems.fill(level, b);
