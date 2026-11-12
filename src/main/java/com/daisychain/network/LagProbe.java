@@ -6,7 +6,7 @@ import com.daisychain.command.DaisychainCommands;
 import com.daisychain.config.DaisychainConfig;
 import com.daisychain.item.UpgradeTier;
 import com.daisychain.net.DaisychainNetwork;
-import com.daisychain.net.PasteHighlightPayload;
+import com.daisychain.net.LagHighlightPayload;
 import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.core.BlockPos;
@@ -233,8 +233,8 @@ final class LagProbe {
             double netMs = stat.nanos / 1_000_000.0 / tickCount;
             double share = totalNanos > 0 ? stat.nanos * 100.0 / totalNanos : 0;
             BlockPos near = nearestToMiddle(stat.pipes);
-            MutableComponent first = Component.literal(String.format(Locale.ROOT, " %d. %s ms/tick (%.0f%%) near %s ",
-                    n + 1, ms(netMs), share, coords(near)));
+            MutableComponent first = Component.literal(String.format(Locale.ROOT, " %d. %s ms/tick (%s) near %s ",
+                    n + 1, ms(netMs), percent(share), coords(near)));
             first.append(teleport(level, near, "[teleport]"));
             send(level, first);
 
@@ -287,17 +287,21 @@ final class LagProbe {
                 .withStyle(ChatFormatting.DARK_GRAY));
 
         ServerPlayer player = player(level);
-        if (player != null && player.serverLevel() == level && !outlined.isEmpty()) {
+        if (player != null && !outlined.isEmpty()) {
+            // Step 116c: sent even if the operator is in another dimension now; they show once they're back.
             long[] positions = new long[outlined.size()];
             byte[] sides = new byte[outlined.size()];
             for (int i = 0; i < outlined.size(); i++) {
                 positions[i] = outlined.get(i).extractor().pos.asLong();
                 sides[i] = (byte) outlined.get(i).side();
             }
-            DaisychainNetwork.sendToPlayer(player, new PasteHighlightPayload(PasteHighlightPayload.LAG, positions, sides));
+            DaisychainNetwork.sendToPlayer(player, new LagHighlightPayload(level.dimension().location(), positions,
+                    sides));
+            String where = player.serverLevel() == level ? ""
+                    : " once you're back in " + level.dimension().location();
             send(level, Component.literal(String.format(Locale.ROOT,
-                    "The busiest pull sides of these networks glow red for %d s (only you see them).",
-                    PasteHighlightPayload.LAG_SECONDS)).withStyle(ChatFormatting.RED));
+                    "The busiest pull sides of these networks glow red for %d s%s (only you see them).",
+                    LagHighlightPayload.SECONDS, where)).withStyle(ChatFormatting.RED));
         }
     }
 
@@ -429,6 +433,20 @@ final class LagProbe {
             return String.format(Locale.ROOT, "%.4f", value);
         }
         return String.format(Locale.ROOT, "%.5f", value);
+    }
+
+    /** Step 116c: a share with a decimal when it's small, so a real network never shows as 0%: 50%, 4.2%, 0.3%, <0.1%. */
+    private static String percent(double value) {
+        if (value <= 0) {
+            return "0%";
+        }
+        if (value >= 9.95) {
+            return String.format(Locale.ROOT, "%.0f%%", value);
+        }
+        if (value >= 0.05) {
+            return String.format(Locale.ROOT, "%.1f%%", value);
+        }
+        return "<0.1%";
     }
 
     /** 10 instead of 10.0. */

@@ -18,4 +18,10 @@ public final class ClientAccess {
     public static void showPasteHighlight(byte kind, long[] positions, byte[] sides) {
         PasteHighlights.show(kind, positions, sides);
     }
+
+    /** Step 116c: the red /daisychain lag outlines. */
+    public static void showLagHighlight(net.minecraft.resources.ResourceLocation dimension, long[] positions,
+                                        byte[] sides) {
+        PasteHighlights.showLag(dimension, positions, sides);
+    }
 }

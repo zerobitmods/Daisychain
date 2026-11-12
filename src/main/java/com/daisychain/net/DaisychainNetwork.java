@@ -30,7 +30,7 @@ public final class DaisychainNetwork {
     }
 
     /** Bumped whenever a packet changes: a client and server with different packet sets refuse to connect. */
-    private static final String PROTOCOL = "f1";
+    private static final String PROTOCOL = "f2"; // "f2" since step F45c (LagHighlightPayload)
     public static final SimpleChannel CHANNEL = NetworkRegistry.newSimpleChannel(
             new ResourceLocation(Daisychain.MOD_ID, "main"), () -> PROTOCOL, PROTOCOL::equals, PROTOCOL::equals);
 
@@ -56,6 +56,14 @@ public final class DaisychainNetwork {
                 .consumerMainThread((payload, context) -> {
                     context.get().setPacketHandled(true);
                     DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> handlePasteHighlight(payload));
+                })
+                .add();
+        CHANNEL.messageBuilder(LagHighlightPayload.class, id++, NetworkDirection.PLAY_TO_CLIENT)
+                .encoder(LagHighlightPayload::encode)
+                .decoder(LagHighlightPayload::decode)
+                .consumerMainThread((payload, context) -> {
+                    context.get().setPacketHandled(true);
+                    DistExecutor.unsafeRunWhenOn(Dist.CLIENT, () -> () -> handleLagHighlight(payload));
                 })
                 .add();
     }
@@ -102,6 +110,11 @@ public final class DaisychainNetwork {
         } else {
             com.daisychain.item.SettingsCopierItem.undo(player, 0);
         }
+    }
+
+    /** Client, step 116c: /daisychain lag outlines. Only runs on the client (see handlePasteHighlight). */
+    private static void handleLagHighlight(LagHighlightPayload payload) {
+        com.daisychain.client.ClientAccess.showLagHighlight(payload.dimension(), payload.positions(), payload.sides());
     }
 
     /** Client: Settings Copier outlines. Only runs on the client, so the client class is never loaded on a server. */

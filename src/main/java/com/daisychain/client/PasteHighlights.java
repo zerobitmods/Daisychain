@@ -20,7 +20,10 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import com.daisychain.net.LagHighlightPayload;
+import net.minecraft.core.registries.Registries;
 import net.minecraft.resources.ResourceKey;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
@@ -130,8 +133,8 @@ public final class PasteHighlights {
     private static final Group result = new Group(MAX);
     private static long previewEnd;
     /**
-     * Step 116: the busiest pull sides found by /daisychain lag, red, for LAG_SECONDS whatever the player holds, and
-     * only in the dimension the player was in when they arrived.
+     * Step 116: the busiest pull sides found by /daisychain lag, red, for 30 s whatever the player holds, and only in
+     * the measured dimension (step 116c).
      */
     private static final Group lag = new Group(256);
     private static long lagEnd;
@@ -172,15 +175,19 @@ public final class PasteHighlights {
                 source.count = 0;
                 result.count = 0;
             }
-            case PasteHighlightPayload.LAG -> {
-                Minecraft minecraft = Minecraft.getInstance();
-                lag.set(positions, sides, RED);
-                lagEnd = Util.getMillis() + PasteHighlightPayload.LAG_SECONDS * 1000L;
-                lagDimension = minecraft.level != null ? minecraft.level.dimension() : null;
-            }
             default -> {
             }
         }
+    }
+
+    /**
+     * Step 116c: the busiest pull sides from /daisychain lag, red, for LagHighlightPayload.SECONDS from now, shown only
+     * in the measured dimension (also if the player gets there later, while the time lasts). Replaces the previous ones.
+     */
+    static void showLag(ResourceLocation dimension, long[] positions, byte[] sides) {
+        lag.set(positions, sides, RED);
+        lagEnd = Util.getMillis() + LagHighlightPayload.SECONDS * 1000L;
+        lagDimension = ResourceKey.create(Registries.DIMENSION, dimension);
     }
 
     /** The undo and redo keys, only while holding the copier and with no screen open. */
