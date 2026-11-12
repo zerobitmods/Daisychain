@@ -123,6 +123,16 @@ public final class DaisychainCommands {
                 manager.peakTickNanos() / 1_000_000.0, manager.peakBuilds(), manager.peakBuildNanos() / 1_000_000.0,
                 manager.peakBinds(), manager.peakBindNanos() / 1_000_000.0);
         source.sendSuccess(() -> Component.literal(peaks), false);
+        // Step 113: the cost per item over the whole time since the last stats, so a quiet second can't skew it.
+        long items = manager.peakItemsMoved();
+        int ticks = Math.max(1, manager.peakTicks());
+        double totalMs = manager.peakTotalNanos() / 1_000_000.0;
+        String itemsLine = String.format(Locale.ROOT,
+                "Since the last /daisychain stats (%.1f s): %,d items moved; all pipe work took %.3f ms per tick on "
+                        + "average%s",
+                manager.peakTicks() / 20.0, items, totalMs / ticks,
+                items > 0 ? String.format(Locale.ROOT, ", %.4f ms per 1,000 items", totalMs / (items / 1000.0)) : "");
+        source.sendSuccess(() -> Component.literal(itemsLine), false);
         manager.resetPeaks();
         // Review R17: what the chunk ticket listener did, to see what it costs on a busy server.
         long[] tickets = NetworkManager.ticketCounters();

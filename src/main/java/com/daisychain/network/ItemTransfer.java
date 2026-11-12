@@ -32,6 +32,12 @@ final class ItemTransfer {
     private static final int CANT_COUNT = Integer.MIN_VALUE;
     /** roomFor result: neither the pull side's Fill nor the destination's Max stock limits this item. */
     private static final int NO_LIMIT = Integer.MAX_VALUE;
+    /**
+     * Step 113: destinations with more slots than this (a double chest) start each insert at the slot where the last
+     * stack fitted (PipeNetwork.Endpoint.itemSlotHint) instead of at slot 0, so a big storage isn't walked past
+     * hundreds of full slots for every stack. Smaller inventories keep filling from the first slot, like a hopper.
+     */
+    private static final int HINT_MIN_SLOTS = 54;
 
     private static boolean warnedAboutDrop;
 
@@ -339,7 +345,7 @@ final class ItemTransfer {
                     toSend = offer.copyWithCount(room);
                 }
             }
-            int result = tryMove(level, extractor, source, slot, toSend, target, extractor.pos);
+            int result = tryMove(level, extractor, source, slot, toSend, target, destination, extractor.pos);
             if (result == SOURCE_CHANGED) {
                 return moved > 0 ? moved : -1;
             }
@@ -462,7 +468,7 @@ final class ItemTransfer {
                     share = Math.min(share, room);
                 }
                 int result = tryMove(level, extractor, source, slot, offer.copyWithCount(share), target,
-                        extractor.pos);
+                        destination, extractor.pos);
                 if (result == SOURCE_CHANGED) {
                     extractor.roundRobin[RESOURCE * 6 + sideIndex] = nextPosition;
                     return moved > 0 ? moved : -1;
@@ -519,20 +525,28 @@ final class ItemTransfer {
      * If a slot takes less than it just promised, the rest goes through a normal insert into any slot, then back to
      * the source; never lost.
      * <p>
-     * extractor.calls counts as before step 36 for the usual move into one slot (1 for the simulated sweep, 2 for the
-     * move), plus 2 for each further slot a move is spread over.
+     * extractor.calls counts every slot asked (step 113; before, the whole simulated sweep counted as 1, so walking a big
+     * storage past hundreds of full slots was invisible to the tick budget), plus 2 for each real move.
+     * Step 113: destinations bigger than HINT_MIN_SLOTS are asked starting at the slot where the last stack fitted,
+     * wrapping round, so every slot can still be asked before the destination counts as full.
      */
     private static int tryMove(ServerLevel level, Extractor extractor, IItemHandler source, int slot, ItemStack offer,
-                               IItemHandler target, BlockPos pipePos) {
+                               IItemHandler target, PipeNetwork.Endpoint destination, BlockPos pipePos) {
         if (refusedBefore(extractor, target, offer)) {
             return 0; // review R6: it took none of this item a moment ago; don't walk all its slots again
         }
         int targetSlots = target.getSlots();
+        boolean hinted = targetSlots > HINT_MIN_SLOTS;
+        int start = hinted ? Math.floorMod(destination.itemSlotHint, targetSlots) : 0;
         int moved = 0;
         ItemStack rest = offer;
-        extractor.calls++;
-        for (int s = 0; s < targetSlots && !rest.isEmpty(); s++) {
+        for (int asked = 0; asked < targetSlots && !rest.isEmpty(); asked++) {
+            int s = start + asked;
+            if (s >= targetSlots) {
+                s -= targetSlots;
+            }
             ItemStack after = target.insertItem(s, rest, true);
+            extractor.calls++;
             int took = rest.getCount() - after.getCount();
             if (took <= 0) {
                 continue;
@@ -549,6 +563,9 @@ final class ItemTransfer {
             ItemStack notTaken = target.insertItem(s, extracted.copy(), false);
             // Clamped, so a handler that answers nonsense can never make us count more than we extracted.
             int in = Math.max(0, Math.min(got, got - notTaken.getCount()));
+            if (hinted && in > 0) {
+                destination.itemSlotHint = s; // the next stack starts here
+            }
             if (in < got) {
                 // The slot took less than it said it would: try the whole target once, then give the rest back.
                 ItemStack leftover = ItemHandlerHelper.insertItem(target, extracted.copyWithCount(got - in), false);
