@@ -30,5 +30,9 @@ These all need operator permission.
 
 - `/daisychain stats` shows how hard the pipes are working: inventory calls per second, the average and busiest tick, and whether
   the budget is being hit.
+- `/daisychain lag [seconds]` finds where the pipe work goes. It measures for 10 seconds (or as many as you give it, up to 60), then
+  lists the five networks that cost the most: how much of each tick they take, where they are (click to teleport), their busiest
+  pull side, and a plain reason when there is one, like a slow storage block or full destinations. Their busiest pull sides glow
+  red through walls for 30 seconds, just for you. It only measures while it runs, so it costs nothing the rest of the time.
 - `/daisychain network <x y z>` shows the network a pipe belongs to.
 - `/daisychain version` tells you which version you're running.
