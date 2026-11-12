@@ -214,7 +214,7 @@ final class LagProbe {
 
         String rating = DaisychainCommands.healthRating(avgMs);
         MutableComponent header = Component.literal(String.format(Locale.ROOT,
-                "Pipe work: %.2f ms per tick on average over %.0f s (limit %s ms), ", avgMs, seconds,
+                "Pipe work: %s ms per tick on average over %.0f s (limit %s ms), ", ms(avgMs), seconds,
                 trim(DaisychainConfig.MAX_MILLISECONDS_PER_TICK.getAsDouble())));
         header.append(Component.literal(rating).withStyle(DaisychainCommands.healthColor(avgMs)));
         if (ranked.isEmpty()) {
@@ -230,11 +230,11 @@ final class LagProbe {
         ArrayList<SideRef> outlined = new ArrayList<>();
         for (int n = 0; n < shown; n++) {
             NetStat stat = ranked.get(n);
-            double ms = stat.nanos / 1_000_000.0 / tickCount;
+            double netMs = stat.nanos / 1_000_000.0 / tickCount;
             double share = totalNanos > 0 ? stat.nanos * 100.0 / totalNanos : 0;
             BlockPos near = nearestToMiddle(stat.pipes);
-            MutableComponent first = Component.literal(String.format(Locale.ROOT, " %d. %.2f ms/tick (%.0f%%) near %s ",
-                    n + 1, ms, share, coords(near)));
+            MutableComponent first = Component.literal(String.format(Locale.ROOT, " %d. %s ms/tick (%.0f%%) near %s ",
+                    n + 1, ms(netMs), share, coords(near)));
             first.append(teleport(level, near, "[teleport]"));
             send(level, first);
 
@@ -282,8 +282,8 @@ final class LagProbe {
         }
         double transferMs = transferNanos / 1_000_000.0 / tickCount;
         send(level, Component.literal(String.format(Locale.ROOT,
-                "Moving things took %.2f of the %.2f ms per tick; the rest is finding which pipes are due and "
-                        + "rebuilding networks that changed.", Math.min(transferMs, avgMs), avgMs))
+                "Moving things took %s of the %s ms per tick; the rest is finding which pipes are due and "
+                        + "rebuilding networks that changed.", ms(Math.min(transferMs, avgMs)), ms(avgMs)))
                 .withStyle(ChatFormatting.DARK_GRAY));
 
         ServerPlayer player = player(level);
@@ -412,6 +412,23 @@ final class LagProbe {
             return String.format(Locale.ROOT, "%.1f", value);
         }
         return String.format(Locale.ROOT, "%,.0f", value);
+    }
+
+    /**
+     * Step 116b: milliseconds with enough digits that a small network doesn't read as free: 1.84, 0.41, 0.0041,
+     * 0.00007; exactly 0 is "0".
+     */
+    private static String ms(double value) {
+        if (value <= 0) {
+            return "0";
+        }
+        if (value >= 0.1) {
+            return String.format(Locale.ROOT, "%.2f", value);
+        }
+        if (value >= 0.001) {
+            return String.format(Locale.ROOT, "%.4f", value);
+        }
+        return String.format(Locale.ROOT, "%.5f", value);
     }
 
     /** 10 instead of 10.0. */
