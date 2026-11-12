@@ -161,6 +161,9 @@ final class Extractor {
      * and nothing can loop.
      */
     boolean busy;
+    /** Step 116: what /daisychain lag measured for this pipe so far; null when no measurement runs (almost always). */
+    @Nullable
+    LagProbe.Sample lag;
     /** Step 109: stands in for the pushing block during a push (reused, no allocation). */
     final EnergyTransfer.PushSource pushSource = new EnergyTransfer.PushSource();
 

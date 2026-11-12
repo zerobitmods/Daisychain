@@ -490,6 +490,32 @@ public final class NetworkManager {
         return extractors.size();
     }
 
+    // ---------------------------------------------------------------- lag finder (step 116)
+
+    /** The /daisychain lag measurement running in this dimension, or null (almost always). */
+    @Nullable
+    private LagProbe lagProbe;
+
+    /**
+     * Step 116: starts /daisychain lag in this dimension for this many seconds; the report goes to whoever ran it.
+     * Returns 0 if it started, or the seconds left of a measurement that is already running (nothing is started).
+     */
+    public int startLag(net.minecraft.commands.CommandSourceStack source, int seconds) {
+        LagProbe running = lagProbe;
+        if (running != null) {
+            return Math.max(1, (running.targetTicks - running.ticks + 19) / 20);
+        }
+        lagProbe = new LagProbe(source, seconds);
+        return 0;
+    }
+
+    /** Step 116: the network this pipe belongs to if it is built right now (never builds one). */
+    @Nullable
+    PipeNetwork cachedNetworkAt(BlockPos pos) {
+        PipeNetwork network = networkByPipe.get(pos.asLong());
+        return network != null && network.valid ? network : null;
+    }
+
     // ---------------------------------------------------------------- per-tick work budget
 
     /** Where next tick's loop starts. Pipes that didn't get a turn because the budget ran out go first. */
@@ -588,6 +614,9 @@ public final class NetworkManager {
                     extractorCursor = i; // first pipe that didn't get its turn goes first next tick
                 }
                 waiting++;
+                if (lagProbe != null) {
+                    lagProbe.waited(extractor); // step 116
+                }
                 continue; // keep counting for stats; nothing else is done
             }
             runExtractor(extractor, now, maxSlots, maxCalls, maxBackoff);
@@ -633,6 +662,11 @@ public final class NetworkManager {
             windowTotalNanos = 0;
             windowBudgetHits = 0;
             windowMaxWaiting = 0;
+        }
+        LagProbe probe = lagProbe;
+        if (probe != null && probe.recordTick(nanos, hitBudget, waiting)) {
+            lagProbe = null; // step 116: time is up; report once, after this tick's pipe work
+            probe.finish(level, this);
         }
     }
 
@@ -721,7 +755,16 @@ public final class NetworkManager {
                          int maxSlots, int maxCalls) {
         extractor.busy = true; // step 109: a push into this pipe from inside this transfer is refused
         try {
-            return transferNow(extractor, direction, resource, tier, data, maxSlots, maxCalls);
+            LagProbe probe = lagProbe;
+            if (probe == null) {
+                return transferNow(extractor, direction, resource, tier, data, maxSlots, maxCalls);
+            }
+            // Step 116: /daisychain lag is running: time and count this transfer for its pull side.
+            long start = System.nanoTime();
+            int moved = transferNow(extractor, direction, resource, tier, data, maxSlots, maxCalls);
+            probe.transferDone(extractor, direction.get3DDataValue(), resource, System.nanoTime() - start,
+                    extractor.calls, moved);
+            return moved;
         } finally {
             extractor.busy = false;
         }
@@ -866,6 +909,9 @@ public final class NetworkManager {
                 if (!cursorMoved) {
                     extractor.sideCursor = side;
                     cursorMoved = true;
+                    if (lagProbe != null) {
+                        lagProbe.waited(extractor); // step 116
+                    }
                 }
                 next = Math.min(next, extractor.sideNextRun[side]);
                 continue;

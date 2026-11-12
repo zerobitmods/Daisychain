@@ -20,7 +20,9 @@ import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.resources.ResourceKey;
 import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.level.Level;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.minecraftforge.api.distmarker.Dist;
@@ -31,6 +33,8 @@ import net.minecraftforge.client.event.ClientPlayerNetworkEvent;
 import net.minecraftforge.event.TickEvent;
 import com.daisychain.net.DaisychainNetwork;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
+
+import javax.annotation.Nullable;
 
 
 /**
@@ -44,6 +48,8 @@ import net.minecraftforge.client.event.RenderLevelStageEvent;
  *   <li>result (green = pasted, blue = put back by an undo): the latest paste or undo, until the next one replaces it.
  *       So it always shows what Undo would put back.</li>
  * </ul>
+ * Step 116: also the red outlines from /daisychain lag (the busiest pull sides), shown for 30 s whatever the player
+ * holds.
  * Client only.
  */
 @Mod.EventBusSubscriber(modid = Daisychain.MOD_ID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
@@ -57,6 +63,8 @@ public final class PasteHighlights {
     private static final int GREEN = 0x6CE08A;
     private static final int BLUE = 0x5CC4F2;
     private static final int WHITE = 0xFFFFFF;
+    /** Step 116: /daisychain lag. */
+    private static final int RED = 0xFF4A4A;
 
 
     private static final AABB[] ARM_BOXES = new AABB[6];
@@ -121,6 +129,14 @@ public final class PasteHighlights {
     private static final Group source = new Group(1);
     private static final Group result = new Group(MAX);
     private static long previewEnd;
+    /**
+     * Step 116: the busiest pull sides found by /daisychain lag, red, for LAG_SECONDS whatever the player holds, and
+     * only in the dimension the player was in when they arrived.
+     */
+    private static final Group lag = new Group(256);
+    private static long lagEnd;
+    @Nullable
+    private static ResourceKey<Level> lagDimension;
 
     private PasteHighlights() {
     }
@@ -156,6 +172,12 @@ public final class PasteHighlights {
                 source.count = 0;
                 result.count = 0;
             }
+            case PasteHighlightPayload.LAG -> {
+                Minecraft minecraft = Minecraft.getInstance();
+                lag.set(positions, sides, RED);
+                lagEnd = Util.getMillis() + PasteHighlightPayload.LAG_SECONDS * 1000L;
+                lagDimension = minecraft.level != null ? minecraft.level.dimension() : null;
+            }
             default -> {
             }
         }
@@ -185,6 +207,8 @@ public final class PasteHighlights {
         preview.count = 0;
         source.count = 0;
         result.count = 0;
+        lag.count = 0;
+        lagDimension = null;
     }
 
     private static boolean holdingCopier(Player player) {
@@ -201,11 +225,19 @@ public final class PasteHighlights {
         if (preview.count > 0 && now >= previewEnd) {
             preview.count = 0;
         }
-        if (preview.count + source.count + result.count == 0) {
+        if (lag.count > 0 && now >= lagEnd) {
+            lag.count = 0;
+        }
+        if (preview.count + source.count + result.count + lag.count == 0) {
             return;
         }
         Minecraft minecraft = Minecraft.getInstance();
-        if (minecraft.player == null || !holdingCopier(minecraft.player)) {
+        if (minecraft.player == null) {
+            return;
+        }
+        boolean copier = preview.count + source.count + result.count > 0 && holdingCopier(minecraft.player);
+        boolean showLag = lag.count > 0 && minecraft.level != null && minecraft.level.dimension().equals(lagDimension);
+        if (!copier && !showLag) {
             return;
         }
         PoseStack poseStack = event.getPoseStack();
@@ -213,6 +245,7 @@ public final class PasteHighlights {
         MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
         // The gold preview fades out over its last moments, so the end of the confirm window is visible.
         float previewAlpha = Math.min(1.0F, (previewEnd - now) / (float) FADE_MS);
+        float lagAlpha = Math.min(1.0F, (lagEnd - now) / (float) FADE_MS);
 
         // A side in more than one group is drawn once, in the color that says the most: the gold preview first,
         // then the white copied-from side, then green/blue (so the copied side doesn't show green and white at once).
@@ -221,9 +254,15 @@ public final class PasteHighlights {
         // in front of it.
         BufferBuilder through = Tesselator.getInstance().getBuilder();
         through.begin(VertexFormat.Mode.LINES, DefaultVertexFormat.POSITION_COLOR_NORMAL);
-        draw(poseStack, through, camera, result, 0.35F, preview, source);
-        draw(poseStack, through, camera, source, 0.35F, preview, null);
-        draw(poseStack, through, camera, preview, 0.35F * previewAlpha, null, null);
+        if (copier) {
+            draw(poseStack, through, camera, result, 0.35F, preview, source);
+            draw(poseStack, through, camera, source, 0.35F, preview, null);
+            draw(poseStack, through, camera, preview, 0.35F * previewAlpha, null, null);
+        }
+        if (showLag) {
+            // Brighter through walls than the copier's outlines: the point is to find them behind walls.
+            draw(poseStack, through, camera, lag, 0.8F * lagAlpha, null, null);
+        }
         BufferBuilder.RenderedBuffer mesh = through.end();
         if (mesh.isEmpty()) {
             mesh.release();
@@ -232,9 +271,14 @@ public final class PasteHighlights {
         }
 
         VertexConsumer lines = buffers.getBuffer(RenderType.lines());
-        draw(poseStack, lines, camera, result, 1.0F, preview, source);
-        draw(poseStack, lines, camera, source, 1.0F, preview, null);
-        draw(poseStack, lines, camera, preview, previewAlpha, null, null);
+        if (copier) {
+            draw(poseStack, lines, camera, result, 1.0F, preview, source);
+            draw(poseStack, lines, camera, source, 1.0F, preview, null);
+            draw(poseStack, lines, camera, preview, previewAlpha, null, null);
+        }
+        if (showLag) {
+            draw(poseStack, lines, camera, lag, lagAlpha, null, null);
+        }
         buffers.endBatch(RenderType.lines());
     }
 

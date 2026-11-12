@@ -39,6 +39,12 @@ public final class DaisychainCommands {
                 .then(Commands.literal("stats")
                         .requires(source -> source.hasPermission(2))
                         .executes(context -> showStats(context.getSource())))
+                .then(Commands.literal("lag") // step 116: the lag finder
+                        .requires(source -> source.hasPermission(2))
+                        .executes(context -> startLag(context.getSource(), DEFAULT_LAG_SECONDS))
+                        .then(Commands.argument("seconds", IntegerArgumentType.integer(1, MAX_LAG_SECONDS))
+                                .executes(context -> startLag(context.getSource(),
+                                        IntegerArgumentType.getInteger(context, "seconds")))))
                 .then(Commands.literal("version")
                         .requires(source -> source.hasPermission(2))
                         .executes(context -> showVersion(context.getSource())))
@@ -67,6 +73,26 @@ public final class DaisychainCommands {
             root.then(TestBench.command().requires(source -> source.hasPermission(2))); // step 96
         }
         dispatcher.register(root);
+    }
+
+    // Step 116: /daisychain lag measures for this long unless told otherwise, and for at most this long.
+    private static final int DEFAULT_LAG_SECONDS = 10;
+    private static final int MAX_LAG_SECONDS = 60;
+
+    /**
+     * Step 116: /daisychain lag [seconds]. Times every pull side in this dimension for a few seconds, then lists the
+     * busiest networks and outlines their busiest sides (see network/LagProbe). Costs nothing when not running.
+     */
+    private static int startLag(CommandSourceStack source, int seconds) {
+        int left = NetworkManager.get(source.getLevel()).startLag(source, seconds);
+        if (left > 0) {
+            source.sendFailure(Component.literal(String.format(Locale.ROOT,
+                    "Already measuring pipes in this dimension; the report comes in %d s.", left)));
+            return 0;
+        }
+        source.sendSuccess(() -> Component.literal(String.format(Locale.ROOT,
+                "Measuring pipes in this dimension for %d s...", seconds)), false);
+        return 1;
     }
 
     /** Which build this is: the mod version plus the development step (Daisychain.DEV_STEP). */
@@ -157,9 +183,18 @@ public final class DaisychainCommands {
     // Step 114: cut-offs for the health summary, in ms of pipe work per tick on average (a tick is 50 ms).
     private static final double HEALTH_BUSY_MS = 2.0;
     private static final double HEALTH_EXPENSIVE_MS = 5.0;
-    /** Step 115: the rating word for an average pipe time per tick (also used by /daisychain stress measure). */
-    static String healthRating(double avgMs) {
+    /**
+     * Step 115: the rating word for an average pipe time per tick (also used by /daisychain stress measure and, since
+     * step 116, /daisychain lag).
+     */
+    public static String healthRating(double avgMs) {
         return avgMs >= HEALTH_EXPENSIVE_MS ? "EXPENSIVE" : avgMs >= HEALTH_BUSY_MS ? "BUSY" : "HEALTHY";
+    }
+
+    /** Step 116: the color that goes with healthRating. */
+    public static ChatFormatting healthColor(double avgMs) {
+        return avgMs >= HEALTH_EXPENSIVE_MS ? ChatFormatting.RED
+                : avgMs >= HEALTH_BUSY_MS ? ChatFormatting.YELLOW : ChatFormatting.GREEN;
     }
 
     /** A single tick at least this slow marks the summary "spiky". */
