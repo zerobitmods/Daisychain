@@ -81,14 +81,14 @@ public final class DaisychainConfig {
         builder.pop();
         builder.push("diamond");
         DIAMOND_ITEMS = builder.defineInRange("items_per_transfer", 64, 1, MAX_ITEMS);
-        DIAMOND_INTERVAL = builder.defineInRange("transfer_interval_ticks", 2, 1, MAX_INTERVAL);
+        DIAMOND_INTERVAL = builder.defineInRange("transfer_interval_ticks", 1, 1, MAX_INTERVAL);
         builder.pop();
         builder.push("netherite");
-        NETHERITE_ITEMS = builder.defineInRange("items_per_transfer", 64, 1, MAX_ITEMS);
+        NETHERITE_ITEMS = builder.defineInRange("items_per_transfer", 512, 1, MAX_ITEMS);
         NETHERITE_INTERVAL = builder.defineInRange("transfer_interval_ticks", 1, 1, MAX_INTERVAL);
         builder.pop();
         builder.push("nether_star");
-        NETHER_STAR_ITEMS = builder.defineInRange("items_per_transfer", 4096, 1, MAX_ITEMS);
+        NETHER_STAR_ITEMS = builder.defineInRange("items_per_transfer", 10000, 1, MAX_ITEMS);
         NETHER_STAR_INTERVAL = builder.defineInRange("transfer_interval_ticks", 1, 1, MAX_INTERVAL);
         builder.pop();
         builder.pop();
@@ -139,11 +139,11 @@ public final class DaisychainConfig {
         MAX_SOURCE_SLOTS_SCANNED = builder
                 .comment("Most source slots (or fluid tanks) looked at per transfer. Large storages are scanned a part",
                         "at a time.")
-                .defineInRange("max_source_slots_scanned", 128, 1, 4096);
+                .defineInRange("max_source_slots_scanned", 256, 1, 4096);
         MAX_HANDLER_CALLS_PER_TRANSFER = builder
                 .comment("Most calls into other blocks' inventories per transfer. Stops runaway work.",
                         "Moving one stack to one destination costs about 4 calls.")
-                .defineInRange("max_handler_calls_per_transfer", 1024, 8, 100000);
+                .defineInRange("max_handler_calls_per_transfer", 2048, 8, 100000);
         MAX_SLOTS_COUNTED = builder
                 .comment("\"Keep in source\" and \"Fill destination to\" have to count how many of an item an inventory",
                         "holds. Inventories with more slots than this aren't counted: a source's items are left alone",
