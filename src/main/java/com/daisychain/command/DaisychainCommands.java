@@ -7,6 +7,7 @@ import com.daisychain.network.PipeNetwork;
 import com.daisychain.item.SettingsCopierItem;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
+import net.minecraft.ChatFormatting;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
 import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
@@ -133,6 +134,13 @@ public final class DaisychainCommands {
                 manager.peakTicks() / 20.0, items, totalMs / ticks,
                 items > 0 ? String.format(Locale.ROOT, ", %.4f ms per 1,000 items", totalMs / (items / 1000.0)) : "");
         source.sendSuccess(() -> Component.literal(itemsLine), false);
+        // Step 114: keep what the health summary needs before the peaks reset. Under 2 s since the last stats is too
+        // short to judge, so the last full second is used instead.
+        boolean shortWindow = manager.peakTicks() < 40;
+        double healthAvgMs = shortWindow ? manager.lastSecondAverageNanos() / 1_000_000.0 : totalMs / ticks;
+        double healthSeconds = shortWindow ? 1.0 : manager.peakTicks() / 20.0;
+        double slowestMs = manager.peakTickNanos() / 1_000_000.0;
+        double slowestBuildMs = manager.peakBuildNanos() / 1_000_000.0;
         manager.resetPeaks();
         // Review R17: what the chunk ticket listener did, to see what it costs on a busy server.
         long[] tickets = NetworkManager.ticketCounters();
@@ -142,6 +150,63 @@ public final class DaisychainCommands {
                 tickets[0], tickets[1], tickets[2], tickets[3]);
         source.sendSuccess(() -> Component.literal(ticketLine), false);
         NetworkManager.resetTicketCounters();
+        sendHealth(source, healthAvgMs, healthSeconds, slowestMs, slowestBuildMs, manager.lastSecondBudgetHits());
         return 1;
+    }
+
+    // Step 114: cut-offs for the health summary, in ms of pipe work per tick on average (a tick is 50 ms).
+    private static final double HEALTH_BUSY_MS = 2.0;
+    private static final double HEALTH_EXPENSIVE_MS = 5.0;
+    /** A single tick at least this slow marks the summary "spiky". */
+    private static final double HEALTH_SPIKE_MS = 20.0;
+
+    /**
+     * Step 114: the last line(s) of /daisychain stats, a plain rating of what pipes cost the server.
+     * HEALTHY under 2 ms per tick, BUSY 2 to 5 ms, EXPENSIVE 5 ms or more. Extra lines when pipes hit the per-tick
+     * limit (they slow down, the server doesn't) or one tick took 20 ms or more.
+     */
+    private static void sendHealth(CommandSourceStack source, double avgMs, double seconds, double slowestMs,
+                                   double slowestBuildMs, int budgetHits) {
+        String rating;
+        String note;
+        ChatFormatting color;
+        if (avgMs >= HEALTH_EXPENSIVE_MS) {
+            rating = "EXPENSIVE";
+            note = ", eating into server time.";
+            color = ChatFormatting.RED;
+        } else if (avgMs >= HEALTH_BUSY_MS) {
+            rating = "BUSY";
+            note = ". Fine, but worth watching.";
+            color = ChatFormatting.YELLOW;
+        } else {
+            rating = "HEALTHY";
+            note = ".";
+            color = ChatFormatting.GREEN;
+        }
+        boolean spiky = slowestMs >= HEALTH_SPIKE_MS;
+        String headline = String.format(Locale.ROOT,
+                "Pipe health (last %.0f s): %s%s. Pipes use %.2f ms of each 50 ms tick (%.1f%%)%s",
+                seconds, rating, spiky ? ", but spiky" : "", avgMs, avgMs / 50.0 * 100.0, note);
+        source.sendSuccess(() -> Component.literal(headline).withStyle(color), false);
+        if (budgetHits > 0) {
+            String limitLine = String.format(Locale.ROOT,
+                    "  Pipes hit the per-tick limit (%,d calls / %.1f ms) on %d of the last 20 ticks, so some transfers "
+                            + "wait a tick. This slows pipes down; it doesn't lag the server.",
+                    DaisychainConfig.MAX_HANDLER_CALLS_PER_TICK.getAsInt(),
+                    DaisychainConfig.MAX_MILLISECONDS_PER_TICK.getAsDouble(), budgetHits);
+            source.sendSuccess(() -> Component.literal(limitLine).withStyle(ChatFormatting.YELLOW), false);
+        }
+        if (spiky) {
+            // A rebuild that took at least half the slowest tick explains it; otherwise say it wasn't one.
+            String spikeLine = slowestBuildMs >= slowestMs / 2.0
+                    ? String.format(Locale.ROOT,
+                            "  Slowest tick %.1f ms, caused by a big network being rebuilt (%.1f ms).",
+                            slowestMs, slowestBuildMs)
+                    : String.format(Locale.ROOT,
+                            "  Slowest tick %.1f ms, not a network rebuild (slowest %.1f ms). If it shows up again "
+                                    + "with nothing changed, catch it with /spark profiler.",
+                            slowestMs, slowestBuildMs);
+            source.sendSuccess(() -> Component.literal(spikeLine).withStyle(ChatFormatting.YELLOW), false);
+        }
     }
 }
