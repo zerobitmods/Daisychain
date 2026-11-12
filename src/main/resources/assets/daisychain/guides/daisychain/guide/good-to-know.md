@@ -12,10 +12,6 @@ A few quirks that are nice to know about before they surprise you.
 **The face you touch matters.** Blocks decide what each of their faces offers. A pull side on the side of a <ItemLink id="minecraft:furnace" /> takes its fuel, while one underneath takes the smelted goodies, following the same face rules
 hoppers do.
 
-**Vanilla cauldrons like whole buckets.** A <ItemLink id="daisychain:fluid_pipe" /> with no upgrade moves 250 mB at a time, which is
-never quite enough for a <ItemLink id="minecraft:cauldron" />. An <ItemLink id="daisychain:iron_upgrade" /> or better on the pull
-side fixes it right up.
-
 **When everything's full,** a pull side starts checking less and less often (up to four times its normal wait) instead of knocking
 on full doors all day. An empty source still gets checked at least once a second, and the moment anything moves, it's back to full
 speed.

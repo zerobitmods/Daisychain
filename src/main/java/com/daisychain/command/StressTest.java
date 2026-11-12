@@ -32,7 +32,7 @@ import java.util.Locale;
  *   y:    [ A  ][pull A][pipe ...][pull B][ B  ]
  * </pre>
  * - items / universal: A is a chest a little under half full (cobblestone, dirt, sand), B an empty chest;
- * - fluids: A a full water cauldron, B an empty one (needs an Iron upgrade or better: cauldrons move whole buckets).
+ * - fluids: A a full water cauldron, B an empty one (cauldrons move one whole bucket at a time).
  * - idle (step 37): like items, but both chests start empty, so every pull side only finds an empty chest each time.
  * Universal pipes carry only items here, but still check for fluids and energy every transfer, like in a real base.
  * Networks sit two blocks apart so they never touch, in a square centred on the player, two blocks below their feet.
@@ -86,9 +86,6 @@ final class StressTest {
             source.sendFailure(Component.literal(
                     "The energy stress test needs the development game (./gradlew runClient): its test batteries only exist there."));
             return 0;
-        }
-        if (fluids && upgrade == 0) {
-            upgrade = 1; // cauldrons only take whole buckets (1000 mB); without an upgrade a transfer is 250 mB
         }
         // Energy (step 87): the upgrade number picks the energy pipe tier (0 basic ... 5 nether star).
         Block pipe = energy ? ModBlocks.energyPipes()[upgrade] : fluids ? ModBlocks.FLUID_PIPE.get()

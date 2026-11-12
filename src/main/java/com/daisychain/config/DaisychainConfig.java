@@ -50,7 +50,7 @@ public final class DaisychainConfig {
     private static final int MAX_MB = 1_000_000_000;
     private static final String[] TIER_NAMES = {"", "iron", "gold", "diamond", "netherite", "nether_star"};
     /** Default fluid speeds per level (0 = no upgrade): mB per transfer and ticks between transfers. */
-    private static final int[] DEFAULT_FLUID_MB = {250, 1000, 2000, 4000, 8000, 64000};
+    private static final int[] DEFAULT_FLUID_MB = {5_000, 20_000, 40_000, 80_000, 160_000, 1_280_000};
     private static final int[] DEFAULT_FLUID_INTERVAL = {10, 10, 5, 2, 1, 1};
     /** Most FE one transfer can move: the largest number an energy handler call accepts. */
     private static final int MAX_FE = Integer.MAX_VALUE;
