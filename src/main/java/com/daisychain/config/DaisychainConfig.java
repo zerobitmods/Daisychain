@@ -3,8 +3,9 @@ package com.daisychain.config;
 import net.minecraftforge.common.ForgeConfigSpec;
 
 /**
- * Server config: config/daisychain-server.toml in the game folder (a world's serverconfig/ folder can hold an override
- * copy). Edits reload while the game runs. Pack makers tune these.
+ * Server config: serverconfig/daisychain-server.toml inside each world (Forge 1.20.1 keeps server configs per world;
+ * a copy in the game's defaultconfigs/ folder is used for new worlds). Edits reload while the game runs. Pack makers tune
+ * these.
  */
 public final class DaisychainConfig {
     public static final ForgeConfigSpec SERVER_SPEC;

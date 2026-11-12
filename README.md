@@ -21,7 +21,7 @@ Minecraft 1.20.1 · Forge 47.2.0+ (this branch; 1.21.1 NeoForge is on main) · M
 - Neighbor inventories are cached, idle sides sleep, and chunks are never loaded by pipes.
 - Every transfer simulates first, then moves only what both sides accept, so nothing is duplicated or lost.
 - Each dimension has a per-tick work budget (inventory calls and milliseconds). When it runs out, pipes wait a tick instead of lagging the server.
-- Every speed and limit is in `config/daisychain-server.toml`.
+- Every speed and limit is in each world's `serverconfig/daisychain-server.toml` (Forge 1.20.1 keeps server configs per world; `defaultconfigs/` sets the values for new worlds).
 
 ## Compatibility
 

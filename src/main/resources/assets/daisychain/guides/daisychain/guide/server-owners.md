@@ -18,8 +18,9 @@ your server keeps humming along.
 
 ## Config
 
-Everything lives in `config/daisychain-server.toml`: speeds for every upgrade tier, the tick budget and the idle settings. Changes
-apply while the server is running, so there's no restart needed. Every value has a safe range too, so a typo won't take anything
+Everything lives in each world's `serverconfig/daisychain-server.toml` (on a dedicated server: `world/serverconfig/`): speeds for
+every upgrade tier, the tick budget and the idle settings. To give new worlds your own values, put a copy in the game's
+`defaultconfigs/` folder. Changes apply while the server is running, so there's no restart needed. Every value has a safe range too, so a typo won't take anything
 down.
 
 Each player also gets their own `config/daisychain-client.toml` for personal things like hints and which view screens open in.
