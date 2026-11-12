@@ -22,9 +22,9 @@ public final class DaisychainNetwork {
     }
 
     public static void register(RegisterPayloadHandlersEvent event) {
-        // "6" since step 48h (UndoPastePayload gained redo): a client and server with different packet sets refuse to
-        // connect.
-        PayloadRegistrar registrar = event.registrar("6");
+        // "7" since step 116c (LagHighlightPayload); "6" was step 48h (UndoPastePayload gained redo). A client and
+        // server with different packet sets refuse to connect.
+        PayloadRegistrar registrar = event.registrar("7");
         registrar.playToServer(UpdatePullSettingPayload.TYPE, UpdatePullSettingPayload.STREAM_CODEC,
                 DaisychainNetwork::handleUpdatePullSetting);
         registrar.playToServer(SetSideModePayload.TYPE, SetSideModePayload.STREAM_CODEC,
@@ -41,6 +41,8 @@ public final class DaisychainNetwork {
                 DaisychainNetwork::handleUndoPaste);
         registrar.playToClient(PasteHighlightPayload.TYPE, PasteHighlightPayload.STREAM_CODEC,
                 DaisychainNetwork::handlePasteHighlight);
+        registrar.playToClient(LagHighlightPayload.TYPE, LagHighlightPayload.STREAM_CODEC,
+                DaisychainNetwork::handleLagHighlight);
     }
 
     /**
@@ -61,6 +63,11 @@ public final class DaisychainNetwork {
         } else {
             com.daisychain.item.SettingsCopierItem.undo(player, 0);
         }
+    }
+
+    /** Client, step 116c: /daisychain lag outlines. Only runs on the client (see handlePasteHighlight). */
+    private static void handleLagHighlight(LagHighlightPayload payload, IPayloadContext context) {
+        com.daisychain.client.ClientAccess.showLagHighlight(payload.dimension(), payload.positions(), payload.sides());
     }
 
     /** Client: Settings Copier outlines. Only runs on the client, so the client class is never loaded on a server. */

@@ -9,8 +9,7 @@ import net.minecraft.resources.ResourceLocation;
 
 /**
  * Server -> client, steps 48e/48f: outline these pipe sides for the Settings Copier (shown while held). Only sent to the
- * player using the copier. Since step 116 also the red /daisychain lag outlines (kind LAG), only to the operator who ran
- * it. positions[i] is BlockPos.asLong, sides[i] a Direction 3D data value (0-5).
+ * player using the copier. positions[i] is BlockPos.asLong, sides[i] a Direction 3D data value (0-5).
  */
 public record PasteHighlightPayload(byte kind, long[] positions, byte[] sides) implements CustomPacketPayload {
     /** Gold: the sides the next (confirming) click will paste onto, for the 3 s confirm window. */
@@ -25,13 +24,6 @@ public record PasteHighlightPayload(byte kind, long[] positions, byte[] sides) i
     public static final byte COPIED = 4;
     /** Removes every outline (the copier was cleared). */
     public static final byte CLEAR = 5;
-    /**
-     * Step 116, red: the busiest pull sides found by /daisychain lag. Shown for LAG_SECONDS whatever the player holds,
-     * only in the dimension they were in when it arrived; replaces the previous lag outlines.
-     */
-    public static final byte LAG = 6;
-    /** How long the lag outlines stay. */
-    public static final int LAG_SECONDS = 30;
 
     /** Most sides one message may carry; the server never sends more than its paste limit allows. */
     public static final int MAX_SIDES = 100_000;
