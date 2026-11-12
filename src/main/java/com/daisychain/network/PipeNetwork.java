@@ -385,6 +385,12 @@ public final class PipeNetwork {
         private final int[] maxStock = new int[PipeKind.RESOURCE_COUNT];
         /** Set by transfers, one bit per resource: Max stock had to skip this destination (too big to count). */
         private int stockSkippedMask;
+        /**
+         * Step 113: the slot where the last item stack went in, for destinations bigger than a double chest; the next
+         * insert starts there. Only a hint: every slot is still asked (wrapping round) before the destination counts
+         * as full. Shared by all pull sides sending here; starts at 0 when the network is built.
+         */
+        int itemSlotHint;
         /** Insert side redstone (step 40): the mode, and whether the current signal stops this destination. */
         private RedstoneMode redstoneMode = RedstoneMode.ALWAYS;
         private boolean redstoneBlocked;

@@ -533,6 +533,10 @@ public final class NetworkManager {
     private long peakBuildNanos;
     private int peakBinds;
     private long peakBindNanos;
+    /** Step 113: items moved, pipe time and ticks since the last resetPeaks(), for the cost per 1,000 items. */
+    private long peakItemsMoved;
+    private long peakTotalNanos;
+    private int peakTicks;
 
     /**
      * Runs once per server tick for this dimension. Only pulling pipes with a side that is due do any work.
@@ -605,6 +609,8 @@ public final class NetworkManager {
     }
 
     private void recordTick(int calls, long nanos, boolean hitBudget, int waiting) {
+        peakTotalNanos += nanos;
+        peakTicks++;
         if (nanos > peakTickNanos) {
             peakTickNanos = nanos;
         }
@@ -681,6 +687,24 @@ public final class NetworkManager {
         peakBuildNanos = 0;
         peakBinds = 0;
         peakBindNanos = 0;
+        peakItemsMoved = 0;
+        peakTotalNanos = 0;
+        peakTicks = 0;
+    }
+
+    /** Step 113: items moved by pulling pipes since the last resetPeaks(). */
+    public long peakItemsMoved() {
+        return peakItemsMoved;
+    }
+
+    /** Step 113: time spent on all pipe work (items, fluids, energy) since the last resetPeaks(), in nanoseconds. */
+    public long peakTotalNanos() {
+        return peakTotalNanos;
+    }
+
+    /** Step 113: ticks counted since the last resetPeaks(). */
+    public int peakTicks() {
+        return peakTicks;
     }
 
     /** Ticks (out of 20) in the last full second where the budget ran out. */
@@ -734,12 +758,14 @@ public final class NetworkManager {
             extractor.addEnergyUsed(side, moved);
             return moved;
         }
-        return ItemTransfer.transfer(level, extractor, direction, extractor.destinations,
+        int movedItems = ItemTransfer.transfer(level, extractor, direction, extractor.destinations,
                 data.distribution(direction), data.allowsSelfFeed(direction),
                 data.activeFilter(direction, resource), data.filterDenies(direction, resource),
                 UpgradeSpeeds.items(tier), data.batch(direction, resource),
                 data.keepInSource(direction, resource), data.fillDestinationTo(direction, resource),
                 maxCounted, maxSlots, maxCalls);
+        peakItemsMoved += movedItems;
+        return movedItems;
     }
 
     /**

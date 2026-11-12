@@ -35,7 +35,7 @@ import java.util.Locale;
  * - fluids: A a full water cauldron, B an empty one (cauldrons move one whole bucket at a time).
  * - idle (step 37): like items, but both chests start empty, so every pull side only finds an empty chest each time.
  * - bigitems: like items, but A and B are 1024-slot test crates (enchanting tables, development game only, see
- *   StressTestItems) and A starts with 320 stacks, to measure big item batches (more stacks per transfer).
+ *   StressTestItems) and both start with 400 stacks, to measure big item batches and big destinations.
  * Universal pipes carry only items here, but still check for fluids and energy every transfer, like in a real base.
  * Networks sit two blocks apart so they never touch, in a square centred on the player, two blocks below their feet.
  *
@@ -138,6 +138,7 @@ final class StressTest {
             level.setBlock(b, Blocks.ENCHANTING_TABLE.defaultBlockState(), Block.UPDATE_ALL);
             if (!empty) {
                 StressTestItems.fill(level, a);
+                StressTestItems.fill(level, b);
             }
         } else {
             level.setBlock(a, Blocks.CHEST.defaultBlockState(), Block.UPDATE_ALL);

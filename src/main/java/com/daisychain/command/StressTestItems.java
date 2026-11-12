@@ -33,8 +33,8 @@ public final class StressTestItems {
     public static final boolean AVAILABLE = !FMLEnvironment.production;
     /** Slots per test crate. */
     static final int SLOTS = 1024;
-    /** Full stacks put into each filled crate: enough for about 5 Nether Star transfers at 10,000 items. */
-    static final int FILLED_STACKS = 320;
+    /** Full stacks put into each crate (step 113: both ends, so pull sides rarely scan empty stretches). */
+    static final int FILLED_STACKS = 400;
     private static final ItemStack[] FILL = {
             new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.DIRT, 64), new ItemStack(Items.SAND, 64)};
 
