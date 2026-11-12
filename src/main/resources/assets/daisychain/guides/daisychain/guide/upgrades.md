@@ -20,14 +20,14 @@ below is their speed per tier.
 
 | Tier | Items per tick (per second) | Fluids per tick (per second) | Energy per tick (per second) |
 | --- | --- | --- | --- |
-| None | 0.4 (8) | 25 mB (0.5 buckets) | 20,000 FE (400,000 FE) |
-| <ItemLink id="daisychain:iron_upgrade" /> | 1.6 (32) | 100 mB (2 buckets) | 100,000 FE (2 million FE) |
-| <ItemLink id="daisychain:gold_upgrade" /> | 6.4 (128) | 400 mB (8 buckets) | 500,000 FE (10 million FE) |
-| <ItemLink id="daisychain:diamond_upgrade" /> | 32 (640) | 2,000 mB (40 buckets) | 2,500,000 FE (50 million FE) |
-| <ItemLink id="daisychain:netherite_upgrade" /> | 64 (1,280) | 8,000 mB (160 buckets) | 16,000,000 FE (320 million FE) |
-| <ItemLink id="daisychain:nether_star_upgrade" /> | 4,096 (81,920) | 64,000 mB (1,280 buckets) | 2,147,483,647 FE (about 43 billion FE) |
+| None | 0.4 (8) | 500 mB (10 buckets) | 20,000 FE (400,000 FE) |
+| <ItemLink id="daisychain:iron_upgrade" /> | 1.6 (32) | 2,000 mB (40 buckets) | 100,000 FE (2 million FE) |
+| <ItemLink id="daisychain:gold_upgrade" /> | 6.4 (128) | 8,000 mB (160 buckets) | 500,000 FE (10 million FE) |
+| <ItemLink id="daisychain:diamond_upgrade" /> | 32 (640) | 40,000 mB (800 buckets) | 2,500,000 FE (50 million FE) |
+| <ItemLink id="daisychain:netherite_upgrade" /> | 64 (1,280) | 160,000 mB (3,200 buckets) | 16,000,000 FE (320 million FE) |
+| <ItemLink id="daisychain:nether_star_upgrade" /> | 4,096 (81,920) | 1,280,000 mB (25,600 buckets) | 2,147,483,647 FE (about 43 billion FE) |
 
-The slower tiers move things in batches, so their per-tick number is an average. With no upgrade, an <ItemLink id="daisychain:item_pipe" /> moves 8 items once a second, and a <ItemLink id="daisychain:fluid_pipe" /> moves 250 mB every
+The slower tiers move things in batches, so their per-tick number is an average. With no upgrade, an <ItemLink id="daisychain:item_pipe" /> moves 8 items once a second, and a <ItemLink id="daisychain:fluid_pipe" /> moves 5,000 mB (5 buckets) every
 half second.
 
 Yes, that last number is real. These are the defaults, so your server or modpack might have tuned them a little.
