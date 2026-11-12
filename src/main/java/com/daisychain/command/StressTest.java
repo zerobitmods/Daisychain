@@ -11,6 +11,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.level.ChunkPos;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Block;
@@ -67,6 +68,9 @@ final class StressTest {
                                                     IntegerArgumentType.getInteger(context, "length"),
                                                     IntegerArgumentType.getInteger(context, "upgrade")))))));
         }
+        // Step 115: the mod-page test in one command, and the measurement that goes with it.
+        root.then(Commands.literal("mixed").executes(context -> StressTestMixed.build(context.getSource())));
+        root.then(Commands.literal("measure").executes(context -> StressMeasure.start(context.getSource())));
         root.then(Commands.literal("huge")
                 .then(Commands.argument("pipes", IntegerArgumentType.integer(MIN_HUGE_PIPES, MAX_HUGE_PIPES))
                         .then(Commands.argument("upgrade", IntegerArgumentType.integer(0, 5))
@@ -91,13 +95,34 @@ final class StressTest {
         Block pipe = energy ? ModBlocks.energyPipes()[upgrade] : fluids ? ModBlocks.FLUID_PIPE.get()
                 : universal ? ModBlocks.UNIVERSAL_PIPE.get() : ModBlocks.ITEM_PIPE.get();
 
-        // A square-ish block of networks: each is (length + 2) long plus a 2-block gap, and rows are 2 apart.
-        int stride = length + 4;
-        int rows = Math.max(1, (int) Math.ceil(Math.sqrt(networks * stride / 2.0)));
-        int columns = (networks + rows - 1) / rows;
         BlockPos feet = BlockPos.containing(source.getPosition());
-        BlockPos origin = feet.offset(-(columns * stride) / 2, -2, -rows);
+        int[] built = buildBlock(level, feet, networks, length, pipe, fluids, empty, energy, upgrade);
+        String message = String.format(Locale.ROOT,
+                "Built %d %s networks (%d pipes each, upgrade level %d), %d x %d blocks, 2 below you. "
+                        + "Measure with /daisychain stats and /tick query.",
+                networks, kind, length + 4, upgrade, built[0], built[1]);
+        source.sendSuccess(() -> Component.literal(message), true);
+        warnIfNotTicking(source, built[2], networks);
+        return networks;
+    }
 
+    /** Rows in a square-ish block of this many networks (each length + 4 long, rows 2 apart). */
+    static int rowsFor(int networks, int length) {
+        return Math.max(1, (int) Math.ceil(Math.sqrt(networks * (length + 4) / 2.0)));
+    }
+
+    /**
+     * Builds a square-ish block of networks centred on centre, two blocks below it: each network is (length + 2) long
+     * plus a 2-block gap, and rows are 2 apart. Returns {width, depth, networks whose pull pipes are in chunks the game
+     * doesn't tick (outside the simulation distance), so they won't run} (step 115).
+     */
+    static int[] buildBlock(ServerLevel level, BlockPos centre, int networks, int length, Block pipe, boolean fluids,
+                            boolean empty, boolean energy, int upgrade) {
+        int stride = length + 4;
+        int rows = rowsFor(networks, length);
+        int columns = (networks + rows - 1) / rows;
+        BlockPos origin = centre.offset(-(columns * stride) / 2, -2, -rows);
+        int notTicking = 0;
         for (int n = 0; n < networks; n++) {
             BlockPos a = origin.offset((n / rows) * stride, 0, (n % rows) * 2);
             if (energy) {
@@ -105,13 +130,22 @@ final class StressTest {
             } else {
                 buildOne(level, a, length, pipe, fluids, empty, upgrade);
             }
+            if (!level.shouldTickBlocksAt(ChunkPos.asLong(a.east(1)))
+                    || !level.shouldTickBlocksAt(ChunkPos.asLong(a.east(length)))) {
+                notTicking++;
+            }
         }
-        String message = String.format(Locale.ROOT,
-                "Built %d %s networks (%d pipes each, upgrade level %d), %d x %d blocks, 2 below you. "
-                        + "Measure with /daisychain stats and /tick query.",
-                networks, kind, length + 4, upgrade, columns * stride, rows * 2);
-        source.sendSuccess(() -> Component.literal(message), true);
-        return networks;
+        return new int[]{columns * stride, rows * 2, notTicking};
+    }
+
+    /** Step 115: says so when some test networks are outside the simulation distance (pipes there don't run). */
+    static void warnIfNotTicking(CommandSourceStack source, int notTicking, int networks) {
+        if (notTicking > 0) {
+            source.sendFailure(Component.literal(String.format(Locale.ROOT,
+                    "Warning: %,d of %,d networks are outside the simulation distance and won't run. For measuring, "
+                            + "raise the simulation distance or stand nearer the middle.",
+                    notTicking, networks)));
+        }
     }
 
     private static void buildOne(ServerLevel level, BlockPos a, int length, Block pipe, boolean fluids,

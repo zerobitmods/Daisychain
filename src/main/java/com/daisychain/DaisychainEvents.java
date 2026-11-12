@@ -54,6 +54,7 @@ public final class DaisychainEvents {
         NetworkManager.clearAll();
         CopierSessions.clearAll();
         PipeAccess.clearAll();
+        com.daisychain.command.StressMeasure.clear(); // step 115
     }
 
     /**
