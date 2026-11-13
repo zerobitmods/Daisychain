@@ -1311,6 +1311,22 @@ public final class NetworkManager {
     }
 
     /**
+     * Step 118 (review R12): pipes a player just placed while the place event could still cancel it; FlowPipeBlock
+     * changes their neighbors in onPlace once it has passed. Entries live only within one placement call (onPlace or,
+     * if cancelled, onRemove takes them out), so this stays empty in normal running.
+     */
+    private final LongOpenHashSet pendingPlacements = new LongOpenHashSet();
+
+    public void markPlacement(BlockPos pos) {
+        pendingPlacements.add(pos.asLong());
+    }
+
+    /** True (once) if a player's placement at pos was waiting for its place event. */
+    public boolean takePlacement(BlockPos pos) {
+        return !pendingPlacements.isEmpty() && pendingPlacements.remove(pos.asLong());
+    }
+
+    /**
      * Step 117 (review R13, second half): an insert side's settings changed on the pipe at pos (priority, on/off,
      * filter, filter mode, Max stock, or a paste). Its destinations in the cached network are updated in place instead
      * of rebuilding the whole network. Only a priority change makes the network's pulling pipes sort again (within the
