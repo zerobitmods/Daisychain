@@ -373,7 +373,8 @@ public final class PipeNetwork {
         @Nullable
         private BlockCapabilityCache<IEnergyStorage, Direction> energyCache;
         /**
-         * Insert side settings, read from the pipe when the network is built (a change rebuilds the network). Priority
+         * Insert side settings, read from the pipe when the network is built and updated in place when they change
+         * (step 117, review R13; NetworkManager.onInsertSettingsChanged). Priority
          * is shared; filter, filter mode and Max stock are per resource (index PipeKind.ITEMS / FLUIDS / ENERGY_RES).
          */
         private int priority;
@@ -471,6 +472,11 @@ public final class PipeNetwork {
 
         boolean redstoneUnknown() {
             return redstoneUnknown;
+        }
+
+        /** The insert side's redstone mode as last read (step 117: a change still rebuilds the network). */
+        RedstoneMode redstoneMode() {
+            return redstoneMode;
         }
 
         /** True while redstone stops this destination from accepting anything. */
