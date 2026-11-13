@@ -285,6 +285,19 @@ public final class ReviewLeftoverTests {
         });
     }
 
+    // ---------------------------------------------------------------- step 120 (dev code out of the jar)
+
+    /** The dev-only commands (src/dev) join the mod's own /daisychain command without replacing any of it. */
+    @GameTest(template = EMPTY, timeoutTicks = 20)
+    public static void devCommandsMergeIntoDaisychain(GameTestHelper helper) {
+        var root = helper.getLevel().getServer().getCommands().getDispatcher().getRoot().getChild("daisychain");
+        helper.assertTrue(root != null, "No /daisychain command");
+        for (String child : new String[]{"network", "stats", "lag", "undo", "redo", "stress", "testbench"}) {
+            helper.assertTrue(root.getChild(child) != null, "/daisychain " + child + " is missing");
+        }
+        helper.succeed();
+    }
+
     // ---------------------------------------------------------------- helpers
 
     static PipeNetwork network(GameTestHelper helper, BlockPos pipe) {

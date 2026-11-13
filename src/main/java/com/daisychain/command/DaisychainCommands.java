@@ -14,7 +14,6 @@ import net.minecraft.commands.arguments.coordinates.BlockPosArgument;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraftforge.fml.ModList;
-import net.minecraftforge.fml.loading.FMLEnvironment;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 
 import java.util.Locale;
@@ -68,10 +67,6 @@ public final class DaisychainCommands {
                         }));
         // "stress" builds test networks; it only exists in the development game (runClient / IntelliJ),
         // never in a released jar (step 52).
-        if (!FMLEnvironment.production) {
-            root.then(StressTest.command().requires(source -> source.hasPermission(2)));
-            root.then(TestBench.command().requires(source -> source.hasPermission(2))); // step 96
-        }
         dispatcher.register(root);
     }
 

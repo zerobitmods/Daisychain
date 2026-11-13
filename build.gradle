@@ -63,6 +63,20 @@ base {
     archivesName = mod_id
 }
 
+// Step F49 (port of step 120): development-only code (game tests, stress tests, the test bench) lives in src/dev. It
+// can use everything in src/main, is part of the mod in every run (runClient, runServer, runGameTestServer, IntelliJ),
+// and is never put in the jar that players download (the jar is built from src/main only).
+sourceSets {
+    dev {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+configurations {
+    devCompileClasspath.extendsFrom compileClasspath
+    devRuntimeClasspath.extendsFrom runtimeClasspath
+}
+
 // Minecraft 1.20.1 runs on Java 17, so the mod must be Java 17 bytecode.
 java.toolchain.languageVersion = JavaLanguageVersion.of(17)
 
@@ -79,12 +93,14 @@ legacyForge {
             server()
             programArgument '--nogui'
         }
-        // Step F25: runs every game test (src/main/java/com/daisychain/gametest) on a headless server, then exits.
+        // Step F25: runs every game test (src/dev/java/com/daisychain/gametest since F49) on a headless server, then exits.
         gameTestServer {
             type = "gameTestServer"
             systemProperty 'forge.enabledGameTestNamespaces', project.mod_id
         }
         configureEach {
+            // Step F49: runs use the dev source set's classpath, so src/dev (tests, stress tools) is in the game too.
+            sourceSet = sourceSets.dev
             systemProperty 'forge.logging.markers', 'REGISTRIES'
             logLevel = org.slf4j.event.Level.DEBUG
         }
@@ -93,6 +109,7 @@ legacyForge {
     mods {
         "${mod_id}" {
             sourceSet(sourceSets.main)
+            sourceSet(sourceSets.dev) // step F49: dev-only code is part of the mod in dev runs, never in the jar
         }
     }
 }
