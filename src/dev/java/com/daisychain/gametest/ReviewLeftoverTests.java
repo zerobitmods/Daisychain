@@ -1,6 +1,7 @@
 package com.daisychain.gametest;
 
 import com.daisychain.Daisychain;
+import com.daisychain.block.Distribution;
 import com.daisychain.block.FlowPipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.PipeKind;
@@ -25,7 +26,10 @@ import net.neoforged.neoforge.common.NeoForge;
 import net.neoforged.neoforge.event.level.BlockEvent;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.neoforged.neoforge.capabilities.Capabilities;
+import net.neoforged.neoforge.energy.IEnergyStorage;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -299,7 +303,118 @@ public final class ReviewLeftoverTests {
         helper.succeed();
     }
 
+    // ---------------------------------------------------------------- step 121 (energy shared fairly)
+
+    /**
+     * 12 machines (DrainingSink bells, 1,000 FE/t each) along a 7-pipe energy line, fed only by pushes into the first
+     * pipe's pull side, like a Flux Point. Supply is half the demand: Round robin must give every machine about the
+     * same share, the far ones too.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 200)
+    public static void pushedEnergyShortSplitsEvenly(GameTestHelper helper) {
+        energyShare(helper, 6_000, false, Distribution.ROUND_ROBIN, false);
+    }
+
+    /** The same, but the pusher asks first (simulate) and then pushes what was promised. */
+    @GameTest(template = EMPTY, timeoutTicks = 200)
+    public static void pushedEnergyShortSimulateFirst(GameTestHelper helper) {
+        energyShare(helper, 6_000, true, Distribution.ROUND_ROBIN, false);
+    }
+
+    /** Plenty of supply (more than the 12,000 FE/t demand): nobody goes short after the first second. */
+    @GameTest(template = EMPTY, timeoutTicks = 200)
+    public static void pushedEnergyPlentyFeedsAll(GameTestHelper helper) {
+        energyShare(helper, 18_000, true, Distribution.ROUND_ROBIN, true);
+    }
+
+    private static void energyShare(GameTestHelper helper, int pushPerTick, boolean simulateFirst,
+                                    Distribution distribution, boolean plenty) {
+        Block pipe = ModBlocks.energyPipes()[0];
+        helper.setBlock(A, Blocks.STONE.defaultBlockState()); // stands in for the pushing block
+        BlockPos[] machines = new BlockPos[12];
+        int n = 0;
+        for (int x = 2; x <= 8; x++) {
+            helper.setBlock(new BlockPos(x, 1, 2), pipe.defaultBlockState());
+        }
+        for (int x = 3; x <= 8; x++) {
+            machines[n++] = new BlockPos(x, 1, 1);
+            machines[n++] = new BlockPos(x, 1, 3);
+        }
+        for (BlockPos machine : machines) {
+            helper.setBlock(machine, Blocks.BELL.defaultBlockState());
+        }
+        for (int x = 2; x <= 8; x++) {
+            FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(new BlockPos(x, 1, 2)));
+        }
+        BlockPos first = new BlockPos(2, 1, 2);
+        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(first), 1 << Direction.WEST.get3DDataValue());
+        data(helper, first).applySetting(Direction.WEST, PipeDataBlockEntity.SETTING_DISTRIBUTION, distribution.ordinal(),
+                PipeKind.ENERGY_RES);
+        BlockPos pipePos = helper.absolutePos(first);
+        int warmUp = 20;
+        int measured = 100;
+        long[] startReceived = new long[12];
+        long[] startShort = new long[12];
+        for (int t = 1; t <= warmUp + measured; t++) {
+            int tick = t;
+            helper.runAfterDelay(t, () -> {
+                IEnergyStorage input = helper.getLevel().getCapability(Capabilities.EnergyStorage.BLOCK, pipePos,
+                        Direction.WEST);
+                if (input != null) {
+                    int amount = simulateFirst ? input.receiveEnergy(pushPerTick, true) : pushPerTick;
+                    if (amount > 0) {
+                        input.receiveEnergy(amount, false);
+                    }
+                }
+                if (tick == warmUp) {
+                    for (int i = 0; i < 12; i++) {
+                        DrainingSink sink = sink(helper, machines[i]);
+                        sink.settle();
+                        startReceived[i] = sink.received;
+                        startShort[i] = sink.shortFe;
+                    }
+                }
+            });
+        }
+        helper.runAfterDelay(warmUp + measured + 1, () -> {
+            long total = 0;
+            long min = Long.MAX_VALUE;
+            long max = 0;
+            long worstShort = 0;
+            StringBuilder each = new StringBuilder();
+            for (int i = 0; i < 12; i++) {
+                DrainingSink sink = sink(helper, machines[i]);
+                sink.settle();
+                long got = sink.received - startReceived[i];
+                long went = sink.shortFe - startShort[i];
+                total += got;
+                min = Math.min(min, got);
+                max = Math.max(max, got);
+                worstShort = Math.max(worstShort, went);
+                each.append(' ').append(got / measured);
+            }
+            LOGGER.info("Energy share ({} FE/t pushed{}, {}): FE/t per machine, nearest first:{}", pushPerTick,
+                    simulateFirst ? ", simulate first" : "", distribution, each);
+            long average = total / 12;
+            if (plenty) {
+                helper.assertTrue(worstShort <= DrainingSink.DRAIN, "A machine went " + worstShort
+                        + " FE short with more supply than demand; per machine:" + each);
+            } else {
+                helper.assertTrue(total >= (long) pushPerTick * measured * 9 / 10,
+                        "Only " + total / measured + " of " + pushPerTick + " FE/t arrived; per machine:" + each);
+                helper.assertTrue(min * 10 >= average * 8, "Uneven: least " + min / measured + " FE/t, most "
+                        + max / measured + ", average " + average / measured + "; per machine:" + each);
+            }
+            helper.succeed();
+        });
+    }
+
+    private static DrainingSink sink(GameTestHelper helper, BlockPos pos) {
+        return DrainingSink.of(helper.getLevel().getBlockEntity(helper.absolutePos(pos)));
+    }
+
     // ---------------------------------------------------------------- helpers
+
 
     static PipeNetwork network(GameTestHelper helper, BlockPos pipe) {
         return NetworkManager.get(helper.getLevel()).getOrBuild(helper.absolutePos(pipe));
