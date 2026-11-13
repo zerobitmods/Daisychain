@@ -365,12 +365,12 @@ public final class PipeNetwork {
         final int pipeIndex;
         /** Index of this endpoint in the network's endpoint list (step 84: per-destination route speeds). */
         int index;
-        @Nullable
-        private CapCache<IItemHandler> itemCache;
-        @Nullable
-        private CapCache<IFluidHandler> fluidCache;
-        @Nullable
-        private CapCache<IEnergyStorage> energyCache;
+        /**
+         * Step F48 (port of 119, review R10): the target's capability caches, owned by the NetworkManager and shared
+         * with the endpoints of later rebuilds, so a rebuild doesn't look every destination up again. Set right after
+         * creation.
+         */
+        TargetCaps caps;
         /**
          * Insert side settings, read from the pipe when the network is built and updated in place when they change
          * (step 117, review R13; NetworkManager.onInsertSettingsChanged). Priority
@@ -423,19 +423,7 @@ public final class PipeNetwork {
          * on, so a transfer that is still holding a dropped network sends nothing more through it.
          */
         void releaseCaches() {
-            released = true;
-            if (itemCache != null) {
-                itemCache.release();
-                itemCache = null;
-            }
-            if (fluidCache != null) {
-                fluidCache.release();
-                fluidCache = null;
-            }
-            if (energyCache != null) {
-                energyCache.release();
-                energyCache = null;
-            }
+            released = true; // step F48: the caches themselves are shared; the manager releases them when unused
         }
 
         public BlockPos pipePos() {
@@ -601,10 +589,11 @@ public final class PipeNetwork {
             if (released || !targetLoaded(level)) {
                 return null;
             }
-            if (itemCache == null) {
-                itemCache = CapCache.create(ForgeCapabilities.ITEM_HANDLER, level, targetPos, side.getOpposite());
+            TargetCaps c = caps;
+            if (c.item == null) {
+                c.item = CapCache.create(ForgeCapabilities.ITEM_HANDLER, level, targetPos, side.getOpposite());
             }
-            return itemCache.getCapability();
+            return c.item.getCapability();
         }
 
         /** The target's energy storage (energy pipes), cached. Null if it has none or its chunk isn't loaded. */
@@ -613,11 +602,11 @@ public final class PipeNetwork {
             if (released || !targetLoaded(level)) {
                 return null;
             }
-            if (energyCache == null) {
-                energyCache = CapCache.create(ForgeCapabilities.ENERGY, level, targetPos,
-                        side.getOpposite());
+            TargetCaps c = caps;
+            if (c.energy == null) {
+                c.energy = CapCache.create(ForgeCapabilities.ENERGY, level, targetPos, side.getOpposite());
             }
-            return energyCache.getCapability();
+            return c.energy.getCapability();
         }
 
         /** The target's fluid handler (fluid pipes), cached. Null if it has none or its chunk isn't loaded. */
@@ -626,11 +615,46 @@ public final class PipeNetwork {
             if (released || !targetLoaded(level)) {
                 return null;
             }
-            if (fluidCache == null) {
-                fluidCache = CapCache.create(ForgeCapabilities.FLUID_HANDLER, level, targetPos,
-                        side.getOpposite());
+            TargetCaps c = caps;
+            if (c.fluid == null) {
+                c.fluid = CapCache.create(ForgeCapabilities.FLUID_HANDLER, level, targetPos, side.getOpposite());
             }
-            return fluidCache.getCapability();
+            return c.fluid.getCapability();
+        }
+    }
+
+    /**
+     * Step F48 (port of 119, review R10): capability caches for one face of one block next to a pipe. Kept by the
+     * NetworkManager across rebuilds while some network uses them, and for a few seconds after the last one lets go
+     * (the rebuild that follows a change picks them up again); then released (listeners taken off the block, R8).
+     */
+    static final class TargetCaps {
+        @Nullable
+        CapCache<IItemHandler> item;
+        @Nullable
+        CapCache<IFluidHandler> fluid;
+        @Nullable
+        CapCache<IEnergyStorage> energy;
+        /** Valid networks with an endpoint using these. */
+        int users;
+        /** Game time when users last dropped to 0. */
+        long releasedAt;
+        /** Already in the manager's released list. */
+        boolean listed;
+
+        void release() {
+            if (item != null) {
+                item.release();
+                item = null;
+            }
+            if (fluid != null) {
+                fluid.release();
+                fluid = null;
+            }
+            if (energy != null) {
+                energy.release();
+                energy = null;
+            }
         }
     }
 }
