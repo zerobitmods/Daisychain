@@ -366,12 +366,11 @@ public final class PipeNetwork {
         final int pipeIndex;
         /** Index of this endpoint in the network's endpoint list (step 84: per-destination route speeds). */
         int index;
-        @Nullable
-        private BlockCapabilityCache<IItemHandler, Direction> itemCache;
-        @Nullable
-        private BlockCapabilityCache<IFluidHandler, Direction> fluidCache;
-        @Nullable
-        private BlockCapabilityCache<IEnergyStorage, Direction> energyCache;
+        /**
+         * Step 119 (review R10): the target's capability caches, owned by the NetworkManager and shared with the
+         * endpoints of later rebuilds, so a rebuild doesn't look every destination up again. Set right after creation.
+         */
+        TargetCaps caps;
         /**
          * Insert side settings, read from the pipe when the network is built and updated in place when they change
          * (step 117, review R13; NetworkManager.onInsertSettingsChanged). Priority
@@ -579,10 +578,11 @@ public final class PipeNetwork {
             if (!targetLoaded(level)) {
                 return null;
             }
-            if (itemCache == null) {
-                itemCache = BlockCapabilityCache.create(Capabilities.ItemHandler.BLOCK, level, targetPos, side.getOpposite());
+            TargetCaps c = caps;
+            if (c.item == null) {
+                c.item = BlockCapabilityCache.create(Capabilities.ItemHandler.BLOCK, level, targetPos, side.getOpposite());
             }
-            return itemCache.getCapability();
+            return c.item.getCapability();
         }
 
         /** The target's energy storage (energy pipes), cached. Null if it has none or its chunk isn't loaded. */
@@ -591,11 +591,12 @@ public final class PipeNetwork {
             if (!targetLoaded(level)) {
                 return null;
             }
-            if (energyCache == null) {
-                energyCache = BlockCapabilityCache.create(Capabilities.EnergyStorage.BLOCK, level, targetPos,
+            TargetCaps c = caps;
+            if (c.energy == null) {
+                c.energy = BlockCapabilityCache.create(Capabilities.EnergyStorage.BLOCK, level, targetPos,
                         side.getOpposite());
             }
-            return energyCache.getCapability();
+            return c.energy.getCapability();
         }
 
         /** The target's fluid handler (fluid pipes), cached. Null if it has none or its chunk isn't loaded. */
@@ -604,11 +605,33 @@ public final class PipeNetwork {
             if (!targetLoaded(level)) {
                 return null;
             }
-            if (fluidCache == null) {
-                fluidCache = BlockCapabilityCache.create(Capabilities.FluidHandler.BLOCK, level, targetPos,
+            TargetCaps c = caps;
+            if (c.fluid == null) {
+                c.fluid = BlockCapabilityCache.create(Capabilities.FluidHandler.BLOCK, level, targetPos,
                         side.getOpposite());
             }
-            return fluidCache.getCapability();
+            return c.fluid.getCapability();
         }
+    }
+
+    /**
+     * Step 119 (review R10): capability caches for one face of one block next to a pipe. Kept by the NetworkManager
+     * across rebuilds while some network uses them, and for a few seconds after the last one lets go (the rebuild that
+     * follows a change picks them up again). Each cache is created on first use, as before. The caches follow the
+     * block themselves (NeoForge invalidates them when it changes or its chunk unloads/loads), so reusing them is safe.
+     */
+    static final class TargetCaps {
+        @Nullable
+        BlockCapabilityCache<IItemHandler, Direction> item;
+        @Nullable
+        BlockCapabilityCache<IFluidHandler, Direction> fluid;
+        @Nullable
+        BlockCapabilityCache<IEnergyStorage, Direction> energy;
+        /** Valid networks with an endpoint using these. */
+        int users;
+        /** Game time when users last dropped to 0. */
+        long releasedAt;
+        /** Already in the manager's released list. */
+        boolean listed;
     }
 }

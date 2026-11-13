@@ -86,8 +86,97 @@ public final class NetworkManager {
     private int buildChunkX;
     private int buildChunkZ;
 
+    /**
+     * Step 119 (review R10): destination capability caches by target position, one map per target face; kept across
+     * rebuilds (see PipeNetwork.TargetCaps). Unused ones are dropped by sweepTargetCaps.
+     */
+    @SuppressWarnings("unchecked")
+    private final Long2ObjectOpenHashMap<PipeNetwork.TargetCaps>[] targetCaps = new Long2ObjectOpenHashMap[6];
+    /** Caches whose last network let go; sweepTargetCaps drops them if nobody took them back within a few seconds. */
+    private final ObjectArrayList<PipeNetwork.TargetCaps> releasedCaps = new ObjectArrayList<>();
+    private final LongArrayList releasedKeys = new LongArrayList();
+    private final ByteArrayList releasedFaces = new ByteArrayList();
+    private static final int CAPS_KEEP_TICKS = 100;
+
     private NetworkManager(ServerLevel level) {
         this.level = level;
+        for (int i = 0; i < 6; i++) {
+            targetCaps[i] = new Long2ObjectOpenHashMap<>();
+        }
+    }
+
+    /** Step 119: the shared caches for this endpoint's target (created if new); counts the endpoint's network as a user. */
+    private void claimCaps(PipeNetwork.Endpoint endpoint) {
+        int face = endpoint.targetSide().get3DDataValue();
+        long key = endpoint.targetPos().asLong();
+        PipeNetwork.TargetCaps caps = targetCaps[face].get(key);
+        if (caps == null) {
+            caps = new PipeNetwork.TargetCaps();
+            targetCaps[face].put(key, caps);
+        }
+        caps.users++;
+        endpoint.caps = caps;
+    }
+
+    /** Step 119: a network was invalidated; its endpoints stop using their caches (kept a while for the rebuild). */
+    private void releaseCaps(PipeNetwork network) {
+        long now = level.getGameTime();
+        for (int i = 0; i < network.endpoints.size(); i++) {
+            PipeNetwork.Endpoint endpoint = network.endpoints.get(i);
+            PipeNetwork.TargetCaps caps = endpoint.caps;
+            if (caps == null || caps.users <= 0) {
+                continue;
+            }
+            if (--caps.users == 0) {
+                caps.releasedAt = now;
+                if (!caps.listed) {
+                    caps.listed = true;
+                    releasedCaps.add(caps);
+                    releasedKeys.add(endpoint.targetPos().asLong());
+                    releasedFaces.add((byte) endpoint.targetSide().get3DDataValue());
+                }
+            }
+        }
+    }
+
+    /** Step 119: once every CAPS_KEEP_TICKS, drops caches no network has used for that long. Not per tick. */
+    private void sweepTargetCaps(long now) {
+        for (int i = releasedCaps.size() - 1; i >= 0; i--) {
+            PipeNetwork.TargetCaps caps = releasedCaps.get(i);
+            boolean keepListed = caps.users == 0 && now - caps.releasedAt < CAPS_KEEP_TICKS;
+            if (keepListed) {
+                continue;
+            }
+            if (caps.users == 0) {
+                Long2ObjectOpenHashMap<PipeNetwork.TargetCaps> map = targetCaps[releasedFaces.getByte(i)];
+                long key = releasedKeys.getLong(i);
+                if (map.get(key) == caps) {
+                    map.remove(key);
+                }
+            }
+            caps.listed = false;
+            int last = releasedCaps.size() - 1; // swap-remove
+            releasedCaps.set(i, releasedCaps.get(last));
+            releasedKeys.set(i, releasedKeys.getLong(last));
+            releasedFaces.set(i, releasedFaces.getByte(last));
+            releasedCaps.remove(last);
+            releasedKeys.removeLong(last);
+            releasedFaces.removeByte(last);
+        }
+    }
+
+    /** Step 119, for tests: true while caches for that face of that block are held (in use or waiting to be dropped). */
+    public boolean holdsTargetCaps(BlockPos target, Direction face) {
+        return targetCaps[face.get3DDataValue()].containsKey(target.asLong());
+    }
+
+    /** Step 119, for tests and debugging: destination cache sets held (in use or waiting to be dropped). */
+    public int targetCapsCount() {
+        int total = 0;
+        for (Long2ObjectOpenHashMap<PipeNetwork.TargetCaps> map : targetCaps) {
+            total += map.size();
+        }
+        return total;
     }
 
     public static NetworkManager get(ServerLevel level) {
@@ -572,6 +661,9 @@ public final class NetworkManager {
     public void tick() {
         if (!ticketCrossings.isEmpty()) {
             settleTicketCrossings(); // review R17: before any pipe moves anything this tick
+        }
+        if (!releasedCaps.isEmpty() && level.getGameTime() % CAPS_KEEP_TICKS == 0) {
+            sweepTargetCaps(level.getGameTime()); // step 119
         }
         if (!unknownRedstone.isEmpty() && level.getGameTime() % SIGNAL_RETRY_TICKS == 0) {
             retryUnknownRedstone(); // review R5: from here, never from inside a chunk event (it reads the world)
@@ -1440,6 +1532,7 @@ public final class NetworkManager {
             return;
         }
         network.valid = false;
+        releaseCaps(network); // step 119
         if (!unknownRedstone.isEmpty()) {
             unknownRedstone.remove(network);
         }
@@ -1581,6 +1674,7 @@ public final class NetworkManager {
                         }
                     }
                     endpoint.index = network.endpoints.size();
+                    claimCaps(endpoint); // step 119: reuse the target's caches from before the rebuild
                     network.endpoints.add(endpoint);
                 }
             }

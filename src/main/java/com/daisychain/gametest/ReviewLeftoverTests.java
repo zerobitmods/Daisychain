@@ -29,6 +29,9 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+import net.neoforged.neoforge.items.IItemHandler;
+import org.slf4j.Logger;
+import com.mojang.logging.LogUtils;
 
 import javax.annotation.Nullable;
 
@@ -170,6 +173,117 @@ public final class ReviewLeftoverTests {
         AABB area = new AABB(Vec3.atLowerCornerOf(helper.absolutePos(BlockPos.ZERO)),
                 Vec3.atLowerCornerOf(helper.absolutePos(new BlockPos(9, 4, 5))));
         return helper.getLevel().getEntitiesOfClass(ItemEntity.class, area).size();
+    }
+
+    // ---------------------------------------------------------------- step 119 (review R10)
+
+    private static final Logger LOGGER = LogUtils.getLogger();
+
+    /** 7 item pipes at z 2 with a barrel north, south and above each: 21 destinations. Returns the first pipe. */
+    private static BlockPos barrelNetwork(GameTestHelper helper) {
+        for (int x = 1; x <= 7; x++) {
+            BlockPos pipe = new BlockPos(x, 1, 2);
+            helper.setBlock(pipe, ModBlocks.ITEM_PIPE.get().defaultBlockState());
+            helper.setBlock(pipe.north(), Blocks.BARREL.defaultBlockState());
+            helper.setBlock(pipe.south(), Blocks.BARREL.defaultBlockState());
+            helper.setBlock(pipe.above(), Blocks.BARREL.defaultBlockState());
+        }
+        for (int x = 1; x <= 7; x++) {
+            FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(new BlockPos(x, 1, 2)));
+        }
+        return new BlockPos(1, 1, 2);
+    }
+
+    /** A rebuilt network still knows its destinations' inventories: the same handler objects, no new lookups. */
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void destinationCachesSurviveRebuild(GameTestHelper helper) {
+        BlockPos first = barrelNetwork(helper);
+        helper.runAfterDelay(2, () -> {
+            NetworkManager manager = NetworkManager.get(helper.getLevel());
+            PipeNetwork network = network(helper, first);
+            helper.assertTrue(network.endpoints().size() == 21, "Expected 21 destinations, found " + network.endpoints().size());
+            IItemHandler[] before = new IItemHandler[21];
+            for (int i = 0; i < 21; i++) {
+                before[i] = network.endpoints().get(i).itemHandler(helper.getLevel());
+                helper.assertTrue(before[i] != null, "Destination " + i + " has no inventory");
+            }
+            manager.onPipeChanged(helper.absolutePos(first));
+            PipeNetwork rebuilt = network(helper, first);
+            helper.assertTrue(rebuilt != network, "The network wasn't rebuilt");
+            int reused = 0;
+            for (int i = 0; i < 21; i++) {
+                PipeNetwork.Endpoint endpoint = rebuilt.endpoints().get(i);
+                IItemHandler now = endpoint.itemHandler(helper.getLevel());
+                for (IItemHandler old : before) {
+                    if (old == now) {
+                        reused++;
+                        break;
+                    }
+                }
+            }
+            helper.assertTrue(reused == 21, "Only " + reused + " of 21 destinations kept their cached inventory");
+            helper.succeed();
+        });
+    }
+
+    /** Caches no network uses any more are let go after a few seconds (memory stays bounded). */
+    @GameTest(template = EMPTY, timeoutTicks = 320)
+    public static void unusedDestinationCachesAreDropped(GameTestHelper helper) {
+        BlockPos first = barrelNetwork(helper);
+        BlockPos barrel = helper.absolutePos(first.north());
+        NetworkManager manager = NetworkManager.get(helper.getLevel());
+        helper.runAfterDelay(2, () -> {
+            PipeNetwork network = network(helper, first);
+            for (int i = 0; i < network.endpoints().size(); i++) {
+                network.endpoints().get(i).itemHandler(helper.getLevel());
+            }
+            helper.assertTrue(manager.holdsTargetCaps(barrel, Direction.SOUTH), "No cache held while in use");
+            for (int x = 1; x <= 7; x++) {
+                helper.setBlock(new BlockPos(x, 1, 2), Blocks.AIR.defaultBlockState());
+            }
+        });
+        helper.runAfterDelay(6, () -> helper.assertTrue(manager.holdsTargetCaps(barrel, Direction.SOUTH),
+                "Cache dropped at once (a rebuild right after a change couldn't reuse it)"));
+        helper.succeedWhen(() -> helper.assertTrue(!manager.holdsTargetCaps(barrel, Direction.SOUTH),
+                "Cache still held after the pipes were removed"));
+    }
+
+    /**
+     * Not a pass/fail test: rebuilds the 21-destination network 2,000 times and logs the average time per rebuild,
+     * with and without asking every destination for its inventory afterwards (what the first transfers after a
+     * rebuild do). Own batch, so nothing else runs beside it. Look for "R10 bench" in the log.
+     */
+    @GameTest(template = EMPTY, batch = "bench", timeoutTicks = 200)
+    public static void rebuildBench(GameTestHelper helper) {
+        BlockPos first = barrelNetwork(helper);
+        helper.runAfterDelay(2, () -> {
+            NetworkManager manager = NetworkManager.get(helper.getLevel());
+            BlockPos at = helper.absolutePos(first);
+            int rounds = 2000;
+            long[] best = {Long.MAX_VALUE, Long.MAX_VALUE};
+            for (int pass = 0; pass < 6; pass++) { // first passes warm up; best of the rest
+                for (int withCaps = 0; withCaps < 2; withCaps++) {
+                    long start = System.nanoTime();
+                    for (int r = 0; r < rounds; r++) {
+                        manager.onPipeChanged(at);
+                        PipeNetwork network = manager.getOrBuild(at);
+                        if (withCaps == 1) {
+                            for (int i = 0; i < network.endpoints().size(); i++) {
+                                network.endpoints().get(i).itemHandler(helper.getLevel());
+                            }
+                        }
+                    }
+                    long perRound = (System.nanoTime() - start) / rounds;
+                    if (pass >= 2) {
+                        best[withCaps] = Math.min(best[withCaps], perRound);
+                    }
+                }
+            }
+            LOGGER.info("R10 bench (DEV_STEP {}): rebuild of 7 pipes / 21 destinations: {} us; rebuild + first inventory "
+                    + "lookups: {} us", Daisychain.DEV_STEP, String.format("%.2f", best[0] / 1000.0),
+                    String.format("%.2f", best[1] / 1000.0));
+            helper.succeed();
+        });
     }
 
     // ---------------------------------------------------------------- helpers
