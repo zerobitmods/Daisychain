@@ -132,6 +132,11 @@ final class Extractor {
     /** Destinations sorted nearest first, for the network they were computed from. */
     @Nullable
     PipeNetwork sortedFor;
+    /**
+     * Step 117 (review R13): a destination's priority changed in place, so the same network must be sorted again on
+     * the next run (within the re-sort budget, like after a rebuild).
+     */
+    boolean needsResort;
     final ArrayList<PipeNetwork.Endpoint> destinations = new ArrayList<>();
     /** The same destinations for "farthest first": highest priority first, then farthest first within a priority. */
     final ArrayList<PipeNetwork.Endpoint> destinationsFarthest = new ArrayList<>();
@@ -318,7 +323,11 @@ final class Extractor {
      * pipes (number of pipe steps), breaking ties by straight-line distance.
      */
     void bindTo(PipeNetwork network) {
+        if (sortedFor != network) {
+            network.boundExtractors.add(this); // a re-sort of the same network (step 117) must not add it twice
+        }
         sortedFor = network;
+        needsResort = false;
         destinations.clear();
         network.orderDestinations(pos, destinations); // step 39: no per-pipe sort or garbage
         destinationsFarthest.clear();
@@ -343,7 +352,6 @@ final class Extractor {
         } else {
             bestRouteTier = 0;
         }
-        network.boundExtractors.add(this);
         Arrays.fill(sideBackoff, 1);
     }
 

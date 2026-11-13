@@ -721,8 +721,8 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         if (level instanceof ServerLevel serverLevel && oldState != state) {
             if (oldState.is(this) && oldState.setValue(HAS_DATA, state.getValue(HAS_DATA)) == state) {
                 // Review R13: only the "has settings" flag changed (a settings screen was opened, or closed unused).
-                // The arms and what the pipe offers are the same, so the network isn't rebuilt. Settings that
-                // destinations read still rebuild it themselves (PipeDataBlockEntity).
+                // The arms and what the pipe offers are the same, so the network isn't rebuilt. Insert settings
+                // update their destinations in place (step 117, NetworkManager.onInsertSettingsChanged).
                 NetworkManager.get(serverLevel).onPipeDataFlagChanged(pos);
                 return;
             }

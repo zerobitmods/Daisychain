@@ -414,7 +414,7 @@ public final class NetworkManager {
                 return null;
             }
         }
-        if (extractor.sortedFor != network) {
+        if (extractor.sortedFor != network || extractor.needsResort) {
             long bindStart = System.nanoTime();
             extractor.bindTo(network);
             peakBinds++;
@@ -837,7 +837,7 @@ public final class NetworkManager {
             extractor.nextRun = now + UpgradeSpeeds.interval(extractor.kind, 0);
             return;
         }
-        if (extractor.sortedFor != network) {
+        if (extractor.sortedFor != network || extractor.needsResort) {
             if (resortNanos >= resortBudget) {
                 // Step 39: re-sorting gets at most a quarter of the tick's time limit, so after a change in a huge
                 // network only that network's pipes wait (a few more ticks); every other network keeps running.
@@ -1186,6 +1186,64 @@ public final class NetworkManager {
         return chunk;
     }
 
+    /**
+     * Step 117 (review R13, second half): an insert side's settings changed on the pipe at pos (priority, on/off,
+     * filter, filter mode, Max stock, or a paste). Its destinations in the cached network are updated in place instead
+     * of rebuilding the whole network. Only a priority change makes the network's pulling pipes sort again (within the
+     * re-sort budget, step 39). A changed insert redstone mode still rebuilds: it decides which lists the destination
+     * is in. Not called per tick.
+     */
+    public void onInsertSettingsChanged(BlockPos pos) {
+        PipeNetwork network = networkByPipe.get(pos.asLong());
+        if (network == null || !network.valid) {
+            return; // the next build reads the new settings
+        }
+        PipeDataBlockEntity pipeData = level.getBlockEntity(pos) instanceof PipeDataBlockEntity data ? data : null;
+        boolean priorityChanged = false;
+        boolean found = false;
+        for (int i = 0; i < network.endpoints.size(); i++) {
+            PipeNetwork.Endpoint endpoint = network.endpoints.get(i);
+            if (endpoint.extract() || !endpoint.pipePos().equals(pos)) {
+                continue;
+            }
+            Direction side = endpoint.side();
+            RedstoneMode mode = pipeData != null ? pipeData.insertRedstoneMode(side) : RedstoneMode.ALWAYS;
+            if (mode != endpoint.redstoneMode()) {
+                onPipeChanged(pos);
+                return;
+            }
+            int priority = pipeData != null ? pipeData.priority(side) : 0;
+            priorityChanged |= priority != endpoint.priority();
+            readInsertSettings(endpoint, pipeData);
+            found = true;
+        }
+        if (!found) {
+            return;
+        }
+        for (int i = 0; i < network.boundExtractors.size(); i++) {
+            Extractor extractor = network.boundExtractors.get(i);
+            if (priorityChanged) {
+                extractor.needsResort = true;
+            }
+            extractor.wake(); // a destination may accept more now; sides that waited on a full network try again
+        }
+    }
+
+    /** Copies an insert side's settings into its destination; no settings stored means the defaults. */
+    private static void readInsertSettings(PipeNetwork.Endpoint endpoint, @Nullable PipeDataBlockEntity pipeData) {
+        Direction side = endpoint.side();
+        endpoint.setInsertSettings(pipeData != null ? pipeData.priority(side) : 0);
+        for (int resource = 0; resource < PipeKind.RESOURCE_COUNT; resource++) {
+            if (pipeData == null) {
+                endpoint.setInsertSettings(resource, false, null, false, 0);
+            } else if (pipeData.carries(resource)) {
+                endpoint.setInsertSettings(resource, !pipeData.acceptsResource(side, resource),
+                        pipeData.insertFilter(side, resource), pipeData.insertFilterDenies(side, resource),
+                        pipeData.maxStock(side, resource));
+            }
+        }
+    }
+
     /** Called when a pipe is placed, removed, or changes its arms. */
     public void onPipeChanged(BlockPos pos) {
         long packed = pos.asLong();
@@ -1371,15 +1429,7 @@ public final class NetworkManager {
                             new PipeNetwork.Endpoint(BlockPos.of(pipe), pipeIndex, direction, side == SideState.EXTRACT);
                     if (side == SideState.CONNECTED && state.getValue(FlowPipeBlock.HAS_DATA)
                             && level.getBlockEntity(cursor.set(pipe)) instanceof PipeDataBlockEntity pipeData) {
-                        endpoint.setInsertSettings(pipeData.priority(direction));
-                        for (int resource = 0; resource < PipeKind.RESOURCE_COUNT; resource++) {
-                            if (pipeData.carries(resource)) {
-                                endpoint.setInsertSettings(resource, !pipeData.acceptsResource(direction, resource),
-                                        pipeData.insertFilter(direction, resource),
-                                        pipeData.insertFilterDenies(direction, resource),
-                                        pipeData.maxStock(direction, resource));
-                            }
-                        }
+                        readInsertSettings(endpoint, pipeData);
                         RedstoneMode insertRedstone = pipeData.insertRedstoneMode(direction);
                         if (insertRedstone != RedstoneMode.ALWAYS) {
                             // Step 40: follows the pipe's signal; unknown (area not loaded) counts as no signal.

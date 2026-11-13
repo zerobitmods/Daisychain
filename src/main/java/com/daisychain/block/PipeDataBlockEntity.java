@@ -455,8 +455,8 @@ public final class PipeDataBlockEntity extends BlockEntity {
                 FlowPipeBlock.refreshArms(serverLevel, worldPosition); // a pull side with no inventory may appear/disappear
             }
             if (isInsertSetting(setting)) {
-                // Destinations read these when the network is built: rebuild it.
-                NetworkManager.get(serverLevel).onPipeChanged(worldPosition);
+                // Step 117: the network's destinations are updated in place (no rebuild).
+                NetworkManager.get(serverLevel).onInsertSettingsChanged(worldPosition);
             }
         }
     }
@@ -567,8 +567,8 @@ public final class PipeDataBlockEntity extends BlockEntity {
         if (insert) {
             setChanged();
             if (level instanceof ServerLevel serverLevel) {
-                // A destination's insert filter is read when the network is built: rebuild it.
-                NetworkManager.get(serverLevel).onPipeChanged(worldPosition);
+                // Step 117: the destination picks up the (possibly new) filter object in place.
+                NetworkManager.get(serverLevel).onInsertSettingsChanged(worldPosition);
             }
             return;
         }
@@ -752,8 +752,8 @@ public final class PipeDataBlockEntity extends BlockEntity {
                 FlowPipeBlock.refreshArms(serverLevel, worldPosition); // a pull side with no inventory may appear/disappear
             }
             if (insert) {
-                // Destinations read their insert settings when the network is built: rebuild it.
-                NetworkManager.get(serverLevel).onPipeChanged(worldPosition);
+                // Step 117: the network's destinations are updated in place (no rebuild).
+                NetworkManager.get(serverLevel).onInsertSettingsChanged(worldPosition);
             }
         }
     }
