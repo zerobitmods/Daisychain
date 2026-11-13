@@ -4,6 +4,7 @@ import com.daisychain.Daisychain;
 import com.daisychain.block.FlowPipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.PipeKind;
+import com.daisychain.block.SideState;
 import com.daisychain.network.NetworkManager;
 import com.daisychain.network.PipeNetwork;
 import com.daisychain.registry.ModBlocks;
@@ -11,12 +12,24 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.world.InteractionHand;
+import net.minecraft.world.InteractionResult;
+import net.minecraft.world.entity.item.ItemEntity;
+import net.minecraft.world.entity.player.Player;
+import net.minecraft.world.item.context.UseOnContext;
+import net.minecraft.world.phys.AABB;
+import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.common.MinecraftForge;
+import net.minecraftforge.event.level.BlockEvent;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.ChestBlockEntity;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
+
+import javax.annotation.Nullable;
 
 /**
  * Steps 117+ (zerobit, 2026-11-13): tests for the review leftovers (R13 second half, R12, R10) and the energy split.
@@ -73,6 +86,89 @@ public final class ReviewLeftoverTests {
             helper.assertTrue(total == 192, "Chests hold " + total + " items (should be 192)");
             helper.succeed();
         });
+    }
+
+    // ---------------------------------------------------------------- step 118 (review R12)
+
+    /**
+     * A player places a pipe where a neighbor pipe's pull side points, and a protection mod cancels the place event:
+     * the neighbor keeps its pull side and its upgrade, and nothing drops.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void cancelledPlacementLeavesNeighbor(GameTestHelper helper) {
+        placeNextToPullSide(helper, true);
+    }
+
+    /** The same placement, not cancelled: the neighbor stops pulling from the new pipe and its upgrade drops. */
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void placementTakesNeighborPull(GameTestHelper helper) {
+        placeNextToPullSide(helper, false);
+    }
+
+    @Nullable
+    private static BlockPos cancelPlaceAt;
+    private static boolean listening;
+
+    private static void onPlaceEvent(BlockEvent.EntityPlaceEvent event) {
+        if (cancelPlaceAt != null && event.getPos().equals(cancelPlaceAt)) {
+            event.setCanceled(true);
+        }
+    }
+
+    private static void placeNextToPullSide(GameTestHelper helper, boolean cancel) {
+        if (!listening) {
+            listening = true;
+            MinecraftForge.EVENT_BUS.addListener(ReviewLeftoverTests::onPlaceEvent);
+        }
+        BlockPos pipe = new BlockPos(2, 1, 2);
+        BlockPos spot = pipe.east();
+        helper.setBlock(spot.below(), Blocks.STONE.defaultBlockState());
+        helper.setBlock(pipe, ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(pipe), 1 << Direction.EAST.get3DDataValue());
+        data(helper, pipe).setUpgradeLevel(Direction.EAST, 2);
+        helper.assertTrue(pullsEast(helper, pipe), "Setup: the pipe doesn't pull east");
+        Player player = helper.makeMockPlayer();
+        player.setItemInHand(InteractionHand.MAIN_HAND, new ItemStack(ModBlocks.ITEM_PIPE.get()));
+        BlockPos floor = helper.absolutePos(spot.below());
+        BlockHitResult hit = new BlockHitResult(Vec3.atCenterOf(floor).add(0, 0.5, 0), Direction.UP, floor, false);
+        cancelPlaceAt = cancel ? helper.absolutePos(spot) : null;
+        InteractionResult result;
+        try {
+            result = player.getItemInHand(InteractionHand.MAIN_HAND)
+                    .useOn(new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
+        } finally {
+            cancelPlaceAt = null;
+        }
+        InteractionResult placed = result;
+        helper.runAfterDelay(2, () -> {
+            boolean pulls = pullsEast(helper, pipe);
+            // With no pull side and no upgrade left, the pipe drops its (empty) settings storage: that reads as 0.
+            int upgrade = helper.getLevel().getBlockEntity(helper.absolutePos(pipe)) instanceof PipeDataBlockEntity d
+                    ? d.upgradeLevel(Direction.EAST) : 0;
+            int dropped = itemsOnGround(helper);
+            if (cancel) {
+                helper.assertBlockNotPresent(ModBlocks.ITEM_PIPE.get(), spot);
+                helper.assertTrue(pulls, "Cancelled placement took the neighbor's pull side (result " + placed + ")");
+                helper.assertTrue(upgrade == 2, "Cancelled placement: neighbor's upgrade is " + upgrade + " (should be 2)");
+                helper.assertTrue(dropped == 0, "Cancelled placement dropped " + dropped + " item(s)");
+            } else {
+                helper.assertBlockPresent(ModBlocks.ITEM_PIPE.get(), spot);
+                helper.assertTrue(!pulls, "The neighbor still pulls from the new pipe");
+                helper.assertTrue(upgrade == 0, "The neighbor kept upgrade " + upgrade);
+                helper.assertTrue(dropped == 1, dropped + " items dropped (should be the 1 upgrade)");
+            }
+            helper.succeed();
+        });
+    }
+
+    private static boolean pullsEast(GameTestHelper helper, BlockPos pipe) {
+        return helper.getBlockState(pipe).getValue(FlowPipeBlock.propertyFor(Direction.EAST)) == SideState.EXTRACT;
+    }
+
+    static int itemsOnGround(GameTestHelper helper) {
+        AABB area = new AABB(Vec3.atLowerCornerOf(helper.absolutePos(BlockPos.ZERO)),
+                Vec3.atLowerCornerOf(helper.absolutePos(new BlockPos(9, 4, 5))));
+        return helper.getLevel().getEntitiesOfClass(ItemEntity.class, area).size();
     }
 
     // ---------------------------------------------------------------- helpers

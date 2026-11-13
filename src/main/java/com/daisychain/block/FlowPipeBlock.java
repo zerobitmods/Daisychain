@@ -726,7 +726,11 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
                 NetworkManager.get(serverLevel).onPipeDataFlagChanged(pos);
                 return;
             }
-            NetworkManager.get(serverLevel).onPipeChanged(pos);
+            NetworkManager manager = NetworkManager.get(serverLevel);
+            manager.onPipeChanged(pos);
+            if (manager.takePlacement(pos)) {
+                claimSpotFromNeighbors(serverLevel, pos); // step 118: the place event has passed
+            }
             // Step 109: a side may have stopped being a pull side, which decides whether that side offers an energy
             // input; blocks holding the old one are told to drop it. (New pull sides are found by neighbor updates.)
             if (oldState.is(state.getBlock()) && serverLevel.getBlockEntity(pos) instanceof PipeDataBlockEntity data) {
@@ -791,7 +795,23 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         if (!(level instanceof ServerLevel serverLevel)) {
             return;
         }
-        // A freshly placed pipe: forget old "disconnected" marks that neighbor pipes kept toward this spot.
+        if (serverLevel.captureBlockSnapshots) {
+            // Step 118 (review R12): a player's placement, and the place event can still cancel it (claims, spawn
+            // protection). The loader holds onPlace back until the event has passed, so the neighbors are changed
+            // there (onPlace -> NetworkManager.takePlacement), never for a placement that gets undone.
+            NetworkManager.get(serverLevel).markPlacement(pos);
+            return;
+        }
+        // No cancellable event around this placement (onPlace has already run): change the neighbors now.
+        claimSpotFromNeighbors(serverLevel, pos);
+    }
+
+    /**
+     * A freshly placed pipe takes over its spot: neighbor pipes that pulled from it stop (their upgrade pops out),
+     * parked upgrades on sides that now join it pop out, and old "disconnected" marks toward it are forgotten. Only for
+     * placements by a player or item (setPlacedBy), not for pipes put there by other code (pastes, tier swaps).
+     */
+    private void claimSpotFromNeighbors(ServerLevel level, BlockPos pos) {
         for (Direction direction : DIRECTIONS) {
             BlockPos neighborPos = pos.relative(direction);
             if (!level.isLoaded(neighborPos)) {
@@ -802,19 +822,19 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
                     && hasBit(extractMask(level, neighborPos, neighborState), direction.getOpposite())) {
                 // The neighbor pulled from this spot. Pipes connect instead of pulling from each other, so its pull
                 // mark goes; its filter and amounts stay stored, and its upgrade pops out so it's never hidden.
-                dropPullTowardNewPipe(serverLevel, neighborPos, neighborState, direction.getOpposite());
+                dropPullTowardNewPipe(level, neighborPos, neighborState, direction.getOpposite());
                 neighborState = level.getBlockState(neighborPos);
             }
             if (linksWith(neighborState)) {
                 // Step 67: a parked upgrade on a side that now joins another pipe could never work again: pop it out.
-                popParkedUpgrade(serverLevel, neighborPos, neighborState, direction.getOpposite());
+                popParkedUpgrade(level, neighborPos, neighborState, direction.getOpposite());
                 neighborState = level.getBlockState(neighborPos);
             }
             if (linksWith(neighborState)
                     && hasBit(disconnectMask(level, neighborPos, neighborState), direction.getOpposite())) {
-                setNeighborPipeDisconnected(serverLevel, neighborPos, neighborState, direction.getOpposite(), false);
+                setNeighborPipeDisconnected(level, neighborPos, neighborState, direction.getOpposite(), false);
                 BlockState updated = level.getBlockState(neighborPos);
-                applyConfig(serverLevel, neighborPos, extractMask(level, neighborPos, updated),
+                applyConfig(level, neighborPos, extractMask(level, neighborPos, updated),
                         disconnectMask(level, neighborPos, updated));
             }
         }
@@ -857,6 +877,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         boolean sameBlock = state.is(newState.getBlock());
         if (level instanceof ServerLevel serverLevel && !sameBlock) {
             NetworkManager.get(serverLevel).onPipeChanged(pos);
+            NetworkManager.get(serverLevel).takePlacement(pos); // step 118: a cancelled placement is undone here
             // Broken, exploded or replaced: drop any installed upgrades so they're never deleted. Not during a tier swap
             // (step 93): the settings, upgrades included, move to the new pipe there.
             PipeDataBlockEntity data = getData(level, pos, state);
