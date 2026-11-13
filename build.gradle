@@ -79,6 +79,20 @@ base {
     archivesName = mod_id
 }
 
+// Step 120: development-only code (game tests, stress tests, the test bench) lives in src/dev. It can use everything
+// in src/main, is part of the mod in every run below (runClient, runServer, runGameTestServer, IntelliJ), and is never
+// put in the jar that players download (the jar is built from src/main only).
+sourceSets {
+    dev {
+        compileClasspath += sourceSets.main.output
+        runtimeClasspath += sourceSets.main.output
+    }
+}
+configurations {
+    devCompileClasspath.extendsFrom compileClasspath
+    devRuntimeClasspath.extendsFrom runtimeClasspath
+}
+
 // Mojang ships Java 21 to end users in 1.21.1, so mods should target Java 21.
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
@@ -130,6 +144,8 @@ neoForge {
 
         // applies to all the run configs above
         configureEach {
+            // Step 120: runs use the dev source set's classpath, so src/dev (tests, stress tools) is in the game too.
+            sourceSet = sourceSets.dev
             // Recommended logging data for a userdev environment
             // The markers can be added/remove as needed separated by commas.
             // "SCAN": For mods scan.
@@ -150,6 +166,7 @@ neoForge {
         // multi mod projects should define one per mod
         "${mod_id}" {
             sourceSet(sourceSets.main)
+            sourceSet(sourceSets.dev) // step 120: dev-only code is part of the mod in dev runs, never in the jar
         }
     }
 }
