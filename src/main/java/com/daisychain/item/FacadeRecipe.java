@@ -19,8 +19,8 @@ import javax.annotation.Nullable;
  * the type).
  */
 public final class FacadeRecipe extends CustomRecipe {
-    /** Facades per craft. Placeholder until the final recipe balance (zerobit, 2026-11-14). */
-    public static final int COUNT = 1;
+    /** Facades per craft: 8 (zerobit, 2026-11-14). */
+    public static final int COUNT = 8;
 
     public FacadeRecipe(CraftingBookCategory category) {
         super(category);

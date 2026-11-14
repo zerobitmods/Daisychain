@@ -262,7 +262,7 @@ public final class FacadeTests {
         ItemStack pipe = new ItemStack(ModItems.ITEM_PIPE.get());
         ItemStack made = craft(helper, new ItemStack(Items.OAK_PLANKS), pipe);
         helper.assertTrue(made.is(ModItems.FACADE.get()) && FacadeItem.coverOf(made) == OAK
-                && made.getCount() == com.daisychain.item.FacadeRecipe.COUNT, "Oak planks + pipe made " + made);
+                && made.getCount() == 8, "Oak planks + pipe made " + made);
         ItemStack glass = craft(helper, pipe, new ItemStack(Items.GLASS));
         helper.assertTrue(FacadeItem.coverOf(glass) == Blocks.GLASS.defaultBlockState(), "Glass + pipe made " + glass);
         // Not "nothing at all": a lone plank still makes a button, for example. Just never a facade.

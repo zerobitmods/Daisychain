@@ -24,7 +24,7 @@ public final class Daisychain {
     public static final String MOD_ID = "daisychain";
     public static final Logger LOGGER = LogUtils.getLogger();
     /** Development step this build is at. Shown by /daisychain version; bumped with every step. */
-    public static final String DEV_STEP = "125";
+    public static final String DEV_STEP = "125a";
 
     public Daisychain(IEventBus modEventBus, ModContainer modContainer) {
         ModBlocks.register(modEventBus);
