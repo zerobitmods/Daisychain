@@ -29,6 +29,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.client.model.data.ModelData;
+import net.minecraftforge.client.model.data.ModelProperty;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 import net.minecraftforge.common.util.LazyOptional;
@@ -866,6 +868,19 @@ public final class PipeDataBlockEntity extends BlockEntity {
         }
     }
 
+    /**
+     * Facades step 2 (step F54, port of 126): the cover handed to the pipe's model (client/PipeBakedModel) when its chunk
+     * section is drawn. Lives here, not in the client package, because this class is loaded on servers too.
+     */
+    public static final ModelProperty<BlockState> COVER_MODEL = new ModelProperty<>();
+
+    /** Step F54: client main thread. The model draws the cover block instead of the pipe when there is one. */
+    @Override
+    public ModelData getModelData() {
+        BlockState shown = cover;
+        return shown == null ? ModelData.EMPTY : ModelData.builder().with(COVER_MODEL, shown).build();
+    }
+
     /** Drops the cover as a facade item at the pipe and clears it. Never deletes it (same rules as dropUpgrades). */
     public void dropCover(Level world, BlockPos pos) {
         if (cover != null) {
@@ -883,9 +898,23 @@ public final class PipeDataBlockEntity extends BlockEntity {
         syncExtractor();
     }
 
+    /** Step F54: set when the chunk unloads (just before setRemoved), so setRemoved leaves Forge's model data alone. */
+    private boolean chunkUnloading;
+
+    @Override
+    public void onChunkUnloaded() {
+        super.onChunkUnloaded();
+        chunkUnloading = true;
+    }
+
     @Override
     public void setRemoved() {
         super.setRemoved();
+        if (level != null && level.isClientSide() && cover != null && !chunkUnloading) {
+            // Step F54 (126b): the block entity went away while covered (the cover was its last setting). Ask Forge to
+            // drop the cover it stored for this spot; otherwise break particles would still show the old cover.
+            requestModelDataUpdate();
+        }
         // Called when the pipe is broken and when its chunk unloads.
         if (level instanceof ServerLevel serverLevel) {
             NetworkManager manager = NetworkManager.getExisting(serverLevel);
@@ -1043,7 +1072,11 @@ public final class PipeDataBlockEntity extends BlockEntity {
         // Disk saves have the filters themselves; client updates only carry the mask.
         filterMask = hadFilters ? computeFilterMask() : (byte) (tag.getByte("FilterMask") & 0b111111);
         // Step F53: disk saves and client updates both carry the cover when there is one; missing = none.
+        BlockState coverBefore = cover;
         cover = tag.contains("Cover", Tag.TAG_COMPOUND) ? readCover(tag.getCompound("Cover")) : null;
+        if (cover != coverBefore && level != null && level.isClientSide()) {
+            requestModelDataUpdate(); // step F54: the model reads the cover from getModelData
+        }
     }
 
     /** A saved cover, or null if its block no longer exists (its mod was removed: reads as air). */

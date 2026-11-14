@@ -1,0 +1,20 @@
+{
+  "textures": {
+    "end": "daisychain:item/facade_pipe_end",
+    "particle": "daisychain:item/facade_pipe_end"
+  },
+  "elements": [
+    {
+      "from": [-0.02, -0.02, -0.02],
+      "to": [16.02, 16.02, 16.02],
+      "faces": {
+        "down":  {"uv": [0, 0, 16, 16], "texture": "#end"},
+        "up":    {"uv": [0, 0, 16, 16], "texture": "#end"},
+        "north": {"uv": [0, 0, 16, 16], "texture": "#end"},
+        "south": {"uv": [0, 0, 16, 16], "texture": "#end"},
+        "west":  {"uv": [0, 0, 16, 16], "texture": "#end"},
+        "east":  {"uv": [0, 0, 16, 16], "texture": "#end"}
+      }
+    }
+  ]
+}
