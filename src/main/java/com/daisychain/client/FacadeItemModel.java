@@ -42,7 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Facades step 2 (step 126a, zerobit's icon "D"): a facade item looks like its cover block with a pipe end showing in
  * the middle of every face (models/item/facade_pipe_ends.json over the block's own model), in the inventory and in the
  * hand. In inventory slots a small daisy in the top-right corner marks it as a facade (top-right because the stack
- * count sits bottom-right; step 126b: 5x5 with a one-pixel yellow middle, one pixel in from the slot edges). A facade with no block keeps the flat placeholder icon.
+ * count sits bottom-right; step 126b/c: 5x5 white petals around one yellow pixel, one pixel in from the slot edges). A facade with no block keeps the flat placeholder icon.
  * <p>
  * One combined model is made per cover block the first time it's drawn and kept until the next resource reload, so
  * drawing a facade allocates nothing. Client only.
