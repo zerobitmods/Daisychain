@@ -1,6 +1,7 @@
 package com.daisychain.gametest;
 
 import com.daisychain.Daisychain;
+import com.daisychain.block.CoverShape;
 import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.block.FlowPipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
@@ -227,6 +228,8 @@ public final class FacadeTests {
         helper.assertTrue(swapped, "The tier swap didn't happen");
         helper.assertBlockPresent(ModBlocks.energyPipes()[2], PIPE);
         helper.assertTrue(cover(helper, PIPE) == OAK, "Cover after the swap: " + cover(helper, PIPE));
+        helper.assertTrue(level.getBlockState(at).getValue(FlowPipeBlock.COVER) == CoverShape.SOLID,
+                "Cover state after the swap: " + level.getBlockState(at)); // step 127
         helper.assertTrue(facadesHeld(player, OAK) == 0, "A facade came back on the swap");
         helper.runAfterDelay(2, () -> {
             helper.assertTrue(facadesOnGround(helper, OAK) == 0, "A facade dropped on the swap");
@@ -325,6 +328,101 @@ public final class FacadeTests {
     }
 
     // ---------------------------------------------------------------- helpers
+
+    // ---------------------------------------------------------------- step 127 (facades step 3)
+
+    /** An opaque cover makes a full, light-blocking block; taking it off gives the plain pipe back. */
+    @GameTest(template = EMPTY)
+    public static void facadeSolidIsFullBlock(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos at = helper.absolutePos(PIPE);
+        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
+        helper.assertFalse(level.getBlockState(at).isCollisionShapeFullBlock(level, at), "Plain pipe is a full block");
+        coverWithSurvivalPlayer(helper, PIPE, STONE);
+        BlockState state = level.getBlockState(at);
+        helper.assertTrue(state.getValue(FlowPipeBlock.COVER) == CoverShape.SOLID, "Cover state: " + state);
+        helper.assertTrue(state.isCollisionShapeFullBlock(level, at), "Covered pipe can be walked into");
+        helper.assertTrue(Block.isShapeFullBlock(state.getShape(level, at)), "Outline isn't a full block");
+        helper.assertTrue(state.getLightBlock(level, at) == 15, "Light through stone cover: " + state.getLightBlock(level, at));
+        helper.assertFalse(state.propagatesSkylightDown(level, at), "Sky light goes through a stone cover");
+        helper.assertTrue(state.isRedstoneConductor(level, at), "Stone cover doesn't conduct redstone");
+        Player player = helper.makeMockPlayer();
+        player.setShiftKeyDown(true);
+        clickAt(helper, player, ItemStack.EMPTY, centerHit(helper, PIPE));
+        state = level.getBlockState(at);
+        helper.assertTrue(cover(helper, PIPE) == null, "Cover didn't come off");
+        helper.assertTrue(state.getValue(FlowPipeBlock.COVER) == CoverShape.NONE, "Cover state after removal: " + state);
+        helper.assertFalse(state.isCollisionShapeFullBlock(level, at), "Still a full block after removal");
+        helper.assertTrue(state.getLightBlock(level, at) == 0, "Bare pipe blocks light: " + state.getLightBlock(level, at));
+        helper.succeed();
+    }
+
+    /** A glass cover is solid to walk on but lets light through, and doesn't conduct redstone or suffocate. */
+    @GameTest(template = EMPTY)
+    public static void facadeGlassLetsLightThrough(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos at = helper.absolutePos(PIPE);
+        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
+        coverWithSurvivalPlayer(helper, PIPE, Blocks.GLASS.defaultBlockState());
+        BlockState state = level.getBlockState(at);
+        helper.assertTrue(state.getValue(FlowPipeBlock.COVER) == CoverShape.CLEAR, "Cover state: " + state);
+        helper.assertTrue(state.isCollisionShapeFullBlock(level, at), "Glass-covered pipe can be walked into");
+        helper.assertTrue(state.getLightBlock(level, at) == 0, "Glass cover blocks light: " + state.getLightBlock(level, at));
+        helper.assertTrue(state.propagatesSkylightDown(level, at), "Sky light stops at a glass cover");
+        helper.assertFalse(state.isRedstoneConductor(level, at), "Glass cover conducts redstone");
+        helper.assertFalse(state.isSuffocating(level, at), "Glass cover suffocates");
+        helper.succeed();
+    }
+
+    /**
+     * On a covered pipe the clicked face is the side, anywhere on the face: a corner of the east face counts as the
+     * east pull side. On a bare pipe the same point isn't on the pull cap.
+     */
+    @GameTest(template = EMPTY)
+    public static void facadeFaceClickPicksSide(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos at = helper.absolutePos(PIPE);
+        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
+        FlowPipeBlock.setPullSidesForTest(level, at, 1 << Direction.EAST.get3DDataValue());
+        Vec3 corner = new Vec3(at.getX() + 1.0, at.getY() + 0.1, at.getZ() + 0.9);
+        BlockHitResult hit = new BlockHitResult(corner, Direction.EAST, at, false);
+        BlockState bare = level.getBlockState(at);
+        helper.assertTrue(FlowPipeBlock.isCoreHit(bare, at, corner), "Setup: bare pipe corner isn't the core");
+        helper.assertFalse(FlowPipeBlock.isPullCapHit(bare, at, hit), "Setup: bare pipe corner is on the pull cap");
+        coverWithSurvivalPlayer(helper, PIPE, STONE);
+        BlockState covered = level.getBlockState(at);
+        helper.assertFalse(FlowPipeBlock.isCoreHit(covered, at, corner), "Covered face corner counts as the core");
+        helper.assertTrue(FlowPipeBlock.targetedSide(covered, at, hit) == Direction.EAST,
+                "Covered face corner side: " + FlowPipeBlock.targetedSide(covered, at, hit));
+        helper.assertTrue(FlowPipeBlock.isPullCapHit(covered, at, hit), "Covered pull face isn't the pull side");
+        Vec3 top = new Vec3(at.getX() + 0.2, at.getY() + 1.0, at.getZ() + 0.2);
+        helper.assertTrue(FlowPipeBlock.targetedSide(covered, at, top, Direction.UP) == Direction.UP, "Top face side");
+        helper.succeed();
+    }
+
+    /**
+     * A covered pipe whose block state lost its cover value (saved before step 127) gets it back on its next tick; a
+     * pipe pasted as "covered" with no cover stored goes back to plain.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void facadeCoverStateRepaired(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos at = helper.absolutePos(PIPE);
+        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
+        coverWithSurvivalPlayer(helper, PIPE, STONE);
+        level.setBlock(at, level.getBlockState(at).setValue(FlowPipeBlock.COVER, CoverShape.NONE), Block.UPDATE_CLIENTS);
+        helper.assertTrue(cover(helper, PIPE) == STONE, "Setup: the stored cover went away");
+        level.scheduleTick(at, level.getBlockState(at).getBlock(), 1); // what the chunk-load scan does
+        BlockPos other = new BlockPos(2, 1, 2);
+        BlockPos otherAt = helper.absolutePos(other);
+        helper.setBlock(other, ModBlocks.ITEM_PIPE.get().defaultBlockState().setValue(FlowPipeBlock.COVER, CoverShape.SOLID));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(level.getBlockState(at).getValue(FlowPipeBlock.COVER) == CoverShape.SOLID,
+                    "Cover state not repaired: " + level.getBlockState(at));
+            helper.assertTrue(level.getBlockState(otherAt).getValue(FlowPipeBlock.COVER) == CoverShape.NONE,
+                    "Pasted cover state with nothing stored: " + level.getBlockState(otherAt));
+        });
+    }
 
     private static ItemStack craft(GameTestHelper helper, ItemStack a, ItemStack b) {
         // No menu: the items go in through the constructor (setItem would tell the missing menu).

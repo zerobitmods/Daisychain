@@ -863,9 +863,17 @@ public final class PipeDataBlockEntity extends BlockEntity {
         cover = value;
         setChanged();
         if (level instanceof ServerLevel serverLevel) {
-            BlockState state = getBlockState();
+            FlowPipeBlock.syncCoverState(serverLevel, worldPosition); // step 127: full block, light
+            BlockState state = serverLevel.getBlockState(worldPosition);
             serverLevel.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_CLIENTS);
         }
+    }
+
+    /** Step 127: false if the block state's cover value doesn't match the stored cover (saved before step 127). */
+    public boolean coverStateMatches() {
+        BlockState state = getBlockState();
+        return !(state.getBlock() instanceof FlowPipeBlock)
+                || state.getValue(FlowPipeBlock.COVER) == FlowPipeBlock.coverShapeOf(cover);
     }
 
     /**
@@ -896,6 +904,10 @@ public final class PipeDataBlockEntity extends BlockEntity {
     public void onLoad() {
         super.onLoad();
         syncExtractor();
+        if (level instanceof ServerLevel serverLevel && !coverStateMatches()) {
+            // Step F55: a covered pipe saved before covers were in the block state; its tick sets it.
+            serverLevel.scheduleTick(worldPosition, getBlockState().getBlock(), 1);
+        }
     }
 
     /** Step F54: set when the chunk unloads (just before setRemoved), so setRemoved leaves Forge's model data alone. */

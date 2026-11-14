@@ -2,6 +2,7 @@ package com.daisychain.registry;
 
 import com.daisychain.Daisychain;
 import com.daisychain.block.EnergyPipeBlock;
+import com.daisychain.block.FlowPipeBlock;
 import com.daisychain.block.FluidPipeBlock;
 import com.daisychain.block.ItemPipeBlock;
 import com.daisychain.block.UniversalPipeBlock;
@@ -60,6 +61,13 @@ public final class ModBlocks {
                 .strength(0.5F, 6.0F)
                 .sound(SoundType.METAL)
                 .noOcclusion()
+                // Step 127 / F55 (facades step 3): an opaque cover makes the pipe act like stone for redstone, suffocation and
+                // mob spawning; see-through covers and bare pipes like glass (none of those).
+                .isRedstoneConductor((state, level, pos) -> FlowPipeBlock.isSolidCover(state))
+                .isSuffocating((state, level, pos) -> FlowPipeBlock.isSolidCover(state))
+                .isViewBlocking((state, level, pos) -> FlowPipeBlock.isSolidCover(state))
+                .isValidSpawn((state, level, pos, type) -> FlowPipeBlock.isSolidCover(state)
+                        && state.isFaceSturdy(level, pos, net.minecraft.core.Direction.UP))
                 // Count as solid so flowing water and lava can't wash pipes away (thin blocks aren't solid by default).
                 .forceSolidOn()
                 // Pistons can't push or break pipes.

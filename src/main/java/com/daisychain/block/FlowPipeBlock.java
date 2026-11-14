@@ -26,6 +26,7 @@ import net.minecraft.world.item.BlockItem;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.context.BlockPlaceContext;
 import net.minecraft.world.level.BlockGetter;
+import net.minecraft.world.level.EmptyBlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.Block;
@@ -61,6 +62,8 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
     public static final EnumProperty<SideState> EAST = EnumProperty.create("east", SideState.class);
     /** True when this pipe has a PipeDataBlockEntity holding its side settings. */
     public static final BooleanProperty HAS_DATA = BooleanProperty.create("has_data");
+    /** Step 127 / F55 (facades step 3): the cover's shape and light (the cover block itself is in PipeDataBlockEntity). */
+    public static final EnumProperty<CoverShape> COVER = EnumProperty.create("cover", CoverShape.class);
 
     // Indexed by Direction.get3DDataValue(): DOWN=0, UP=1, NORTH=2, SOUTH=3, WEST=4, EAST=5
     private static final EnumProperty<SideState>[] PROPERTY_BY_DIRECTION = createPropertyArray();
@@ -101,7 +104,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
 
     protected FlowPipeBlock(Properties properties) {
         super(properties);
-        BlockState state = stateDefinition.any().setValue(HAS_DATA, false);
+        BlockState state = stateDefinition.any().setValue(HAS_DATA, false).setValue(COVER, CoverShape.NONE);
         for (EnumProperty<SideState> property : PROPERTY_BY_DIRECTION) {
             state = state.setValue(property, SideState.NONE);
         }
@@ -155,7 +158,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
 
     @Override
     protected void createBlockStateDefinition(StateDefinition.Builder<Block, BlockState> builder) {
-        builder.add(DOWN, UP, NORTH, SOUTH, WEST, EAST, HAS_DATA);
+        builder.add(DOWN, UP, NORTH, SOUTH, WEST, EAST, HAS_DATA, COVER);
     }
 
     // ---------------------------------------------------------------- block entity
@@ -444,7 +447,22 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
 
     /** True if the click landed on the pipe's center (core) rather than on one of its arms. */
     public static boolean isCoreHit(BlockState state, BlockPos pos, Vec3 clickLocation) {
-        return hitSide(state, clickLocation.subtract(pos.getX(), pos.getY(), pos.getZ())) == null;
+        Vec3 local = clickLocation.subtract(pos.getX(), pos.getY(), pos.getZ());
+        return !onCoverSurface(state, local) && hitSide(state, local) == null;
+    }
+
+    /**
+     * Step 127 / F55 (facades step 3): the click landed on the outside of a covered pipe (its full-block face), so the face
+     * clicked is the side meant. With a wrench in hand the outline is the pipe's own shape again: those clicks are inside
+     * the block, or on an arm's end, which is the same side as the face.
+     */
+    private static boolean onCoverSurface(BlockState state, Vec3 local) {
+        if (!(state.getBlock() instanceof FlowPipeBlock) || state.getValue(COVER) == CoverShape.NONE) {
+            return false;
+        }
+        double eps = 1.0E-4;
+        return local.x < eps || local.x > 1.0 - eps || local.y < eps || local.y > 1.0 - eps
+                || local.z < eps || local.z > 1.0 - eps;
     }
 
     @Override
@@ -476,7 +494,11 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
 
     /** Same, from the clicked point and face (used by items, whose click context has these). */
     public static Direction targetedSide(BlockState state, BlockPos pos, Vec3 clickLocation, Direction clickedFace) {
-        Direction side = hitSide(state, clickLocation.subtract(pos.getX(), pos.getY(), pos.getZ()));
+        Vec3 local = clickLocation.subtract(pos.getX(), pos.getY(), pos.getZ());
+        if (onCoverSurface(state, local)) {
+            return clickedFace; // step 127: a covered pipe's face is its side
+        }
+        Direction side = hitSide(state, local);
         return side != null ? side : clickedFace;
     }
 
@@ -742,11 +764,15 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         super.onPlace(state, level, pos, oldState, movedByPiston);
         // Called for new pipes and for arm/settings changes on existing pipes.
         if (level instanceof ServerLevel serverLevel && oldState != state) {
-            if (oldState.is(this) && oldState.setValue(HAS_DATA, state.getValue(HAS_DATA)) == state) {
+            if (oldState.is(this)
+                    && oldState.setValue(HAS_DATA, state.getValue(HAS_DATA)).setValue(COVER, state.getValue(COVER)) == state) {
                 // Review R13: only the "has settings" flag changed (a settings screen was opened, or closed unused).
                 // The arms and what the pipe offers are the same, so the network isn't rebuilt. Insert settings
                 // update their destinations in place (step 117, NetworkManager.onInsertSettingsChanged).
-                NetworkManager.get(serverLevel).onPipeDataFlagChanged(pos);
+                // Step 127: the same for a cover going on or off; a cover never changes what the pipe connects to.
+                if (oldState.getValue(HAS_DATA) != state.getValue(HAS_DATA)) {
+                    NetworkManager.get(serverLevel).onPipeDataFlagChanged(pos);
+                }
                 return;
             }
             NetworkManager manager = NetworkManager.get(serverLevel);
@@ -768,7 +794,10 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
             // Step 101: a pipe put here by something else (a building tool's paste, a schematic) can say "pull side" in
             // its block state with no pull settings stored. Check again in 2 ticks (our own code stores the settings by
             // then, e.g. a tier swap) and, if it still doesn't match, work the arms out from what is stored.
-            if (!oldState.is(state.getBlock()) && armsDisagreeWithSettings(serverLevel, pos, state)) {
+            // Step 127: the same for a pasted pipe whose block state says "covered": the cover state is set from the
+            // stored cover (none if nothing is stored).
+            if (!oldState.is(state.getBlock())
+                    && (armsDisagreeWithSettings(serverLevel, pos, state) || state.getValue(COVER) != CoverShape.NONE)) {
                 serverLevel.scheduleTick(pos, this, 2);
             }
         }
@@ -792,6 +821,12 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
     @Override
     @SuppressWarnings("deprecation")
     public void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
+        if (syncCoverState(level, pos)) { // step 127: also scheduled when a chunk loads with a cover state out of date
+            state = level.getBlockState(pos);
+            if (!(state.getBlock() instanceof FlowPipeBlock)) {
+                return;
+            }
+        }
         if (armsDisagreeWithSettings(level, pos, state)) {
             refreshArms(level, pos);
             return;
@@ -1153,18 +1188,98 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
      */
     @Override
     public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+        Player player = context instanceof EntityCollisionContext entityContext
+                && entityContext.getEntity() instanceof Player p ? p : null;
+        boolean holdingWrench = player != null && isHoldingWrench(player);
+        // Step 127 / F55 (facades step 3): a covered pipe is a full block, except to a player holding a wrench, who works on
+        // the pipe inside (step 4 draws the cover see-through then).
+        if (state.getValue(COVER) != CoverShape.NONE && !holdingWrench) {
+            return Shapes.block();
+        }
         // Step 66: only while sneaking, since only a sneak-click changes a side (a plain click opens the settings).
         // And not while the player has the holograms turned off (client side only; toggled with the Bloom Wrench).
-        boolean wrench = context instanceof EntityCollisionContext entityContext
-                && entityContext.getEntity() instanceof Player player && isHoldingWrench(player)
-                && player.isSecondaryUseActive() && !(clientGhostsHidden && player.level().isClientSide());
+        boolean wrench = holdingWrench && player.isSecondaryUseActive()
+                && !(clientGhostsHidden && player.level().isClientSide());
         return cachedShape(connectionMask(state), pullMask(state), wrench ? GHOST_ALL : GHOST_NONE);
     }
 
-    /** What entities bump into: never includes ghost arms. */
+    /** What entities bump into: never includes ghost arms. A covered pipe is a full block for everyone (step 127). */
     @Override
     public VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
+        if (state.getValue(COVER) != CoverShape.NONE) {
+            return Shapes.block();
+        }
         return cachedShape(connectionMask(state), pullMask(state), GHOST_NONE);
+    }
+
+    // ---------------------------------------------------------------- covers (step 127, facades step 3)
+
+    /** What a cover block means for the pipe's block state: SOLID for opaque full blocks, CLEAR for see-through ones. */
+    public static CoverShape coverShapeOf(@Nullable BlockState cover) {
+        if (cover == null || cover.isAir()) {
+            return CoverShape.NONE;
+        }
+        return cover.isSolidRender(EmptyBlockGetter.INSTANCE, BlockPos.ZERO) ? CoverShape.SOLID : CoverShape.CLEAR;
+    }
+
+    /** True for a pipe with an opaque cover: it blocks light, conducts redstone and takes spawns like stone. */
+    public static boolean isSolidCover(BlockState state) {
+        return state.getBlock() instanceof FlowPipeBlock && state.getValue(COVER) == CoverShape.SOLID;
+    }
+
+    /**
+     * Server: sets the block state's cover value from the stored cover (none without one). Returns true if it changed.
+     * Called when a cover goes on or off, and from tick() for pasted pipes and chunks saved before step 127.
+     */
+    public static boolean syncCoverState(ServerLevel level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        if (!(state.getBlock() instanceof FlowPipeBlock)) {
+            return false;
+        }
+        PipeDataBlockEntity data = getData(level, pos, state);
+        CoverShape wanted = coverShapeOf(data == null ? null : data.cover());
+        if (state.getValue(COVER) == wanted) {
+            return false;
+        }
+        // UPDATE_ALL: neighbors hear about it (a torch on a cover that comes off drops) and light is checked again.
+        return level.setBlock(pos, state.setValue(COVER, wanted), Block.UPDATE_ALL);
+    }
+
+    /** Opaque covers block light like stone; see-through ones let it through like glass. Uncovered: as before. */
+    @Override
+    public int getLightBlock(BlockState state, BlockGetter level, BlockPos pos) {
+        return state.getValue(COVER) == CoverShape.SOLID ? level.getMaxLightLevel() : super.getLightBlock(state, level, pos);
+    }
+
+    @Override
+    public boolean propagatesSkylightDown(BlockState state, BlockGetter level, BlockPos pos) {
+        return switch (state.getValue(COVER)) {
+            case SOLID -> false;
+            case CLEAR -> true;
+            default -> super.propagatesSkylightDown(state, level, pos);
+        };
+    }
+
+    /** Smooth lighting: an opaque cover darkens corners next to it like a full block; pipes and glass don't. */
+    @Override
+    public float getShadeBrightness(BlockState state, BlockGetter level, BlockPos pos) {
+        return state.getValue(COVER) == CoverShape.SOLID ? 0.2F : 1.0F;
+    }
+
+    /**
+     * Client drawing: an opaque cover hides the faces of pipes (and other non-solid-layer blocks) next to it, so walls
+     * of covered pipes don't draw the faces between them. (Pipes don't occlude the vanilla way: noOcclusion.)
+     */
+    @Override
+    public boolean hidesNeighborFace(BlockGetter level, BlockPos pos, BlockState state, BlockState neighborState,
+                                     Direction dir) {
+        return state.getValue(COVER) == CoverShape.SOLID;
+    }
+
+    /** Pipes' own faces may be hidden by a neighbor's opaque cover (see hidesNeighborFace). */
+    @Override
+    public boolean supportsExternalFaceHiding(BlockState state) {
+        return true;
     }
 
     /** Set every client tick from the hologram setting. Never set on a dedicated server. */

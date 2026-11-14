@@ -72,7 +72,7 @@ public final class EnergyPipeBlock extends FlowPipeBlock {
         for (Direction direction : Direction.values()) {
             newState = newState.setValue(propertyFor(direction), state.getValue(propertyFor(direction)));
         }
-        newState = newState.setValue(HAS_DATA, state.getValue(HAS_DATA));
+        newState = newState.setValue(HAS_DATA, state.getValue(HAS_DATA)).setValue(COVER, state.getValue(COVER));
         PipeDataBlockEntity oldData = getData(level, pos, state);
         CompoundTag saved = oldData != null ? oldData.saveWithoutMetadata() : null;
         boolean placed;
