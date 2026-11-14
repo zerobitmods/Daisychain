@@ -113,6 +113,59 @@ public final class ReviewLeftoverTests {
         placeNextToPullSide(helper, false);
     }
 
+    // ---------------------------------------------------------------- step 124
+
+    /** /setblock (no player, no place event) where a pull side points: the neighbor stops pulling, one upgrade drops. */
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void commandPlacementTakesNeighborPull(GameTestHelper helper) {
+        BlockPos pipe = new BlockPos(2, 1, 2);
+        BlockPos spot = pipe.east();
+        helper.setBlock(pipe, ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(pipe), 1 << Direction.EAST.get3DDataValue());
+        data(helper, pipe).setUpgradeLevel(Direction.EAST, 2);
+        helper.assertTrue(pullsEast(helper, pipe), "Setup: the pipe doesn't pull east");
+        setBlockLikeCommand(helper, spot);
+        helper.runAfterDelay(2, () -> {
+            int upgrade = helper.getLevel().getBlockEntity(helper.absolutePos(pipe)) instanceof PipeDataBlockEntity d
+                    ? d.upgradeLevel(Direction.EAST) : 0;
+            int dropped = itemsOnGround(helper);
+            helper.assertBlockPresent(ModBlocks.ITEM_PIPE.get(), spot);
+            helper.assertTrue(!pullsEast(helper, pipe), "The neighbor still pulls from the /setblock pipe");
+            helper.assertTrue(upgrade == 0, "The neighbor kept upgrade " + upgrade);
+            helper.assertTrue(dropped == 1, dropped + " items dropped (should be the 1 upgrade)");
+            helper.succeed();
+        });
+    }
+
+    /** A pipe put down without a player (a pasted build) keeps a neighbor's Off link toward it. */
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void commandPlacementKeepsOffLink(GameTestHelper helper) {
+        BlockPos pipe = new BlockPos(2, 1, 2);
+        BlockPos spot = pipe.east();
+        int east = 1 << Direction.EAST.get3DDataValue();
+        helper.setBlock(pipe, ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(pipe), east); // creates the block entity
+        data(helper, pipe).setMasks(0, east);
+        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(pipe), 0); // recompute arms: east is Off
+        setBlockLikeCommand(helper, spot);
+        helper.runAfterDelay(2, () -> {
+            boolean off = helper.getLevel().getBlockEntity(helper.absolutePos(pipe)) instanceof PipeDataBlockEntity d
+                    && d.isDisconnected(Direction.EAST);
+            SideState side = helper.getBlockState(pipe).getValue(FlowPipeBlock.propertyFor(Direction.EAST));
+            helper.assertTrue(off, "The /setblock pipe cleared the neighbor's Off mark");
+            helper.assertTrue(side != SideState.CONNECTED, "The Off side connected to the /setblock pipe");
+            helper.assertTrue(itemsOnGround(helper) == 0, "Something dropped");
+            helper.succeed();
+        });
+    }
+
+    /** What /setblock does: set with flag 2 (clients only), then a neighbor update. */
+    private static void setBlockLikeCommand(GameTestHelper helper, BlockPos relative) {
+        BlockPos at = helper.absolutePos(relative);
+        helper.getLevel().setBlock(at, ModBlocks.ITEM_PIPE.get().defaultBlockState(), Block.UPDATE_CLIENTS);
+        helper.getLevel().blockUpdated(at, ModBlocks.ITEM_PIPE.get());
+    }
+
     @Nullable
     private static BlockPos cancelPlaceAt;
     private static boolean listening;
