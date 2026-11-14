@@ -853,9 +853,23 @@ public final class PipeDataBlockEntity extends BlockEntity {
         syncExtractor();
     }
 
+    /** Step 126b: set when the chunk unloads (just before setRemoved), so setRemoved leaves NeoForge's model data alone. */
+    private boolean chunkUnloading;
+
+    @Override
+    public void onChunkUnloaded() {
+        super.onChunkUnloaded();
+        chunkUnloading = true;
+    }
+
     @Override
     public void setRemoved() {
         super.setRemoved();
+        if (level != null && level.isClientSide() && cover != null && !chunkUnloading) {
+            // Step 126b: the block entity went away while covered (the cover was its last setting). Ask NeoForge to
+            // drop the cover it stored for this spot; otherwise break particles would still show the old cover.
+            requestModelDataUpdate();
+        }
         // Called when the pipe is broken and when its chunk unloads.
         if (level instanceof ServerLevel serverLevel) {
             NetworkManager manager = NetworkManager.getExisting(serverLevel);

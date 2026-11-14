@@ -42,7 +42,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * Facades step 2 (step 126a, zerobit's icon "D"): a facade item looks like its cover block with a pipe end showing in
  * the middle of every face (models/item/facade_pipe_ends.json over the block's own model), in the inventory and in the
  * hand. In inventory slots a small daisy in the top-right corner marks it as a facade (top-right because the stack
- * count sits bottom-right). A facade with no block keeps the flat placeholder icon.
+ * count sits bottom-right; step 126b: 5x5 with a one-pixel yellow middle, one pixel in from the slot edges). A facade with no block keeps the flat placeholder icon.
  * <p>
  * One combined model is made per cover block the first time it's drawn and kept until the next resource reload, so
  * drawing a facade allocates nothing. Client only.
@@ -224,7 +224,7 @@ public final class FacadeItemModel extends BakedModelWrapper<BakedModel> {
         }, ModItems.FACADE.get());
     }
 
-    /** The daisy badge, inventory slots only (top-right, above the item, same layer as the count). */
+    /** The daisy badge, inventory slots only (top-right, one pixel in, above the item, same layer as the count). */
     @SubscribeEvent
     public static void registerDecorations(RegisterItemDecorationsEvent event) {
         event.register(ModItems.FACADE.get(), (graphics, font, stack, x, y) -> {
@@ -233,7 +233,7 @@ public final class FacadeItemModel extends BakedModelWrapper<BakedModel> {
             }
             graphics.pose().pushPose();
             graphics.pose().translate(0.0F, 0.0F, 200.0F);
-            graphics.blit(DAISY, x + 9, y, 0.0F, 0.0F, 7, 7, 16, 16);
+            graphics.blit(DAISY, x + 10, y + 1, 0.0F, 0.0F, 5, 5, 16, 16); // step 126b: 5x5, one pixel in from the edges
             graphics.pose().popPose();
             return false;
         });

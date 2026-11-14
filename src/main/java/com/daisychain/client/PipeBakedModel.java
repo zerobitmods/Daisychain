@@ -107,7 +107,10 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
         if (!(state.getBlock() instanceof FlowPipeBlock)) {
             return modelData;
         }
-        BlockState cover = modelData.get(PipeDataBlockEntity.COVER_MODEL);
+        // Step 126b: only while the pipe has its data block. When the last setting (the cover) comes off, the server
+        // removes the block entity (HAS_DATA false) and NeoForge never clears the model data it stored for this spot,
+        // so without this check the old cover stayed drawn until the chunk reloaded.
+        BlockState cover = state.getValue(FlowPipeBlock.HAS_DATA) ? modelData.get(PipeDataBlockEntity.COVER_MODEL) : null;
         if (cover != null) {
             ModelData.Builder builder = ModelData.builder().with(PipeDataBlockEntity.COVER_MODEL, cover);
             try {
