@@ -298,6 +298,78 @@ public final class ReviewLeftoverTests {
         helper.succeed();
     }
 
+    // ---------------------------------------------------------------- step 123 (Send every)
+
+    /**
+     * Chest A (640 cobblestone) -> one pipe -> chest B. Diamond upgrade (64 per tick) with Send every = 40 ticks:
+     * after 100 ticks only a few sends of 64 may have happened (without the setting all 640 move in 10 ticks).
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 200)
+    public static void sendEverySlowsSide(GameTestHelper helper) {
+        BlockPos b = A.east(2);
+        ItemStack[] stacks = new ItemStack[10];
+        for (int i = 0; i < stacks.length; i++) {
+            stacks[i] = new ItemStack(Items.COBBLESTONE, 64);
+        }
+        chest(helper, A, stacks);
+        chest(helper, b);
+        helper.setBlock(A.east(), ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east()));
+        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(A.east()), 1 << Direction.WEST.get3DDataValue());
+        PipeDataBlockEntity data = data(helper, A.east());
+        data.setUpgradeLevel(Direction.WEST, 3); // diamond
+        data.applySetting(Direction.WEST, PipeDataBlockEntity.SETTING_INTERVAL, 40, PipeKind.ITEMS);
+        helper.assertTrue(data.sendInterval(Direction.WEST, PipeKind.ITEMS) == 40, "Send every wasn't stored");
+        helper.runAfterDelay(100, () -> {
+            int moved = count(helper, b);
+            helper.assertTrue(moved >= 64 && moved <= 64 * 4, moved + " items moved in 100 ticks (expected 64 to 256)");
+            helper.assertTrue(moved + count(helper, A) == 640, "Items went missing");
+            helper.succeed();
+        });
+    }
+
+    /** Send every faster than the upgrade allows changes nothing: iron (16 every 10 ticks) set to 2 ticks. */
+    @GameTest(template = EMPTY, timeoutTicks = 200)
+    public static void sendEveryNeverBeatsUpgrade(GameTestHelper helper) {
+        BlockPos b = A.east(2);
+        chest(helper, A, new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.COBBLESTONE, 64));
+        chest(helper, b);
+        helper.setBlock(A.east(), ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east()));
+        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(A.east()), 1 << Direction.WEST.get3DDataValue());
+        PipeDataBlockEntity data = data(helper, A.east());
+        data.setUpgradeLevel(Direction.WEST, 1); // iron
+        data.applySetting(Direction.WEST, PipeDataBlockEntity.SETTING_INTERVAL, 2, PipeKind.ITEMS);
+        helper.runAfterDelay(50, () -> {
+            int moved = count(helper, b);
+            helper.assertTrue(moved <= 16 * 6, moved + " items moved in 50 ticks: faster than the iron upgrade");
+            helper.succeed();
+        });
+    }
+
+    /** The Settings Copier carries Send every, and a bad value in a copied tag becomes 0 (follow the upgrade). */
+    @GameTest(template = EMPTY, timeoutTicks = 20)
+    public static void sendEveryCopiesAndValidates(GameTestHelper helper) {
+        BlockPos one = new BlockPos(2, 1, 2);
+        BlockPos two = new BlockPos(5, 1, 2);
+        helper.setBlock(one, ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        helper.setBlock(two, ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(one), 1 << Direction.WEST.get3DDataValue());
+        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(two), 1 << Direction.WEST.get3DDataValue());
+        var registries = helper.getLevel().registryAccess();
+        data(helper, one).applySetting(Direction.WEST, PipeDataBlockEntity.SETTING_INTERVAL, 1234, PipeKind.ITEMS);
+        var tag = data(helper, one).copySide(Direction.WEST, false, registries);
+        data(helper, two).pasteSide(Direction.WEST, false, tag, registries);
+        helper.assertTrue(data(helper, two).sendInterval(Direction.WEST, PipeKind.ITEMS) == 1234, "Not pasted");
+        tag.getCompound("Items").putInt("Interval", -5);
+        data(helper, two).pasteSide(Direction.WEST, false, tag, registries);
+        helper.assertTrue(data(helper, two).sendInterval(Direction.WEST, PipeKind.ITEMS) == 0, "Bad value kept");
+        data(helper, two).applySetting(Direction.WEST, PipeDataBlockEntity.SETTING_INTERVAL,
+                PipeDataBlockEntity.MAX_SEND_INTERVAL + 1, PipeKind.ITEMS);
+        helper.assertTrue(data(helper, two).sendInterval(Direction.WEST, PipeKind.ITEMS) == 0, "Too big accepted");
+        helper.succeed();
+    }
+
     // ---------------------------------------------------------------- helpers
 
     static PipeNetwork network(GameTestHelper helper, BlockPos pipe) {

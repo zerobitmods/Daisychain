@@ -257,7 +257,9 @@ public final class NetworkManager {
             int i = direction.get3DDataValue();
             if ((extractor.extractMask & (1 << i)) != 0) {
                 int tier = extractor.speedTier(data, direction);
-                long earliest = Math.max(now, extractor.sideLastRun[i] + UpgradeSpeeds.interval(extractor.kind, tier));
+                int interval = data == null ? UpgradeSpeeds.interval(extractor.kind, tier)
+                        : sideInterval(extractor, data, direction, tier);
+                long earliest = Math.max(now, extractor.sideLastRun[i] + interval);
                 extractor.sideNextRun[i] = Math.min(extractor.sideNextRun[i], earliest);
                 extractor.sideBackoff[i] = 1;
             }
@@ -421,7 +423,8 @@ public final class NetworkManager {
             perTransfer = Math.min(perTransfer, batch);
         }
         long now = level.getGameTime();
-        int allowance = extractor.energyAllowance(s, now, UpgradeSpeeds.energyInterval(tier), perTransfer);
+        int allowance = extractor.energyAllowance(s, now, resourceInterval(data, side, PipeKind.ENERGY_RES, tier),
+                perTransfer);
         if (allowance <= 0) {
             return 0;
         }
@@ -881,8 +884,8 @@ public final class NetworkManager {
             if (batch > 0) {
                 perTransfer = Math.min(perTransfer, batch);
             }
-            int allowance = extractor.energyAllowance(side, level.getGameTime(), UpgradeSpeeds.energyInterval(tier),
-                    perTransfer);
+            int allowance = extractor.energyAllowance(side, level.getGameTime(),
+                    resourceInterval(data, direction, resource, tier), perTransfer);
             int moved = EnergyTransfer.transfer(level, extractor, direction, extractor.destinations,
                     data.allowsSelfFeed(direction),
                     allowance, data.batch(direction, resource),
@@ -1012,7 +1015,7 @@ public final class NetworkManager {
             extractor.pendingPulse &= ~bit;
 
             int tier = extractor.speedTier(data, direction);
-            int interval = UpgradeSpeeds.interval(extractor.kind, tier);
+            int interval = sideInterval(extractor, data, direction, tier); // step 123: Send every
             boolean wasWoken = extractor.sideNextRun[side] == 0;
             extractor.sawItems = false;
             extractor.sideLastRun[side] = now;
@@ -1027,7 +1030,7 @@ public final class NetworkManager {
                 for (int resource = 0; resource < PipeKind.RESOURCE_COUNT; resource++) {
                     int slot = resource * 6 + side;
                     if (!data.pullsResource(direction, resource) || now < extractor.resourceLastRun[slot]
-                            + UpgradeSpeeds.interval(PipeKind.ofResource(resource), tier)) {
+                            + resourceInterval(data, direction, resource, tier)) {
                         continue; // switched off on this side (step 33a), or not due yet
                     }
                     extractor.resourceLastRun[slot] = now;
@@ -1081,8 +1084,10 @@ public final class NetworkManager {
                     extractor.sideBackoff[side] = Math.min(cap, extractor.sideBackoff[side] * 2);
                 }
             }
-            // Spread pipes over the interval so they don't all run on the same tick.
-            long offset = wasWoken ? Math.floorMod(HashCommon.mix(extractor.pos.asLong() + side), interval) : 0;
+            // Spread pipes over the interval so they don't all run on the same tick. Step 123: over at most 20 ticks,
+            // so a side set to send every 2 minutes doesn't wait up to 2 more after being woken.
+            long offset = wasWoken ? Math.floorMod(HashCommon.mix(extractor.pos.asLong() + side),
+                    Math.min(interval, MAX_SPREAD_TICKS)) : 0;
             long sideNext = now + (long) interval * extractor.sideBackoff[side] + offset;
             extractor.sideNextRun[side] = sideNext;
             next = Math.min(next, sideNext);
@@ -1091,6 +1096,32 @@ public final class NetworkManager {
             extractor.sideCursor = 0;
         }
         extractor.nextRun = next;
+    }
+
+    /** Step 123: woken sides start at most this many ticks apart (see the offset in the side loop). */
+    private static final int MAX_SPREAD_TICKS = 20;
+
+    /**
+     * Step 123: ticks between sends of one resource on a pull side: the upgrade's interval, or the side's Send every
+     * when slower. Pulse mode sends once per pulse, so there only the upgrade counts.
+     */
+    private static int resourceInterval(PipeDataBlockEntity data, Direction direction, int resource, int tier) {
+        int setting = data.redstoneMode(direction) == RedstoneMode.PULSE ? 0 : data.sendInterval(direction, resource);
+        return UpgradeSpeeds.sendInterval(resource, tier, setting);
+    }
+
+    /** Step 123: how often a pull side wakes: its resource's interval; a universal side wakes for its soonest one. */
+    private static int sideInterval(Extractor extractor, PipeDataBlockEntity data, Direction direction, int tier) {
+        if (extractor.kind != PipeKind.UNIVERSAL) {
+            return resourceInterval(data, direction, extractor.kind.resource(), tier);
+        }
+        int soonest = Integer.MAX_VALUE;
+        for (int resource = 0; resource < PipeKind.RESOURCE_COUNT; resource++) {
+            if (data.pullsResource(direction, resource)) {
+                soonest = Math.min(soonest, resourceInterval(data, direction, resource, tier));
+            }
+        }
+        return soonest == Integer.MAX_VALUE ? UpgradeSpeeds.interval(extractor.kind, tier) : soonest;
     }
 
     public static void remove(ServerLevel level) {

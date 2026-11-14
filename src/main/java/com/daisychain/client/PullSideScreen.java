@@ -131,6 +131,10 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
     /** Value text of each drawer number field, set by refreshLabels. */
     private Component batchText = Component.empty();
     private Component keepText = Component.empty();
+    /** Step 123: Send every. */
+    private Component intervalText = Component.empty();
+    private boolean intervalWarn;
+    private NumberButton intervalButton;
     private Component fillText = Component.empty();
     private Component priorityText = Component.empty();
     private Component stockText = Component.empty();
@@ -162,8 +166,8 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
      * Number settings just changed here but maybe not confirmed by the server yet: show and build on these for a
      * second, so fast clicking doesn't lose steps while packets are on their way. Indexed by setting id.
      */
-    private final int[] localValue = new int[13];
-    private final int[] localTicks = new int[13];
+    private final int[] localValue = new int[14];
+    private final int[] localTicks = new int[14];
     /** Universal pipes (step 33a): the Items / Fluids / Energy tabs, the on/off key, and the resource they were built for. */
     private final FlowTab[] resourceTabs = new FlowTab[PipeKind.RESOURCE_COUNT];
     private FlowKey resourceToggle;
@@ -369,6 +373,10 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                 (direction, big, jump) -> adjustNumber(PipeDataBlockEntity.SETTING_FILL, direction, big, jump),
                 () -> requestEditing(PipeDataBlockEntity.SETTING_FILL, fillButton))
                 .flat(() -> fillText, () -> offColor(PipeDataBlockEntity.SETTING_FILL), () -> fillWarn));
+        intervalButton = addRenderableWidget(new NumberButton(fieldX, y + 100, FIELD_WIDTH, ROW_HEIGHT,
+                (direction, big, jump) -> adjustNumber(PipeDataBlockEntity.SETTING_INTERVAL, direction, big, jump),
+                () -> requestEditing(PipeDataBlockEntity.SETTING_INTERVAL, intervalButton))
+                .flat(() -> intervalText, this::intervalColor, () -> intervalWarn));
         priorityButton = addRenderableWidget(new NumberButton(fieldX, y + 32, FIELD_WIDTH, ROW_HEIGHT,
                 (direction, big, jump) -> adjustNumber(PipeDataBlockEntity.SETTING_PRIORITY, direction, big, jump),
                 () -> requestEditing(PipeDataBlockEntity.SETTING_PRIORITY, priorityButton))
@@ -390,6 +398,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         batchButton.visible = pullRows && amounts;
         keepButton.visible = pullRows && amounts;
         fillButton.visible = pullRows && amounts;
+        intervalButton.visible = pullRows;
         priorityButton.visible = insertRows;
         maxStockButton.visible = insertRows && amounts;
         clearFilterKey.visible = settingsDrawer && hasFilter;
@@ -529,10 +538,13 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                 text.append("\n");
             }
             String modifier = Minecraft.ON_OSX ? "Cmd" : "Ctrl";
-            text.append(Component.translatable(helpKey(helpKeyBase)))
+            text.append(Component.translatable(helpKeyBase.equals("screen.daisychain.interval_help") ? helpKeyBase
+                            : helpKey(helpKeyBase)))
                     .append("\n\n")
                     .append(Component.translatable(priority ? "screen.daisychain.priority_number_help"
-                            : helpKey("screen.daisychain.number_help"), modifier).withStyle(ChatFormatting.DARK_GRAY));
+                            : helpKeyBase.equals("screen.daisychain.interval_help")
+                            ? "screen.daisychain.interval_number_help" : helpKey("screen.daisychain.number_help"),
+                            modifier).withStyle(ChatFormatting.DARK_GRAY));
             return Tooltip.create(text);
         }
         return full == null ? null : Tooltip.create(text);
@@ -685,10 +697,50 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
     /** The upgrade's amount per transfer for this side (items, or mB on fluid pipes): the most a batch can be. */
     private int tierAmount(PipeDataBlockEntity data) {
         PipeKind kind = menu.resourceKind();
-        // Step 84: an energy pipe's speed comes from its tier; its own tier is the most any route from it carries.
-        int level = data.getBlockState().getBlock() instanceof EnergyPipeBlock energy ? energy.tier()
-                : data.upgradeLevel(side);
-        return UpgradeSpeeds.available() ? UpgradeSpeeds.amount(kind, level) : kind.maxBatch();
+        return UpgradeSpeeds.available() ? UpgradeSpeeds.amount(kind, speedLevel(data)) : kind.maxBatch();
+    }
+
+    /** Step 84: an energy pipe's speed comes from its tier; its own tier is the most any route from it carries. */
+    private int speedLevel(PipeDataBlockEntity data) {
+        return data.getBlockState().getBlock() instanceof EnergyPipeBlock energy ? energy.tier() : data.upgradeLevel(side);
+    }
+
+    /** Step 123: ticks between sends at the upgrade's speed (the fastest Send every can be). */
+    private int upgradeInterval(PipeDataBlockEntity data) {
+        return UpgradeSpeeds.available() ? UpgradeSpeeds.interval(menu.resourceKind(), speedLevel(data)) : 1;
+    }
+
+    /** Step 123: the slowest Send every the server allows (send_interval.max_ticks). */
+    private static int maxSendInterval() {
+        return UpgradeSpeeds.available() ? DaisychainConfig.MAX_SEND_INTERVAL.get()
+                : PipeDataBlockEntity.MAX_SEND_INTERVAL;
+    }
+
+    /** Step 123: Send every is grey while it follows the upgrade or while Pulse mode decides when the side sends. */
+    private int intervalColor() {
+        PipeDataBlockEntity data = data();
+        boolean pulse = data != null && data.redstoneMode(side) == RedstoneMode.PULSE;
+        return pulse || currentSetting(PipeDataBlockEntity.SETTING_INTERVAL) == 0 ? FlowGui.DIM : FlowGui.TEXT;
+    }
+
+    /** "40 t"; past 9,999 ticks the thousands separator keeps it readable. */
+    private static Component ticksText(int ticks) {
+        return FlowGui.styled(Component.translatable("screen.daisychain.field.ticks",
+                String.format(java.util.Locale.ROOT, "%,d", ticks)));
+    }
+
+    /** "2 s", "2.5 s", "2 min", "1.5 min" for a tooltip. */
+    private static Component durationText(int ticks) {
+        double seconds = ticks / 20.0;
+        if (seconds >= 60) {
+            return Component.translatable("screen.daisychain.duration_min", trimmed(seconds / 60));
+        }
+        return Component.translatable("screen.daisychain.duration_s", trimmed(seconds));
+    }
+
+    private static String trimmed(double value) {
+        return value == Math.rint(value) ? Long.toString((long) value)
+                : String.format(java.util.Locale.ROOT, "%.2f", value).replaceAll("0+$", "");
     }
 
     /** A number as shown on this pipe: "250 mB" on fluid pipes, plain on item pipes. */
@@ -753,6 +805,20 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                 next = Math.max(PipeDataBlockEntity.MIN_PRIORITY,
                         Math.min(PipeDataBlockEntity.MAX_PRIORITY, current + direction * (big ? 10 : 1)));
             }
+        } else if (setting == PipeDataBlockEntity.SETTING_INTERVAL) {
+            // Step 123: 0 = as fast as the upgrade allows. Click +1 tick (slower), Shift 20 ticks (1 s); Alt+left =
+            // the slowest the server allows, Alt+right = fastest. The mouse wheel with Shift also moves 20.
+            int fastest = upgradeInterval(data);
+            int slowest = Math.max(fastest, maxSendInterval());
+            int effective = current == 0 ? fastest : Math.max(fastest, Math.min(current, slowest));
+            long wanted;
+            if (jump) {
+                wanted = direction > 0 ? slowest : 0;
+            } else {
+                int ticks = big || Math.abs(direction) > 1 ? 20 : 1;
+                wanted = (long) effective + (long) Integer.signum(direction) * ticks;
+            }
+            next = wanted <= fastest ? 0 : (int) Math.min(slowest, wanted);
         } else if (setting == PipeDataBlockEntity.SETTING_BATCH) {
             int max = tierAmount(data);
             int effective = current == 0 ? max : Math.min(current, max);
@@ -807,6 +873,8 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
             if (setting == PipeDataBlockEntity.SETTING_BATCH) {
                 int max = tierAmount(data);
                 value = value == 0 ? max : Math.min(value, max);
+            } else if (setting == PipeDataBlockEntity.SETTING_INTERVAL && value == 0) {
+                value = upgradeInterval(data);
             }
         }
         if (editingSetting >= 0) {
@@ -854,6 +922,9 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                 } else if (editingSetting == PipeDataBlockEntity.SETTING_BATCH) {
                     int max = tierAmount(data);
                     next = value <= 0 || value >= max ? 0 : (int) value;
+                } else if (editingSetting == PipeDataBlockEntity.SETTING_INTERVAL) {
+                    int fastest = upgradeInterval(data);
+                    next = value <= fastest ? 0 : (int) Math.min(Math.max(fastest, maxSendInterval()), value);
                 } else {
                     next = (int) Math.max(0, Math.min(menu.resourceKind().maxStock(), value));
                 }
@@ -1090,6 +1161,28 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         int fill = numberValue(data, PipeDataBlockEntity.SETTING_FILL);
         fillWarn = fill > 0 && menu.isFillPaused();
         fillText = fill == 0 ? FlowGui.styled(Component.translatable("screen.daisychain.off")) : fieldAmount(fill);
+        // Step 123: Send every. 0 = follows the upgrade (grey); slower than allowed by a downgrade = red.
+        int interval = numberValue(data, PipeDataBlockEntity.SETTING_INTERVAL);
+        int fastest = upgradeInterval(data);
+        int sendEvery = UpgradeSpeeds.available() ? UpgradeSpeeds.sendInterval(menu.resource(), speedLevel(data),
+                interval) : Math.max(fastest, interval);
+        boolean pulse = data.redstoneMode(side) == RedstoneMode.PULSE;
+        intervalWarn = !pulse && interval != 0 && interval < fastest;
+        intervalText = interval == 0
+                ? FlowGui.styled(Component.translatable("screen.daisychain.field.fastest", ticksText(fastest)))
+                : ticksText(interval);
+        int perSend = batch == 0 ? max : Math.min(batch, max);
+        MutableComponent intervalInfo = Component.translatable("screen.daisychain.interval_now", amount(perSend),
+                Component.literal(String.format(java.util.Locale.ROOT, "%,d", sendEvery)), durationText(sendEvery))
+                .copy();
+        if (pulse) {
+            intervalInfo.append("\n").append(Component.translatable("screen.daisychain.interval_pulse")
+                    .withStyle(ChatFormatting.GRAY));
+        } else if (interval != 0 && sendEvery != interval) {
+            intervalInfo.append("\n").append(Component.translatable(interval < fastest
+                    ? "screen.daisychain.interval_upgrade_limit" : "screen.daisychain.interval_server_limit",
+                    String.format(java.util.Locale.ROOT, "%,d", sendEvery)).withStyle(ChatFormatting.GRAY));
+        }
         int priority = numberValue(data, PipeDataBlockEntity.SETTING_PRIORITY);
         priorityText = FlowGui.styled(Integer.toString(priority));
         int stock = numberValue(data, PipeDataBlockEntity.SETTING_MAX_STOCK);
@@ -1101,8 +1194,9 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                     new Component[] {priorityText, stockText}, priorityButton, maxStockButton);
         } else {
             layoutFields(fieldRight, new String[] {"screen.daisychain.drawer.batch", "screen.daisychain.drawer.keep",
-                    "screen.daisychain.drawer.fill"}, new Component[] {batchText, keepText, fillText},
-                    batchButton, keepButton, fillButton);
+                    "screen.daisychain.drawer.fill", "screen.daisychain.drawer.interval"},
+                    new Component[] {batchText, keepText, fillText, intervalText},
+                    batchButton, keepButton, fillButton, intervalButton);
         }
         batchButton.setTooltip(fieldTooltip(null, "screen.daisychain.batch_help", false,
                 batch != 0 && isShortened(batch) ? amount(batch) : null));
@@ -1110,6 +1204,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                 countLimit) : null, "screen.daisychain.keep_help", false, isShortened(keep) ? amount(keep) : null));
         fillButton.setTooltip(fieldTooltip(fillWarn ? Component.translatable(helpKey("screen.daisychain.fill_paused"),
                 countLimit) : null, "screen.daisychain.fill_help", false, isShortened(fill) ? amount(fill) : null));
+        intervalButton.setTooltip(fieldTooltip(null, "screen.daisychain.interval_help", false, intervalInfo));
         priorityButton.setTooltip(fieldTooltip(null, "screen.daisychain.priority_help", true, null));
         maxStockButton.setTooltip(fieldTooltip(stockWarn ? Component.translatable(
                 helpKey("screen.daisychain.max_stock_paused"), countLimit) : null, "screen.daisychain.max_stock_help", false,
@@ -1153,7 +1248,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         boolean sendToSet = resource != PipeKind.ENERGY_RES && data.distribution(side) != Distribution.NEAREST;
         return sendToSet || data.allowsSelfFeed(side)
                 || data.batch(side, resource) != 0 || data.keepInSource(side, resource) != 0
-                || data.fillDestinationTo(side, resource) != 0;
+                || data.fillDestinationTo(side, resource) != 0 || data.sendInterval(side, resource) != 0;
     }
 
     /** Reads the synced filter slots (the client never has the filter itself). */
@@ -1449,6 +1544,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
             drawerLabel(graphics, "screen.daisychain.drawer.keep", x, y + 66);
             drawerLabel(graphics, "screen.daisychain.drawer.fill", x, y + 83);
         }
+        drawerLabel(graphics, "screen.daisychain.drawer.interval", x, y + 100);
     }
 
     /** Step F50: energy (energy pipes and the universal pipe's energy tab) has no Send to choice. */
