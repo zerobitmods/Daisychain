@@ -72,6 +72,19 @@ public final class UpgradeSpeeds {
                 : DaisychainConfig.ENERGY_TRANSFER_INTERVAL.getAsInt();
     }
 
+    /**
+     * Step 123: ticks between sends of one resource on a pull side: the upgrade's interval, or the side's Send every
+     * (setting, 0 = follow the upgrade) when that is slower, capped at send_interval.max_ticks. Never faster than the
+     * upgrade allows.
+     */
+    public static int sendInterval(int resource, int level, int setting) {
+        int upgrade = interval(PipeKind.ofResource(resource), level);
+        if (setting <= upgrade) {
+            return upgrade;
+        }
+        return Math.max(upgrade, Math.min(setting, DaisychainConfig.MAX_SEND_INTERVAL.getAsInt()));
+    }
+
     /** True once the server config is available (always on the server; on clients after joining a world). */
     public static boolean available() {
         return DaisychainConfig.SERVER_SPEC.isLoaded();

@@ -44,6 +44,7 @@ public final class DaisychainConfig {
     public static final ModConfigSpec.IntValue MAX_EMPTY_WAIT_TICKS;
     public static final ModConfigSpec.IntValue BLOCKED_WAIT_TICKS;
     public static final ModConfigSpec.IntValue MAX_NETWORK_PASTE_SIDES;
+    public static final ModConfigSpec.IntValue MAX_SEND_INTERVAL;
 
     private static final int MAX_ITEMS = 1_000_000;
     private static final int MAX_INTERVAL = 1200;
@@ -179,6 +180,14 @@ public final class DaisychainConfig {
                         "4 ticks, and every check looks at every slot of every destination. Lower = quicker to notice a",
                         "freed slot, higher = cheaper while storage is full. 0 = off. 20 ticks = 1 second.")
                 .defineInRange("blocked_wait_ticks", 20, 0, 1200);
+        builder.pop();
+
+        builder.comment("Send every (a pull side setting): players can make a side send less often than its upgrade allows")
+                .push("send_interval");
+        MAX_SEND_INTERVAL = builder
+                .comment("The slowest a player can set a pull side's Send every, in ticks. Sides set slower than this",
+                        "send at this interval. 20 ticks = 1 second; the default 2400 is 2 minutes.")
+                .defineInRange("max_ticks", 2400, 20, 72000);
         builder.pop();
 
         builder.comment("Settings Copier").push("copier");

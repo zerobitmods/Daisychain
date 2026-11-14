@@ -65,6 +65,14 @@ doesn't need goes to the others. Want one machine fed first? Give its insert sid
 Out of the box, a side won't send things back into the block it just pulled from (that would be a bit silly). **Send back** right
 below lets the side send things back into the block they came from, for the rare setup that needs it.
 
+## How often: Send every
+
+Also in the Advanced view, under the amounts. **Fastest** follows the upgrade. Slow a side down when you don't need
+things the moment they appear: a furnace topping up its fuel, a farm emptying into storage. A slower side does less
+work, and on a busy server that adds up. Click for one tick more, Shift-click for a second more, Alt-click to jump
+to the slowest or back to Fastest. The server decides how slow it can go (2 minutes unless the server owner changed it).
+In Pulse mode the side sends once per pulse, so Send every sits out.
+
 ## Who goes first: Priority
 
 Insert sides have a **priority**, anywhere from -999 to 999. Higher numbers get filled first, no matter how far away they are. When

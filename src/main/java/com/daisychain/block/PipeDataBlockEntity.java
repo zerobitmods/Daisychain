@@ -62,6 +62,13 @@ public final class PipeDataBlockEntity extends BlockEntity {
      * RedstoneMode ALWAYS, ON_WITH_SIGNAL or OFF_WITH_SIGNAL (Pulse is a pull-side mode only).
      */
     public static final int SETTING_INSERT_REDSTONE = 12;
+    /**
+     * Pull sides (step 123, "Send every"): ticks between sends for this resource; 0 = as fast as the upgrade allows.
+     * A value slower than the upgrade wins; the server caps it at send_interval.max_ticks.
+     */
+    public static final int SETTING_INTERVAL = 13;
+    /** Highest Send every a side can store (1 hour); the server config's max_ticks is the real limit. */
+    public static final int MAX_SEND_INTERVAL = 72_000;
     /** Insert redstone modes: Always, On with signal, Off with signal. */
     public static final int INSERT_REDSTONE_MODES = 3;
     public static final int MIN_PRIORITY = -999;
@@ -93,6 +100,8 @@ public final class PipeDataBlockEntity extends BlockEntity {
     private final int[] keep = new int[SLOTS];
     private final int[] fill = new int[SLOTS];
     private final int[] maxStock = new int[SLOTS];
+    /** Step 123: Send every, in ticks (0 = follow the upgrade). */
+    private final int[] interval = new int[SLOTS];
     /** Like filterDenyBits, for insert filters. */
     private int insertDenyBits;
     /** One bit per side per resource (step 33a): this pull side doesn't pull that resource. Synced. */
@@ -227,6 +236,11 @@ public final class PipeDataBlockEntity extends BlockEntity {
     }
 
     /** Max amount per transfer chosen for this side and resource; 0 = whatever the upgrade allows. */
+    /** Step 123: the side's Send every for this resource, in ticks; 0 = as fast as the upgrade allows. */
+    public int sendInterval(Direction side, int resource) {
+        return interval[slot(side, resource)];
+    }
+
     public int batch(Direction side, int resource) {
         return batch[slot(side, resource)];
     }
@@ -328,6 +342,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
             case SETTING_PULL_OFF -> pullsResource(side, resource) ? 0 : 1;
             case SETTING_INSERT_OFF -> acceptsResource(side, resource) ? 0 : 1;
             case SETTING_INSERT_REDSTONE -> insertRedstoneMode(side).ordinal();
+            case SETTING_INTERVAL -> sendInterval(side, resource);
             default -> 0;
         };
     }
@@ -396,6 +411,10 @@ public final class PipeDataBlockEntity extends BlockEntity {
             case SETTING_INSERT_REDSTONE -> {
                 if (value < 0 || value >= INSERT_REDSTONE_MODES) return;
                 insertRedstone[i] = (byte) value;
+            }
+            case SETTING_INTERVAL -> {
+                if (value < 0 || value > MAX_SEND_INTERVAL) return;
+                interval[r] = value;
             }
             default -> {
                 return;
@@ -582,7 +601,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
             }
         }
         for (int i = 0; i < SLOTS; i++) {
-            if (batch[i] != 0 || keep[i] != 0 || fill[i] != 0) {
+            if (batch[i] != 0 || keep[i] != 0 || fill[i] != 0 || interval[i] != 0) {
                 mask |= 1 << (i % 6);
             }
         }
@@ -627,6 +646,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
                 part.putInt("Batch", batch[r]);
                 part.putInt("Keep", keep[r]);
                 part.putInt("Fill", fill[r]);
+                part.putInt("Interval", interval[r]);
                 filter = filters[r];
             }
             if (filter != null && filter.isActive()) {
@@ -694,6 +714,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
                 batch[r] = inRange(part.getInt("Batch"), units.maxBatch());
                 keep[r] = inRange(part.getInt("Keep"), units.maxStock());
                 fill[r] = inRange(part.getInt("Fill"), units.maxStock());
+                interval[r] = inRange(part.getInt("Interval"), MAX_SEND_INTERVAL); // copies before step 123: 0
                 filters[r] = pasted;
             }
         }
@@ -849,6 +870,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
         putIntsIfSet(tag, "Priority", priority);
         putIntIfSet(tag, "InsertDeny", insertDenyBits);
         putIntsIfSet(tag, "MaxStock", maxStock);
+        putIntsIfSet(tag, "Interval", interval);
         putIntIfSet(tag, "PullOff", pullOffBits);
         putIntIfSet(tag, "InsertOff", insertOffBits);
         putBytesIfSet(tag, "InsertRedstone", insertRedstone);
@@ -917,11 +939,22 @@ public final class PipeDataBlockEntity extends BlockEntity {
         loadNumbers(tag.getIntArray("Keep"), keep, legacyResource, kind, false);
         loadNumbers(tag.getIntArray("Fill"), fill, legacyResource, kind, false);
         loadNumbers(tag.getIntArray("MaxStock"), maxStock, legacyResource, kind, false);
+        loadIntervals(tag.getIntArray("Interval"), interval, kind); // none before step 123
         loadFilters(tag, "InsertFilters", insertFilters, legacyResource, kind, registries);
         // Block updates to clients don't include filters, so a missing list just means "none here".
         boolean hadFilters = loadFilters(tag, "Filters", filters, legacyResource, kind, registries);
         // Disk saves have the filters themselves; client updates only carry the mask.
         filterMask = hadFilters ? computeFilterMask() : (byte) (tag.getByte("FilterMask") & 0b111111);
+    }
+
+    /** Step 123: Send every values, one per side per resource (always the full layout); bad values become 0. */
+    private static void loadIntervals(int[] from, int[] to, PipeKind kind) {
+        java.util.Arrays.fill(to, 0);
+        for (int i = 0; i < SLOTS && i < from.length; i++) {
+            if (kind.carries(i / 6)) {
+                to[i] = inRange(from[i], MAX_SEND_INTERVAL);
+            }
+        }
     }
 
     /** Reads per-resource bits; an old byte value (6 side bits) belongs to the pipe's own resource. */
