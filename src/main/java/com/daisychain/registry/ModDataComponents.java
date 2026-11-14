@@ -10,6 +10,7 @@ import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.NbtOps;
 import net.minecraft.nbt.Tag;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.state.BlockState;
 import org.jetbrains.annotations.Nullable;
 
 /**
@@ -25,6 +26,8 @@ public final class ModDataComponents {
     public static final Entry<CopiedSettings> COPIED_SETTINGS = new Entry<>("copied_settings", CopiedSettings.CODEC);
     /** The fluid a fluid filter entry stands for; only on daisychain:fluid ghosts in filters. */
     public static final Entry<SimpleFluidContent> GHOST_FLUID = new Entry<>("ghost_fluid", SimpleFluidContent.CODEC);
+    /** Step F53: the block a facade covers a pipe with. */
+    public static final Entry<BlockState> FACADE = new Entry<>("facade", BlockState.CODEC);
 
     private ModDataComponents() {
     }

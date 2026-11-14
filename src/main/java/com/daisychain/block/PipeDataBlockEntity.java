@@ -3,6 +3,7 @@ package com.daisychain.block;
 import com.daisychain.filter.FluidGhost;
 import com.daisychain.filter.ItemFilter;
 import com.daisychain.filter.MatchMode;
+import com.daisychain.item.FacadeItem;
 import com.daisychain.item.UpgradeItem;
 import com.daisychain.network.EnergyInput;
 import com.daisychain.network.NetworkManager;
@@ -12,7 +13,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.HolderLookup;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.nbt.ListTag;
+import net.minecraft.nbt.NbtUtils;
 import net.minecraft.nbt.Tag;
 import net.minecraft.network.Connection;
 import net.minecraft.network.protocol.Packet;
@@ -123,6 +126,12 @@ public final class PipeDataBlockEntity extends BlockEntity {
      * so both sides agree on which pull sides stay drawn without an inventory.
      */
     private byte filterMask;
+    /**
+     * Facades step 1 (step F53, port of 125, 2026-11-14): the block this pipe is covered with, or null. Looks only: it
+     * never changes what the pipe connects to or moves. Saved and synced ("Cover"); keeps the block entity alive.
+     */
+    @Nullable
+    private BlockState cover;
 
     public PipeDataBlockEntity(BlockPos pos, BlockState state) {
         super(ModBlockEntities.PIPE_DATA.get(), pos, state);
@@ -828,6 +837,44 @@ public final class PipeDataBlockEntity extends BlockEntity {
         setChanged();
     }
 
+    // ---------------------------------------------------------------- facade cover (step F53)
+
+    /** The block this pipe is covered with, or null. */
+    @Nullable
+    public BlockState cover() {
+        return cover;
+    }
+
+    public boolean hasCover() {
+        return cover != null;
+    }
+
+    /**
+     * Server only. Sets or (null) clears the cover. Callers hand out or take the facade item themselves, and check that
+     * the block is allowed (FacadeItem.canCover). Sends the change to clients.
+     */
+    public void setCover(@Nullable BlockState newCover) {
+        BlockState value = newCover == null || newCover.isAir() ? null : newCover;
+        if (value == cover) {
+            return;
+        }
+        cover = value;
+        setChanged();
+        if (level instanceof ServerLevel serverLevel) {
+            BlockState state = getBlockState();
+            serverLevel.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_CLIENTS);
+        }
+    }
+
+    /** Drops the cover as a facade item at the pipe and clears it. Never deletes it (same rules as dropUpgrades). */
+    public void dropCover(Level world, BlockPos pos) {
+        if (cover != null) {
+            FlowPipeBlock.dropAt(world, pos, FacadeItem.of(cover, 1)); // review R2: not popResource (doTileDrops)
+            cover = null;
+            setChanged();
+        }
+    }
+
     // ---------------------------------------------------------------- lifecycle
 
     @Override
@@ -921,6 +968,9 @@ public final class PipeDataBlockEntity extends BlockEntity {
         putIntIfSet(tag, "InsertOff", insertOffBits);
         putBytesIfSet(tag, "InsertRedstone", insertRedstone);
         putByteIfSet(tag, "View", viewMode);
+        if (cover != null) {
+            tag.put("Cover", NbtUtils.writeBlockState(cover)); // step F53
+        }
     }
 
     // Each writes the same kind of tag as before (the loaders tell old saves apart by the kind of tag).
@@ -992,6 +1042,15 @@ public final class PipeDataBlockEntity extends BlockEntity {
         boolean hadFilters = loadFilters(tag, "Filters", filters, legacyResource, kind, registries);
         // Disk saves have the filters themselves; client updates only carry the mask.
         filterMask = hadFilters ? computeFilterMask() : (byte) (tag.getByte("FilterMask") & 0b111111);
+        // Step F53: disk saves and client updates both carry the cover when there is one; missing = none.
+        cover = tag.contains("Cover", Tag.TAG_COMPOUND) ? readCover(tag.getCompound("Cover")) : null;
+    }
+
+    /** A saved cover, or null if its block no longer exists (its mod was removed: reads as air). */
+    @Nullable
+    private static BlockState readCover(CompoundTag tag) {
+        BlockState state = NbtUtils.readBlockState(BuiltInRegistries.BLOCK.asLookup(), tag);
+        return state.isAir() ? null : state;
     }
 
     /** Step 123: Send every values, one per side per resource (always the full layout); bad values become 0. */
@@ -1076,13 +1135,15 @@ public final class PipeDataBlockEntity extends BlockEntity {
 
     /**
      * Client: settings arrived from the server. If an upgrade changed, redraw this block so the
-     * ring behind the pull cap shows the new tier color. Other setting changes don't redraw anything.
+     * ring behind the pull cap shows the new tier color; the same when the cover changed (step F53).
+     * Other setting changes don't redraw anything.
      */
     @Override
     public void onDataPacket(Connection net, ClientboundBlockEntityDataPacket packet) {
         int before = packedUpgrades();
+        BlockState coverBefore = cover;
         super.onDataPacket(net, packet);
-        if (level != null && level.isClientSide() && packedUpgrades() != before) {
+        if (level != null && level.isClientSide() && (packedUpgrades() != before || cover != coverBefore)) {
             BlockState state = getBlockState();
             level.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_IMMEDIATE);
         }

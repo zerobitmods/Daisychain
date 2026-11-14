@@ -8,6 +8,7 @@ import com.daisychain.registry.ModBlocks;
 import com.daisychain.registry.ModCreativeTabs;
 import com.daisychain.registry.ModItems;
 import com.daisychain.registry.ModMenus;
+import com.daisychain.registry.ModRecipes;
 import com.mojang.logging.LogUtils;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModList;
@@ -23,7 +24,7 @@ public final class Daisychain {
     public static final String MOD_ID = "daisychain";
     public static final Logger LOGGER = LogUtils.getLogger();
     /** Development step this build is at. Shown by /daisychain version; bumped with every step. */
-    public static final String DEV_STEP = "F52";
+    public static final String DEV_STEP = "F53";
 
     public Daisychain() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
@@ -32,6 +33,7 @@ public final class Daisychain {
         ModBlockEntities.register(modEventBus);
         ModCreativeTabs.register(modEventBus);
         ModMenus.register(modEventBus);
+        ModRecipes.register(modEventBus);
         DaisychainEvents.register();
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, DaisychainConfig.SERVER_SPEC);
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, DaisychainClientConfig.SPEC);

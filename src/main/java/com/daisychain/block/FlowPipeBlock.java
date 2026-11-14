@@ -1,5 +1,6 @@
 package com.daisychain.block;
 
+import com.daisychain.item.FacadeItem;
 import com.daisychain.item.SettingsCopierItem;
 import com.daisychain.item.UpgradeItem;
 import com.daisychain.item.UpgradeTier;
@@ -14,6 +15,7 @@ import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.sounds.SoundSource;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
@@ -28,6 +30,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.block.state.StateDefinition;
@@ -205,10 +208,14 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         return data != null && data.hasUpgrades();
     }
 
-    /** Upgrades or insert settings: things that need the block entity even with no pull or disconnected side. */
+    /**
+     * Upgrades, insert settings or a facade cover (step F53): things that need the block entity even with no pull or
+     * disconnected side.
+     */
     private static boolean hasStoredSettings(BlockGetter level, BlockPos pos, BlockState state) {
         PipeDataBlockEntity data = getData(level, pos, state);
-        return data != null && (data.hasUpgrades() || data.hasInsertSettings() || data.hasPullSettings());
+        return data != null && (data.hasUpgrades() || data.hasInsertSettings() || data.hasPullSettings()
+                || data.hasCover());
     }
 
     /**
@@ -360,6 +367,14 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
             }
             return InteractionResult.sidedSuccess(level.isClientSide());
         }
+        // Step F53 (facades): right-click with a facade covers the pipe, or swaps the cover (the old one comes back).
+        // Sneaking with an item never reaches here (vanilla uses the item instead).
+        if (stack.getItem() instanceof FacadeItem && hand == InteractionHand.MAIN_HAND) {
+            if (level instanceof ServerLevel serverLevel && mayChange(serverLevel, pos, player)) {
+                applyFacade(serverLevel, pos, player, stack);
+            }
+            return InteractionResult.sidedSuccess(level.isClientSide());
+        }
         if (stack.getItem() instanceof UpgradeItem upgrade && hand == InteractionHand.MAIN_HAND) {
             if (level instanceof ServerLevel serverLevel && player.mayBuild()) { // review R12
                 installUpgrade(serverLevel, pos, state, targetedSide(state, pos, hit), player, stack, upgrade);
@@ -369,8 +384,16 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         // Sneak + right-click with both hands empty pops the upgrade out of the side you clicked.
         // (With anything in either hand, vanilla skips the block when sneaking, so this only fires empty-handed.)
         if (stack.isEmpty() && hand == InteractionHand.MAIN_HAND && player.isSecondaryUseActive()) {
-            Direction side = targetedSide(state, pos, hit);
             PipeDataBlockEntity data = getData(level, pos, state);
+            if (data != null && data.hasCover()) {
+                // Step F53: a cover comes off first (into the hand), wherever the pipe is clicked; an upgrade under
+                // it comes out on the next click.
+                if (level instanceof ServerLevel serverLevel && mayChange(serverLevel, pos, player)) {
+                    removeCover(serverLevel, pos, player);
+                }
+                return InteractionResult.sidedSuccess(level.isClientSide());
+            }
+            Direction side = targetedSide(state, pos, hit);
             if (data != null && data.upgradeLevel(side) > 0) {
                 if (level instanceof ServerLevel serverLevel && player.mayBuild()) { // review R12
                     removeUpgrade(serverLevel, pos, side, player);
@@ -891,6 +914,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
             PipeDataBlockEntity data = getData(level, pos, state);
             if (data != null && !swappingTier) {
                 data.dropUpgrades(level, pos);
+                data.dropCover(level, pos); // step F53: the facade drops exactly once, like the upgrades
             }
         }
         // Same pipe but no settings left: drop the block entity so plain pipes stay cheap.
@@ -1027,6 +1051,76 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
             return;
         }
         ItemStack stack = new ItemStack(item);
+        if (!player.getInventory().add(stack)) {
+            player.drop(stack, false);
+        }
+    }
+
+    // ---------------------------------------------------------------- facades (step F53)
+
+    /**
+     * Step F53: may this player put on, swap or take off a cover here? Claim mods and spawn protection usually stop the
+     * click earlier (the right-click event); this is the second check, as for tier swaps.
+     */
+    private static boolean mayChange(ServerLevel level, BlockPos pos, Player player) {
+        return player.mayBuild() && level.mayInteract(player, pos);
+    }
+
+    /**
+     * Covers the pipe with the facade's block, or swaps the cover: the old facade goes to the inventory (or drops at the
+     * player's feet). The facade is used up only after the cover is on; creative mode doesn't use it up.
+     */
+    private static void applyFacade(ServerLevel level, BlockPos pos, Player player, ItemStack stack) {
+        BlockState cover = FacadeItem.coverOf(stack);
+        if (!FacadeItem.canCover(cover)) {
+            // An empty facade, or one edited in creative to hold a block that can't be a cover.
+            player.displayClientMessage(Component.translatable("message.daisychain.facade_invalid"), true);
+            return;
+        }
+        PipeDataBlockEntity data = getData(level, pos, level.getBlockState(pos));
+        BlockState old = data == null ? null : data.cover();
+        if (old == cover) {
+            player.displayClientMessage(Component.translatable("message.daisychain.facade_same"), true);
+            return;
+        }
+        ensureData(level, pos);
+        data = getData(level, pos, level.getBlockState(pos));
+        if (data == null) {
+            return; // the pipe has no settings storage: nothing changed, nothing used
+        }
+        data.setCover(cover);
+        if (!player.getAbilities().instabuild) {
+            stack.shrink(1);
+        }
+        if (old != null) {
+            giveOrDrop(player, FacadeItem.of(old, 1));
+        }
+        SoundType sound = cover.getSoundType(level, pos, player);
+        level.playSound(null, pos, sound.getPlaceSound(), SoundSource.BLOCKS, (sound.getVolume() + 1.0F) / 2.0F,
+                sound.getPitch() * 0.8F);
+    }
+
+    /** Takes the cover off: into an empty main hand, else the inventory, else dropped at the player's feet. */
+    private static void removeCover(ServerLevel level, BlockPos pos, Player player) {
+        PipeDataBlockEntity data = getData(level, pos, level.getBlockState(pos));
+        BlockState cover = data == null ? null : data.cover();
+        if (cover == null) {
+            return;
+        }
+        ItemStack removed = FacadeItem.of(cover, 1);
+        data.setCover(null);
+        if (player.getMainHandItem().isEmpty()) {
+            player.setItemInHand(InteractionHand.MAIN_HAND, removed);
+        } else {
+            giveOrDrop(player, removed);
+        }
+        SoundType sound = cover.getSoundType(level, pos, player);
+        level.playSound(null, pos, sound.getBreakSound(), SoundSource.BLOCKS, (sound.getVolume() + 1.0F) / 2.0F,
+                sound.getPitch() * 0.8F);
+        dropDataIfUnused(level, pos); // a pipe with nothing else stored goes back to a plain block
+    }
+
+    private static void giveOrDrop(Player player, ItemStack stack) {
         if (!player.getInventory().add(stack)) {
             player.drop(stack, false);
         }

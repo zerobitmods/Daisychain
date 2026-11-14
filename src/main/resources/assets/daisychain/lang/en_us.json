@@ -366,5 +366,13 @@
   "jade.daisychain.no_machines": "Network speed: no machines to power yet",
   "config.jade.plugin_daisychain.pipe_network": "Daisychain pull side status and energy network speed",
   "daisychain.configuration.energy_glow": "Energy pipe glow",
-  "daisychain.configuration.energy_glow.tooltip": "The line along energy pipes stays lit in the dark. Only changes the look; it costs nothing per frame either way."
+  "daisychain.configuration.energy_glow.tooltip": "The line along energy pipes stays lit in the dark. Only changes the look; it costs nothing per frame either way.",
+  "item.daisychain.facade": "Facade",
+  "item.daisychain.facade.named": "%s Facade",
+  "tooltip.daisychain.facade.empty": "No block yet: craft one from a full block and an item pipe",
+  "tooltip.daisychain.facade.looks": "Looks only: the pipe still connects, pulls and inserts on every side",
+  "tooltip.daisychain.facade.apply": "Right-click a pipe to cover it; right-click a covered pipe to swap covers",
+  "tooltip.daisychain.facade.remove": "Remove: sneak + right-click the pipe with an empty hand",
+  "message.daisychain.facade_invalid": "That block can't be a facade",
+  "message.daisychain.facade_same": "This pipe is already wearing that"
 }

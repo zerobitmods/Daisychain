@@ -4,6 +4,7 @@ import com.daisychain.Daisychain;
 import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.item.BloomWrenchItem;
 import com.daisychain.item.EnergyPipeItem;
+import com.daisychain.item.FacadeItem;
 import com.daisychain.item.FluidGhostItem;
 import com.daisychain.item.SettingsCopierItem;
 import com.daisychain.item.UpgradeItem;
@@ -46,6 +47,10 @@ public final class ModItems {
     /** A fluid listed in a filter (never a real item in survival; not in the creative tab). */
     public static final RegistryObject<FluidGhostItem> FLUID_GHOST = ITEMS.register("fluid",
             () -> new FluidGhostItem(new Item.Properties().stacksTo(1)));
+
+    /** Step F53: a pipe cover; which block it shows is in the item's NBT (ModDataComponents.FACADE). */
+    public static final RegistryObject<FacadeItem> FACADE = ITEMS.register("facade",
+            () -> new FacadeItem(new Item.Properties()));
 
     public static final RegistryObject<UpgradeItem> IRON_UPGRADE = upgrade(UpgradeTier.IRON);
     public static final RegistryObject<UpgradeItem> GOLD_UPGRADE = upgrade(UpgradeTier.GOLD);

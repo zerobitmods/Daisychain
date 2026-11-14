@@ -5,6 +5,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.tags.TagKey;
 import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.level.block.Block;
 
 /**
  * Item tags Daisychain reads.
@@ -17,6 +18,10 @@ public final class ModTags {
             TagKey.create(Registries.ITEM, new ResourceLocation("forge", "tools/wrench"));
     public static final TagKey<Item> WRENCHES_ALT =
             TagKey.create(Registries.ITEM, new ResourceLocation("forge", "wrenches"));
+
+    /** Step F53: blocks that can't be facades even though they are full cubes (empty by default; for pack makers). */
+    public static final TagKey<Block> NOT_FACADES =
+            TagKey.create(Registries.BLOCK, new ResourceLocation("daisychain", "not_facades"));
 
     private ModTags() {
     }

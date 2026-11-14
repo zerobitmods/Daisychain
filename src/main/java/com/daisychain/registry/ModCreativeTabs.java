@@ -30,6 +30,13 @@ public final class ModCreativeTabs {
                         output.accept(ModItems.UNIVERSAL_PIPE.get());
                         output.accept(ModItems.BLOOM_WRENCH.get());
                         output.accept(ModItems.SETTINGS_COPIER.get());
+                        // Step F53: a few ready-made facades; any other full block is one craft away.
+                        output.accept(com.daisychain.item.FacadeItem.of(
+                                net.minecraft.world.level.block.Blocks.STONE_BRICKS.defaultBlockState(), 1));
+                        output.accept(com.daisychain.item.FacadeItem.of(
+                                net.minecraft.world.level.block.Blocks.OAK_PLANKS.defaultBlockState(), 1));
+                        output.accept(com.daisychain.item.FacadeItem.of(
+                                net.minecraft.world.level.block.Blocks.GLASS.defaultBlockState(), 1));
                         output.accept(ModItems.IRON_UPGRADE.get());
                         output.accept(ModItems.GOLD_UPGRADE.get());
                         output.accept(ModItems.DIAMOND_UPGRADE.get());
