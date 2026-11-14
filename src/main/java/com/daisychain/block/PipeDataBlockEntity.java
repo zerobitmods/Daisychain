@@ -818,9 +818,17 @@ public final class PipeDataBlockEntity extends BlockEntity {
         cover = value;
         setChanged();
         if (level instanceof ServerLevel serverLevel) {
-            BlockState state = getBlockState();
+            FlowPipeBlock.syncCoverState(serverLevel, worldPosition); // step 127: full block, light
+            BlockState state = serverLevel.getBlockState(worldPosition);
             serverLevel.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_CLIENTS);
         }
+    }
+
+    /** Step 127: false if the block state's cover value doesn't match the stored cover (saved before step 127). */
+    public boolean coverStateMatches() {
+        BlockState state = getBlockState();
+        return !(state.getBlock() instanceof FlowPipeBlock)
+                || state.getValue(FlowPipeBlock.COVER) == FlowPipeBlock.coverShapeOf(cover);
     }
 
     /**

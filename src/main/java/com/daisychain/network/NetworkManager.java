@@ -1343,8 +1343,11 @@ public final class NetworkManager {
             return;
         }
         for (Map.Entry<BlockPos, BlockEntity> entry : chunk.getBlockEntities().entrySet()) {
-            if (!(entry.getValue() instanceof PipeDataBlockEntity)) {
+            if (!(entry.getValue() instanceof PipeDataBlockEntity data)) {
                 NeighborWatch.scheduleRechecks(level, entry.getKey());
+            } else if (!data.coverStateMatches()) {
+                // Step 127: a covered pipe saved before covers were in the block state; its tick sets it.
+                level.scheduleTick(entry.getKey(), data.getBlockState().getBlock(), 1);
             }
         }
         // Block entities in the four chunks around it that sit on the shared edge: a pipe in this chunk may touch them.
