@@ -729,7 +729,13 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
             NetworkManager manager = NetworkManager.get(serverLevel);
             manager.onPipeChanged(pos);
             if (manager.takePlacement(pos)) {
-                claimSpotFromNeighbors(serverLevel, pos); // step 118: the place event has passed
+                claimSpotFromNeighbors(serverLevel, pos, true); // step 118: the place event has passed
+            } else if (!(oldState.getBlock() instanceof FlowPipeBlock) && !swappingTier) {
+                // Step F52 (port of 124): a new pipe put here without a player (/setblock, /fill, a building tool or
+                // schematic). No place event can undo it, so neighbors that pulled from this spot stop and their
+                // upgrades pop out, as for a player's placement. Their "Off" marks toward it stay: a pasted build keeps
+                // its Off links. Tier swaps (old block is a pipe) never get here.
+                claimSpotFromNeighbors(serverLevel, pos, false);
             }
             // Step 109: a side may have stopped being a pull side, which decides whether that side offers an energy
             // input; blocks holding the old one are told to drop it. (New pull sides are found by neighbor updates.)
@@ -803,15 +809,17 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
             return;
         }
         // No cancellable event around this placement (onPlace has already run): change the neighbors now.
-        claimSpotFromNeighbors(serverLevel, pos);
+        claimSpotFromNeighbors(serverLevel, pos, true);
     }
 
     /**
      * A freshly placed pipe takes over its spot: neighbor pipes that pulled from it stop (their upgrade pops out),
      * parked upgrades on sides that now join it pop out, and old "disconnected" marks toward it are forgotten. Only for
-     * placements by a player or item (setPlacedBy), not for pipes put there by other code (pastes, tier swaps).
+     * placements by a player or item (setPlacedBy, byPlayer = true). Since step F52 also for pipes put there by other
+     * code (/setblock, building tools, schematics; byPlayer = false), which keep the neighbors' "disconnected" marks.
+     * Tier swaps never call this.
      */
-    private void claimSpotFromNeighbors(ServerLevel level, BlockPos pos) {
+    private void claimSpotFromNeighbors(ServerLevel level, BlockPos pos, boolean byPlayer) {
         for (Direction direction : DIRECTIONS) {
             BlockPos neighborPos = pos.relative(direction);
             if (!level.isLoaded(neighborPos)) {
@@ -830,7 +838,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
                 popParkedUpgrade(level, neighborPos, neighborState, direction.getOpposite());
                 neighborState = level.getBlockState(neighborPos);
             }
-            if (linksWith(neighborState)
+            if (byPlayer && linksWith(neighborState)
                     && hasBit(disconnectMask(level, neighborPos, neighborState), direction.getOpposite())) {
                 setNeighborPipeDisconnected(level, neighborPos, neighborState, direction.getOpposite(), false);
                 BlockState updated = level.getBlockState(neighborPos);
