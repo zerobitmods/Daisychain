@@ -7,6 +7,9 @@ import com.daisychain.item.CopiedSettings;
 import net.neoforged.neoforge.fluids.SimpleFluidContent;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.Registries;
+import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.world.level.block.Block;
+import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.registries.DeferredHolder;
 import net.neoforged.neoforge.registries.DeferredRegister;
@@ -38,6 +41,12 @@ public final class ModDataComponents {
             COMPONENTS.registerComponentType("ghost_fluid", builder -> builder
                     .persistent(SimpleFluidContent.CODEC)
                     .networkSynchronized(SimpleFluidContent.STREAM_CODEC));
+
+    /** Step 125: the block a facade covers a pipe with (sent to clients as its block-state id). */
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<BlockState>> FACADE =
+            COMPONENTS.registerComponentType("facade", builder -> builder
+                    .persistent(BlockState.CODEC)
+                    .networkSynchronized(ByteBufCodecs.idMapper(Block.BLOCK_STATE_REGISTRY)));
 
     private ModDataComponents() {
     }

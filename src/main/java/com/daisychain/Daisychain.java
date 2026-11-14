@@ -9,6 +9,7 @@ import com.daisychain.registry.ModCreativeTabs;
 import com.daisychain.registry.ModDataComponents;
 import com.daisychain.registry.ModItems;
 import com.daisychain.registry.ModMenus;
+import com.daisychain.registry.ModRecipes;
 import com.mojang.logging.LogUtils;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -23,7 +24,7 @@ public final class Daisychain {
     public static final String MOD_ID = "daisychain";
     public static final Logger LOGGER = LogUtils.getLogger();
     /** Development step this build is at. Shown by /daisychain version; bumped with every step. */
-    public static final String DEV_STEP = "124";
+    public static final String DEV_STEP = "125";
 
     public Daisychain(IEventBus modEventBus, ModContainer modContainer) {
         ModBlocks.register(modEventBus);
@@ -32,6 +33,7 @@ public final class Daisychain {
         ModCreativeTabs.register(modEventBus);
         ModMenus.register(modEventBus);
         ModDataComponents.register(modEventBus);
+        ModRecipes.register(modEventBus);
         DaisychainEvents.register();
         modContainer.registerConfig(ModConfig.Type.SERVER, DaisychainConfig.SERVER_SPEC);
         modContainer.registerConfig(ModConfig.Type.CLIENT, DaisychainClientConfig.SPEC);
