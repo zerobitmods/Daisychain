@@ -327,6 +327,18 @@ public final class ReviewLeftoverTests {
         energyShare(helper, 18_000, true, Distribution.ROUND_ROBIN, true);
     }
 
+    /** Step 122: energy has one mode. A side saved as Nearest still splits evenly (before, the far machines starved). */
+    @GameTest(template = EMPTY, timeoutTicks = 200)
+    public static void energyIgnoresNearest(GameTestHelper helper) {
+        energyShare(helper, 6_000, false, Distribution.NEAREST, false);
+    }
+
+    /** Step 122: the same for a side saved as Farthest (before, the near machines starved). */
+    @GameTest(template = EMPTY, timeoutTicks = 200)
+    public static void energyIgnoresFarthest(GameTestHelper helper) {
+        energyShare(helper, 6_000, true, Distribution.FARTHEST, false);
+    }
+
     private static void energyShare(GameTestHelper helper, int pushPerTick, boolean simulateFirst,
                                     Distribution distribution, boolean plenty) {
         Block pipe = ModBlocks.energyPipes()[0];

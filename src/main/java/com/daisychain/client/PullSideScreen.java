@@ -342,7 +342,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                 PipeDataBlockEntity.SETTING_DISTRIBUTION, i -> sendToValues[i].ordinal(),
                 i -> Component.translatable("screen.daisychain.distribution",
                         Component.translatable("screen.daisychain.distribution." + sendToValues[i].getSerializedName())),
-                pullRows);
+                pullRows && !evenSplitOnly());
         choiceRow(sendBackKeys, y + 22, i -> FlowGui.styled(Component.translatable(i == 0 ? "screen.daisychain.off"
                         : "screen.daisychain.on")), PipeDataBlockEntity.SETTING_SELF_FEED, i -> i,
                 i -> Component.translatable("screen.daisychain.self_feed",
@@ -1150,7 +1150,8 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                     || data.insertRedstoneMode(side) != RedstoneMode.ALWAYS
                     || !isPriorityLevel(data.priority(side));
         }
-        return data.distribution(side) != Distribution.NEAREST || data.allowsSelfFeed(side)
+        boolean sendToSet = resource != PipeKind.ENERGY_RES && data.distribution(side) != Distribution.NEAREST;
+        return sendToSet || data.allowsSelfFeed(side)
                 || data.batch(side, resource) != 0 || data.keepInSource(side, resource) != 0
                 || data.fillDestinationTo(side, resource) != 0;
     }
@@ -1415,6 +1416,12 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
             return;
         }
         drawerLabel(graphics, "screen.daisychain.drawer.send_to", x, y + 5);
+        if (evenSplitOnly()) {
+            // Step 122: energy always splits evenly, so the row shows that instead of the Near / Far / Robin keys.
+            Component even = FlowGui.styled(Component.translatable("screen.daisychain.even_split"));
+            FlowGui.text(graphics, font, even, drawerX() + DRAWER_RIGHT - FlowGui.inkWidth(font, even), y + 8,
+                    FlowGui.TEXT);
+        }
         drawerLabel(graphics, "screen.daisychain.drawer.send_back", x, y + 22);
         if (amounts) {
             FlowGui.hline(graphics, x, y + 42, DRAWER_RIGHT - DRAWER_PAD, FlowGui.LINE);
@@ -1422,6 +1429,11 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
             drawerLabel(graphics, "screen.daisychain.drawer.keep", x, y + 66);
             drawerLabel(graphics, "screen.daisychain.drawer.fill", x, y + 83);
         }
+    }
+
+    /** Step 122: energy (energy pipes and the universal pipe's energy tab) has no Send to choice. */
+    private boolean evenSplitOnly() {
+        return menu.resource() == PipeKind.ENERGY_RES;
     }
 
     private void drawerLabel(GuiGraphics graphics, String key, int x, int rowY) {

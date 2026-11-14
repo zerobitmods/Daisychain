@@ -431,7 +431,7 @@ public final class NetworkManager {
         int moved;
         extractor.busy = true;
         try {
-            moved = EnergyTransfer.push(level, extractor, side, extractor.destinations, data.distribution(side),
+            moved = EnergyTransfer.push(level, extractor, side, extractor.destinations,
                     data.allowsSelfFeed(side), Math.min(maxReceive, allowance),
                     data.fillDestinationTo(side, PipeKind.ENERGY_RES),
                     DaisychainConfig.MAX_HANDLER_CALLS_PER_TRANSFER.getAsInt(), simulate);
@@ -887,7 +887,7 @@ public final class NetworkManager {
             int allowance = extractor.energyAllowance(side, level.getGameTime(), UpgradeSpeeds.energyInterval(tier),
                     perTransfer);
             int moved = EnergyTransfer.transfer(level, extractor, direction, extractor.destinations,
-                    data.distribution(direction), data.allowsSelfFeed(direction),
+                    data.allowsSelfFeed(direction),
                     allowance, data.batch(direction, resource),
                     data.keepInSource(direction, resource), data.fillDestinationTo(direction, resource), maxCalls);
             extractor.addEnergyUsed(side, moved);

@@ -1,7 +1,6 @@
 package com.daisychain.network;
 
 import com.daisychain.Daisychain;
-import com.daisychain.block.Distribution;
 import com.daisychain.block.PipeKind;
 import com.daisychain.config.UpgradeSpeeds;
 import net.minecraft.core.BlockPos;
@@ -16,7 +15,8 @@ import java.util.List;
  * Every move is: simulate receive, real extract of what the destination accepted, real receive of exactly what was
  * extracted. Anything a destination refuses after promising to take it goes back to the source, then to the other
  * destinations. Energy is never created here.
- * Same order rules as items and fluids: highest priority first; Nearest / Farthest / Round robin within a priority.
+ * Step 122: energy has one mode, an even split like Mekanism cables (Send to is ignored for energy): highest priority
+ * first, and within a priority every destination gets an equal share; what one can't take is split again among the rest.
  * Amounts, in FE: Batch (max per transfer, capped by the upgrade), Keep in source (leave this much in the source),
  * Fill destination to (stop once a destination holds this much), the destination's Max stock. An energy storage is one
  * number, so counting is a single call and never paused. No allocation.
@@ -38,8 +38,7 @@ final class EnergyTransfer {
      * keep / fill = the side's Keep in source / Fill destination to (0 = off).
      */
     static int transfer(ServerLevel level, Extractor extractor, Direction side, List<PipeNetwork.Endpoint> destinations,
-                        Distribution distribution, boolean allowSelfFeed, int tierAmount, int sideBatch, int keep,
-                        int fill, int maxCalls) {
+                        boolean allowSelfFeed, int tierAmount, int sideBatch, int keep, int fill, int maxCalls) {
         extractor.calls = 0;
         int sideIndex = side.get3DDataValue();
         // An energy storage can always be counted (one call), so these notices never apply to energy pipes.
@@ -71,12 +70,8 @@ final class EnergyTransfer {
         }
         extractor.sawItems = true; // the source has something to give
         BlockPos sourcePos = extractor.pos.relative(side);
-        return distribution == Distribution.ROUND_ROBIN
-                ? splitRoundRobin(level, extractor, sideIndex, source, offer, destinations, sourcePos, allowSelfFeed,
-                        fill, maxCalls)
-                : sendInOrder(level, extractor, source, offer,
-                        distribution == Distribution.FARTHEST ? extractor.destinationsFarthest : destinations,
-                        sourcePos, allowSelfFeed, fill, maxCalls);
+        return splitEvenly(level, extractor, sideIndex, source, offer, destinations, sourcePos, allowSelfFeed, fill,
+                maxCalls);
     }
 
     /** Step 84: each destination gets at most what the route to it carries in this transfer (energy pipes only). */
@@ -96,14 +91,13 @@ final class EnergyTransfer {
 
     /**
      * Step 109: energy a block pushes into this pull side (a Flux Point, a cable, a generator that pushes). The pipe
-     * still stores nothing: the FE goes straight on to the destinations by the side's usual rules (priority, Send to,
+     * still stores nothing: the FE goes straight on to the destinations by the side's usual rules (priority, even split,
      * Fill destination to, Max stock, route speed) and whatever they don't take is refused, so it stays in the block
      * that pushed it. amount is already capped by the side's speed. Returns the FE taken (simulate: the FE that would
      * be taken). No allocation.
      */
     static int push(ServerLevel level, Extractor extractor, Direction side, List<PipeNetwork.Endpoint> destinations,
-                    Distribution distribution, boolean allowSelfFeed, int amount, int fill, int maxCalls,
-                    boolean simulate) {
+                    boolean allowSelfFeed, int amount, int fill, int maxCalls, boolean simulate) {
         extractor.calls = 0;
         if (destinations.isEmpty() || amount <= 0) {
             return 0;
@@ -117,14 +111,8 @@ final class EnergyTransfer {
         source.offer(amount);
         int taken;
         try {
-            if (distribution == Distribution.ROUND_ROBIN) {
-                splitRoundRobin(level, extractor, side.get3DDataValue(), source, amount, destinations, sourcePos,
-                        allowSelfFeed, fill, maxCalls);
-            } else {
-                sendInOrder(level, extractor, source, amount,
-                        distribution == Distribution.FARTHEST ? extractor.destinationsFarthest : destinations,
-                        sourcePos, allowSelfFeed, fill, maxCalls);
-            }
+            splitEvenly(level, extractor, side.get3DDataValue(), source, amount, destinations, sourcePos,
+                    allowSelfFeed, fill, maxCalls);
             taken = source.taken;
         } finally {
             source.offer(0);
@@ -244,49 +232,12 @@ final class EnergyTransfer {
         return (long) limit - target.getEnergyStored();
     }
 
-    /** Nearest / farthest first: fill destinations in order until the offer is used up. Returns FE moved. */
-    private static int sendInOrder(ServerLevel level, Extractor extractor, IEnergyStorage source, int offer,
-                                   List<PipeNetwork.Endpoint> ordered, BlockPos sourcePos, boolean allowSelfFeed,
-                                   int fill, int maxCalls) {
-        int remaining = offer;
-        int moved = 0;
-        for (int i = 0; i < ordered.size() && remaining > 0 && extractor.calls < maxCalls; i++) {
-            PipeNetwork.Endpoint destination = ordered.get(i);
-            if ((!allowSelfFeed && destination.targetPos().equals(sourcePos)) || !destination.acceptsEnergy()) {
-                continue;
-            }
-            IEnergyStorage target = destination.energyHandler(level);
-            if (target == null || target == source) {
-                continue;
-            }
-            int want = Math.min(remaining, extractor.routeCap(destination));
-            if (want <= 0) {
-                continue; // no route to it (step 84)
-            }
-            long room = roomFor(extractor, destination, target, fill);
-            if (room != NO_LIMIT) {
-                if (room <= 0) {
-                    continue; // already holds enough
-                }
-                want = (int) Math.min(want, room);
-            }
-            int result = tryMove(level, extractor, source, want, target, ordered);
-            if (result < 0) {
-                break; // the source has nothing more to give
-            }
-            extractor.addRouteSent(destination, result);
-            moved += result;
-            remaining -= result;
-        }
-        return moved;
-    }
-
     /**
-     * Round robin, one priority at a time: the offer is split evenly between the destinations of the highest priority
+     * The even split (step 122: energy's only mode), one priority at a time: the offer is split evenly between the destinations of the highest priority
      * (starting at the remembered position, remainder +1 each in turn); what they can't take goes to the next pass and
      * then to the next priority. Fill / Max stock cap each share. Returns FE moved.
      */
-    private static int splitRoundRobin(ServerLevel level, Extractor extractor, int sideIndex, IEnergyStorage source,
+    private static int splitEvenly(ServerLevel level, Extractor extractor, int sideIndex, IEnergyStorage source,
                                        int offer, List<PipeNetwork.Endpoint> destinations, BlockPos sourcePos,
                                        boolean allowSelfFeed, int fill, int maxCalls) {
         int count = destinations.size();
