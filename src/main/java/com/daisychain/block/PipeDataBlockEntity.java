@@ -29,6 +29,8 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.client.model.data.ModelData;
+import net.neoforged.neoforge.client.model.data.ModelProperty;
 import net.neoforged.neoforge.energy.IEnergyStorage;
 
 import javax.annotation.Nullable;
@@ -821,6 +823,19 @@ public final class PipeDataBlockEntity extends BlockEntity {
         }
     }
 
+    /**
+     * Facades step 2 (step 126): the cover handed to the pipe's model (client/PipeBakedModel) when its chunk section is
+     * drawn. Lives here, not in the client package, because this class is loaded on servers too.
+     */
+    public static final ModelProperty<BlockState> COVER_MODEL = new ModelProperty<>();
+
+    /** Step 126: client main thread. The model draws the cover block instead of the pipe when there is one. */
+    @Override
+    public ModelData getModelData() {
+        BlockState shown = cover;
+        return shown == null ? ModelData.EMPTY : ModelData.builder().with(COVER_MODEL, shown).build();
+    }
+
     /** Drops the cover as a facade item at the pipe and clears it. Never deletes it (same rules as dropUpgrades). */
     public void dropCover(Level world, BlockPos pos) {
         if (cover != null) {
@@ -996,7 +1011,11 @@ public final class PipeDataBlockEntity extends BlockEntity {
         // Disk saves have the filters themselves; client updates only carry the mask.
         filterMask = hadFilters ? computeFilterMask() : (byte) (tag.getByte("FilterMask") & 0b111111);
         // Step 125: disk saves and client updates both carry the cover when there is one; missing = none.
+        BlockState coverBefore = cover;
         cover = tag.contains("Cover", Tag.TAG_COMPOUND) ? readCover(tag.getCompound("Cover"), registries) : null;
+        if (cover != coverBefore && level != null && level.isClientSide()) {
+            requestModelDataUpdate(); // step 126: the model reads the cover from getModelData
+        }
     }
 
     /** A saved cover, or null if its block no longer exists (its mod was removed: reads as air). */

@@ -1,9 +1,13 @@
 package com.daisychain.client;
 
+import com.daisychain.Daisychain;
 import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.SideState;
 import com.daisychain.config.DaisychainClientConfig;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.client.renderer.texture.TextureAtlasSprite;
 import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.BlockPos;
@@ -12,10 +16,12 @@ import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
+import net.neoforged.neoforge.client.ChunkRenderTypeSet;
 import net.neoforged.neoforge.client.model.BakedModelWrapper;
 import net.neoforged.neoforge.client.model.QuadTransformers;
 import net.neoforged.neoforge.client.model.data.ModelData;
 import net.neoforged.neoforge.client.model.data.ModelProperty;
+import net.neoforged.neoforge.common.util.TriState;
 
 import javax.annotation.Nullable;
 import java.util.ArrayList;
@@ -34,10 +40,19 @@ import java.util.concurrent.ConcurrentHashMap;
  * Whether a connected side is an insert side (a block) or a link (a pipe) isn't in the block state, so it is read
  * from the neighbor when the chunk section is built (getModelData). Nothing here runs per frame, and the server never
  * sees any of it. Quads are put together once per (block state, insert sides) and kept.
+ * <p>
+ * Facades step 2 (step 126): a covered pipe draws its cover block's own model instead (quads, render layers, ambient
+ * occlusion, break particles), with that model's own data so connected-texture models still work. The cover comes from
+ * the block entity's model data ({@link PipeDataBlockEntity#COVER_MODEL}); the cover model's quads are returned as they
+ * are (no copy). If a modded cover model throws, the pipe is drawn plain and the error is logged once.
  */
 public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     /** One bit per side (Direction.get3DDataValue): a connected side that touches a block, not a pipe. */
     static final ModelProperty<Integer> INSERT_SIDES = new ModelProperty<>();
+    /** Step 126: the cover model's own data (only when it has some). */
+    static final ModelProperty<ModelData> COVER_DATA = new ModelProperty<>();
+    /** Step 126: a broken cover model was logged already. */
+    private static volatile boolean warnedAboutCover;
     static final int LINK = 0;
     static final int INSERT = 1;
     static final int PULL = 2;
@@ -92,6 +107,19 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
         if (!(state.getBlock() instanceof FlowPipeBlock)) {
             return modelData;
         }
+        BlockState cover = modelData.get(PipeDataBlockEntity.COVER_MODEL);
+        if (cover != null) {
+            ModelData.Builder builder = ModelData.builder().with(PipeDataBlockEntity.COVER_MODEL, cover);
+            try {
+                ModelData coverData = coverModel(cover).getModelData(level, pos, cover, ModelData.EMPTY);
+                if (coverData != null && coverData != ModelData.EMPTY) {
+                    builder.with(COVER_DATA, coverData);
+                }
+            } catch (RuntimeException e) {
+                warnCover(cover, e);
+            }
+            return builder.build();
+        }
         int insert = 0;
         for (Direction direction : DIRECTIONS) {
             if (state.getValue(FlowPipeBlock.propertyFor(direction)) == SideState.NONE) {
@@ -120,6 +148,14 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
         if (state == null || !(state.getBlock() instanceof FlowPipeBlock)) {
             return node.getQuads(state, side, rand, ModelData.EMPTY, renderType);
         }
+        BlockState cover = extraData.get(PipeDataBlockEntity.COVER_MODEL);
+        if (cover != null) {
+            try {
+                return coverModel(cover).getQuads(cover, side, rand, coverData(extraData), renderType);
+            } catch (RuntimeException e) {
+                warnCover(cover, e); // and draw the plain pipe below
+            }
+        }
         Integer stored = extraData.get(INSERT_SIDES);
         int insert = stored == null ? 0 : stored & 0b111111;
         // Step 90: the energy glow setting is part of the key (top bit), so switching it builds the glowing or plain quads.
@@ -134,6 +170,63 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             }
         }
         return lists[side == null ? 6 : side.get3DDataValue()];
+    }
+
+    /** Step 126: a covered pipe is drawn in its cover's render layers (glass: cutout, ice: translucent). */
+    @Override
+    public ChunkRenderTypeSet getRenderTypes(BlockState state, RandomSource rand, ModelData data) {
+        BlockState cover = data.get(PipeDataBlockEntity.COVER_MODEL);
+        if (cover != null) {
+            try {
+                return coverModel(cover).getRenderTypes(cover, rand, coverData(data));
+            } catch (RuntimeException e) {
+                warnCover(cover, e);
+            }
+        }
+        return super.getRenderTypes(state, rand, data);
+    }
+
+    @Override
+    public TriState useAmbientOcclusion(BlockState state, ModelData data, RenderType renderType) {
+        BlockState cover = data.get(PipeDataBlockEntity.COVER_MODEL);
+        if (cover != null) {
+            try {
+                return coverModel(cover).useAmbientOcclusion(cover, coverData(data), renderType);
+            } catch (RuntimeException e) {
+                warnCover(cover, e);
+            }
+        }
+        return super.useAmbientOcclusion(state, data, renderType);
+    }
+
+    /** Step 126: breaking a covered pipe shows the cover's particles. */
+    @Override
+    public TextureAtlasSprite getParticleIcon(ModelData data) {
+        BlockState cover = data.get(PipeDataBlockEntity.COVER_MODEL);
+        if (cover != null) {
+            try {
+                return coverModel(cover).getParticleIcon(coverData(data));
+            } catch (RuntimeException e) {
+                warnCover(cover, e);
+            }
+        }
+        return super.getParticleIcon(data);
+    }
+
+    private static BakedModel coverModel(BlockState cover) {
+        return Minecraft.getInstance().getBlockRenderer().getBlockModel(cover);
+    }
+
+    private static ModelData coverData(ModelData data) {
+        ModelData coverData = data.get(COVER_DATA);
+        return coverData == null ? ModelData.EMPTY : coverData;
+    }
+
+    private static void warnCover(BlockState cover, RuntimeException e) {
+        if (!warnedAboutCover) {
+            warnedAboutCover = true;
+            Daisychain.LOGGER.warn("Daisychain: the model of facade cover {} failed; covered pipes using it are drawn plain", cover, e);
+        }
     }
 
     @SuppressWarnings("unchecked")

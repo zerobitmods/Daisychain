@@ -287,6 +287,23 @@ public final class FacadeTests {
     }
 
     /** Block + item pipe makes a facade of that block; stairs, chests, two pipes or a lone block make nothing. */
+    /** Step 126: the block entity hands its cover to the pipe model (model data), and nothing once it's off. */
+    @GameTest(template = EMPTY)
+    public static void facadeCoverReachesModel(GameTestHelper helper) {
+        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
+        coverWithSurvivalPlayer(helper, PIPE, OAK);
+        PipeDataBlockEntity data = data(helper, PIPE);
+        helper.assertTrue(data.getModelData().get(PipeDataBlockEntity.COVER_MODEL) == OAK,
+                "Model data doesn't carry the oak cover");
+        data.setCover(STONE);
+        helper.assertTrue(data.getModelData().get(PipeDataBlockEntity.COVER_MODEL) == STONE,
+                "Model data didn't follow the swap to stone bricks");
+        data.setCover(null);
+        helper.assertTrue(data.getModelData().get(PipeDataBlockEntity.COVER_MODEL) == null,
+                "Model data still has a cover after it came off");
+        helper.succeed();
+    }
+
     @GameTest(template = EMPTY)
     public static void facadeRecipe(GameTestHelper helper) {
         ItemStack pipe = new ItemStack(ModItems.ITEM_PIPE.get());

@@ -7,6 +7,7 @@ import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.item.EnergyPipeItem;
 import com.daisychain.registry.ModBlocks;
 import com.daisychain.registry.ModItems;
+import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.world.level.BlockAndTintGetter;
@@ -126,6 +127,14 @@ public final class PipeColors {
     }
 
     private static int ringColor(BlockState state, @Nullable BlockAndTintGetter level, @Nullable BlockPos pos, int tintIndex) {
+        if (level != null && pos != null) {
+            // Step 126: a covered pipe draws its cover's quads, so their tints are the cover's (grass, leaves, water...).
+            PipeDataBlockEntity covered = FlowPipeBlock.getData(level, pos, state);
+            BlockState cover = covered == null ? null : covered.cover();
+            if (cover != null) {
+                return Minecraft.getInstance().getBlockColors().getColor(cover, level, pos, tintIndex);
+            }
+        }
         int energyTier = EnergyPipeBlock.tierOf(state.getBlock());
         if (tintIndex == BAND_TINT) {
             return bandColor(Math.max(0, energyTier));
