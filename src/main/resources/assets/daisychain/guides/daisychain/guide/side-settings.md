@@ -59,6 +59,9 @@ A pull side gets to choose the order it fills things up in. You'll find it at th
 - **Far:** the other way around. Lovely for filling a long storage wall from the far end.
 - **Robin:** short for round robin. It shares things out evenly, so everyone gets a turn.
 
+Energy doesn't get a choice: it always reads **Even split**. Every machine gets an equal share, and whatever one machine
+doesn't need goes to the others. Want one machine fed first? Give its insert side a higher priority.
+
 Out of the box, a side won't send things back into the block it just pulled from (that would be a bit silly). **Send back** right
 below lets the side send things back into the block they came from, for the rare setup that needs it.
 

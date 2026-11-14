@@ -291,6 +291,7 @@
   "screen.daisychain.choice.near": "Near",
   "screen.daisychain.choice.far": "Far",
   "screen.daisychain.choice.robin": "Robin",
+  "screen.daisychain.even_split": "Even split",
   "screen.daisychain.choice.redstone_always": "Always",
   "screen.daisychain.choice.redstone_on": "On",
   "screen.daisychain.choice.redstone_off": "Off",
