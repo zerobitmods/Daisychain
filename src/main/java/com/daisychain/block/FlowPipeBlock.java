@@ -1100,7 +1100,10 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
                 sound.getPitch() * 0.8F);
     }
 
-    /** Takes the cover off: into an empty main hand, else the inventory, else dropped at the player's feet. */
+    /**
+     * Takes the cover off: onto a stack of the same facades in the inventory if one has room, else into the empty main
+     * hand, else anywhere in the inventory, else dropped at the player's feet.
+     */
     private static void removeCover(ServerLevel level, BlockPos pos, Player player) {
         PipeDataBlockEntity data = getData(level, pos, level.getBlockState(pos));
         BlockState cover = data == null ? null : data.cover();
@@ -1109,7 +1112,8 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         }
         ItemStack removed = FacadeItem.of(cover, 1);
         data.setCover(null);
-        if (player.getMainHandItem().isEmpty()) {
+        // Step F53a: join a matching stack first, so repeated removals don't fill a new slot each time.
+        if (player.getMainHandItem().isEmpty() && player.getInventory().getSlotWithRemainingSpace(removed) < 0) {
             player.setItemInHand(InteractionHand.MAIN_HAND, removed);
         } else {
             giveOrDrop(player, removed);

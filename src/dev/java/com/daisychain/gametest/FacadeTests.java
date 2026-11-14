@@ -74,6 +74,36 @@ public final class FacadeTests {
         helper.succeed();
     }
 
+    /**
+     * Step F53a: a removed facade joins a stack of the same facades in the inventory instead of taking the empty hand
+     * slot each time; a facade with no stack to join still lands in the hand.
+     */
+    @GameTest(template = EMPTY)
+    public static void facadeRemovalStacks(GameTestHelper helper) {
+        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
+        Player player = helper.makeMockPlayer();
+        player.getInventory().setItem(5, FacadeItem.of(OAK, 3));
+        player.setShiftKeyDown(true);
+        for (int i = 0; i < 2; i++) {
+            coverWithSurvivalPlayer(helper, PIPE, OAK);
+            player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+            click(helper, player, ItemStack.EMPTY);
+            helper.assertTrue(cover(helper, PIPE) == null, "The cover is still on");
+        }
+        ItemStack stack = player.getInventory().getItem(5);
+        helper.assertTrue(FacadeItem.coverOf(stack) == OAK && stack.getCount() == 5,
+                "Slot 5 holds " + stack + " (should be 5 oak facades)");
+        helper.assertTrue(player.getMainHandItem().isEmpty(), "A facade went to the hand instead of onto the stack");
+        helper.assertTrue(facadesHeld(player, OAK) == 5, "Oak facades held: " + facadesHeld(player, OAK) + " (should be 5)");
+
+        coverWithSurvivalPlayer(helper, PIPE, STONE);
+        click(helper, player, ItemStack.EMPTY);
+        helper.assertTrue(FacadeItem.coverOf(player.getMainHandItem()) == STONE, "The stone facade isn't in the hand");
+        helper.assertTrue(player.getInventory().getItem(5).getCount() == 5, "The oak stack changed");
+        helper.assertTrue(itemsOnGround(helper) == 0, "Something dropped");
+        helper.succeed();
+    }
+
     /** Right-click a covered pipe with another facade: the new one goes on, the old one comes back, nothing drops. */
     @GameTest(template = EMPTY)
     public static void facadeSwapGivesOldBack(GameTestHelper helper) {
