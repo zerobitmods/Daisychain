@@ -22,10 +22,14 @@ import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.common.NeoForge;
+import net.neoforged.neoforge.event.level.BlockEvent;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
 import javax.annotation.Nullable;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Step 130: sneak + right-click with facades covers the linked pipes of the same type. Nothing is duplicated or lost:
@@ -196,6 +200,48 @@ public final class FacadeMassTests {
         }
         helper.assertTrue(oak.getCount() == 4, "Facades left: " + oak.getCount() + " (should be 4)");
         helper.succeed();
+    }
+
+    /**
+     * Step 132: a claim mod that refuses the place event on one pipe (like FTB Chunks in someone else's claim) keeps
+     * that pipe as it was: no cover, no facade used. The others still get covered.
+     */
+    @GameTest(template = EMPTY)
+    public static void massSkipsPipesAClaimModRefuses(GameTestHelper helper) {
+        line(helper, 1, 5, ModBlocks.ITEM_PIPE.get());
+        Player player = sneaker(helper, GameType.SURVIVAL);
+        ItemStack oak = FacadeItem.of(OAK, 10);
+        BlockPos refused = helper.absolutePos(at(3));
+        listenForPlaceEvents();
+        REFUSED.add(refused);
+        try {
+            massClick(helper, player, 1, oak, 64);
+        } finally {
+            REFUSED.remove(refused);
+        }
+        for (int x = 1; x <= 5; x++) {
+            BlockState expected = x == 3 ? null : OAK;
+            helper.assertTrue(cover(helper, at(x)) == expected, "x " + x + " is " + cover(helper, at(x)));
+        }
+        helper.assertTrue(oak.getCount() == 6, "Facades left: " + oak.getCount() + " (should be 6)");
+        helper.assertTrue(itemsOnGround(helper) == 0, "Something dropped");
+        helper.succeed();
+    }
+
+    /** Positions the test claim mod refuses (absolute). */
+    private static final Set<BlockPos> REFUSED = ConcurrentHashMap.newKeySet();
+    private static boolean listening;
+
+    /** A stand-in claim mod: cancels place events at REFUSED positions. Registered once, stays for the run. */
+    private static synchronized void listenForPlaceEvents() {
+        if (!listening) {
+            listening = true;
+            NeoForge.EVENT_BUS.addListener((BlockEvent.EntityPlaceEvent event) -> {
+                if (REFUSED.contains(event.getPos())) {
+                    event.setCanceled(true);
+                }
+            });
+        }
     }
 
     // ---------------------------------------------------------------- helpers
