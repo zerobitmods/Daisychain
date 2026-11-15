@@ -1,6 +1,7 @@
 package com.daisychain.client;
 
 import com.daisychain.Daisychain;
+import com.daisychain.block.CoverShape;
 import com.daisychain.block.FlowPipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.SideState;
@@ -45,10 +46,20 @@ import java.util.concurrent.ConcurrentHashMap;
  * occlusion, break particles), with that model's own data so connected-texture models still work. The cover comes from
  * the block entity's model data ({@link PipeDataBlockEntity#COVER_MODEL}); the cover model's quads are returned as they
  * are (no copy). If a modded cover model throws, the pipe is drawn plain and the error is logged once.
+ * <p>
+ * Step 128 (option A): a link arm whose neighbor pipe is covered gets an end cap on the block edge, so the tube doesn't
+ * look hollow through a glass cover. The cap is the core's own face on that side (mask 0), moved out to the edge and
+ * 1/8 pixel back in (no flicker against the glass face in the same plane). It sits in that side's culled list, so an
+ * opaque cover next to it hides it (hidesNeighborFace) and only see-through covers show it.
  */
 public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
-    /** One bit per side (Direction.get3DDataValue): a connected side that touches a block, not a pipe. */
+    /**
+     * Bits 0-5, one per side (Direction.get3DDataValue): a connected side that touches a block, not a pipe.
+     * Step 128: bits 6-11: a link arm whose neighbor pipe is covered, so its end gets a cap.
+     */
     static final ModelProperty<Integer> INSERT_SIDES = new ModelProperty<>();
+    /** Step 128: how far an end cap sits inside the block edge (1/8 pixel), so it doesn't flicker against a glass face. */
+    private static final float EDGE_INSET = 1.0F / 128.0F;
     /** Step 126: the cover model's own data (only when it has some). */
     static final ModelProperty<ModelData> COVER_DATA = new ModelProperty<>();
     /** Step 126: a broken cover model was logged already. */
@@ -81,7 +92,7 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     private final BakedModel[][] cores;
     /** Arms [LINK / INSERT / PULL][side]. */
     private final BakedModel[][] pieces;
-    /** Quads by (state id << 6 | insert sides, top bit = glow): 7 lists, one per face direction, then the unculled ones. */
+    /** Quads by (state id << 12 | capped sides << 6 | insert sides, top bit = glow): 7 lists, one per face direction, then the unculled ones. */
     private final ConcurrentHashMap<Long, List<BakedQuad>[]> cache = new ConcurrentHashMap<>();
 
     PipeBakedModel(BakedModel node, BakedModel[][] cores, BakedModel[][] pieces) {
@@ -130,7 +141,13 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             }
             BlockState neighbor = level.getBlockState(pos.relative(direction));
             if (neighbor.getBlock() instanceof FlowPipeBlock) {
-                continue; // pipes meet at the block edge
+                // Pipes meet at the block edge. Step 128: a covered neighbor draws only its cover, so this arm's end
+                // would be open; cap it (not pull arms, they have their own cap).
+                if (neighbor.getValue(FlowPipeBlock.COVER) != CoverShape.NONE
+                        && state.getValue(FlowPipeBlock.propertyFor(direction)) != SideState.EXTRACT) {
+                    insert |= 1 << (6 + direction.get3DDataValue());
+                }
+                continue;
             }
             if (state.getValue(FlowPipeBlock.propertyFor(direction)) == SideState.CONNECTED
                     && neighbor.getBlock() != state.getBlock()) {
@@ -160,13 +177,13 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             }
         }
         Integer stored = extraData.get(INSERT_SIDES);
-        int insert = stored == null ? 0 : stored & 0b111111;
+        int sides = stored == null ? 0 : stored & 0xFFF; // insert sides + capped sides (step 128)
         // Step 90: the energy glow setting is part of the key (top bit), so switching it builds the glowing or plain quads.
         boolean glow = DaisychainClientConfig.energyGlow();
-        long key = ((long) Block.getId(state) << 6) | insert | (glow ? Long.MIN_VALUE : 0L);
+        long key = ((long) Block.getId(state) << 12) | sides | (glow ? Long.MIN_VALUE : 0L);
         List<BakedQuad>[] lists = cache.get(key);
         if (lists == null) {
-            lists = build(state, insert, glow, rand, renderType);
+            lists = build(state, sides & 0b111111, sides >>> 6, glow, rand, renderType);
             List<BakedQuad>[] earlier = cache.putIfAbsent(key, lists);
             if (earlier != null) {
                 lists = earlier;
@@ -233,7 +250,7 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     }
 
     @SuppressWarnings("unchecked")
-    private List<BakedQuad>[] build(BlockState state, int insert, boolean glow, RandomSource rand,
+    private List<BakedQuad>[] build(BlockState state, int insert, int capped, boolean glow, RandomSource rand,
                                     @Nullable RenderType renderType) {
         int connected = 0;
         int pull = 0;
@@ -266,9 +283,45 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
                     quads.add(glow && quad.getTintIndex() == PipeColors.BAND_TINT ? glowing(quad) : quad);
                 }
             }
+            int bit = 1 << i;
+            if (face != null && (capped & connected & ~pull & bit) != 0) {
+                // Step 128: end cap toward a covered pipe, in this side's culled list (an opaque cover hides it).
+                addEndCap(quads, state, face, glow, rand, renderType);
+            }
             lists[i] = List.copyOf(quads);
         }
         return lists;
+    }
+
+    /**
+     * Step 128: the core's plain face on this side (mask 0: no stripe running off it), moved out to the block edge and
+     * EDGE_INSET back in. Built once per cached quad set.
+     */
+    private void addEndCap(List<BakedQuad> quads, BlockState state, Direction face, boolean glow, RandomSource rand,
+                           @Nullable RenderType renderType) {
+        BakedModel core = cores[face.get3DDataValue()][0];
+        for (int i = 0; i < 7; i++) {
+            Direction listFace = i < 6 ? Direction.from3DDataValue(i) : null;
+            for (BakedQuad quad : core.getQuads(state, listFace, rand, ModelData.EMPTY, renderType)) {
+                if (quad.getDirection() == face) {
+                    BakedQuad shown = glow && quad.getTintIndex() == PipeColors.BAND_TINT ? glowing(quad) : quad;
+                    quads.add(movedToEdge(shown, face));
+                }
+            }
+        }
+    }
+
+    /** A copy of the quad with its coordinate along the face's axis set to the block edge minus EDGE_INSET. */
+    private static BakedQuad movedToEdge(BakedQuad quad, Direction face) {
+        int axis = face.getAxis().ordinal(); // x, y, z: the first three ints of each vertex
+        int edge = Float.floatToRawIntBits(face.getAxisDirection() == Direction.AxisDirection.POSITIVE
+                ? 1.0F - EDGE_INSET : EDGE_INSET);
+        int[] moved = quad.getVertices().clone();
+        int stride = moved.length / 4;
+        for (int v = 0; v < 4; v++) {
+            moved[v * stride + axis] = edge;
+        }
+        return new BakedQuad(moved, quad.getTintIndex(), face, quad.getSprite(), quad.isShade(), quad.hasAmbientOcclusion());
     }
 
     /**
