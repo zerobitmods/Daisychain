@@ -55,10 +55,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * opaque cover next to it hides it (hidesNeighborFace) and only see-through covers show it.
  * <p>
  * Step 129 (facades step 4): while the player holds a wrench ({@link WrenchSeeThrough}), a covered pipe is drawn
- * see-through: the pipe's own quads plus a frame of the cover (each cover face cut down to a {@link #FRAME_WIDTH} border,
- * option C, step 129a), all in the pipe's own cutout layer. Solid pixels need no sorting, so nothing flickers (129's
- * first version faded the cover in the translucent layer, and overlapping faded faces hid each other when drawn out of
- * order). Pipe faces on the block surface sit 1/8 pixel inside so they don't flicker against the frame.
+ * see-through: the pipe's own quads (cutout layer) plus the cover's quads faded to {@link #FADE_ALPHA} in the
+ * translucent layer. Pipe faces on the block surface sit 1/8 pixel inside so they don't flicker against the faded cover.
  * Under an opaque cover the light inside the block is 0, so the pipe's quads get the brightest light of the six
  * neighbors baked in as a floor (NeoForge keeps the brighter of baked and world light). These quads are cached
  * separately and dropped when the wrench goes away. Tinted cover quads always carry {@link #COVER_TINT_OFFSET}, so
@@ -81,22 +79,22 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
      * into the pipe's quads: block light | sky light << 4 (0 under see-through covers, which let light in).
      */
     static final ModelProperty<Integer> SEE_THROUGH = new ModelProperty<>();
-    /** Step 129: the position's model seed, so the cover frame picks the same variant as when it's drawn solid. */
+    /** Step 129: the position's model seed, so the faded cover picks the same variant as when it's drawn solid. */
     static final ModelProperty<Long> COVER_SEED = new ModelProperty<>();
     /**
      * Step 129: added to the tint index of tinted cover quads (leaves, grass), so they don't collide with the pipe's own
      * tint indexes (0-14). PipeColors subtracts it again and asks the cover's block colors.
      */
     public static final int COVER_TINT_OFFSET = 1000;
-    /** Step 129a: how wide the cover's frame is while a wrench is held, as a share of each face (2/16 = 2 pixels). */
-    static final float FRAME_WIDTH = 2.0F / 16.0F;
-    /** Step 129a: the vertex ints blended when a quad is cut: x, y, z, u, v (BLOCK format). */
-    private static final int[] BLENDED_FIELDS = {0, 1, 2, 4, 5};
+    /** Step 129: how opaque a cover is while a wrench is held (0-255; 102 = 40%). */
+    static final int FADE_ALPHA = 102;
     /**
      * Step 129: a random for asking the cover model its layers and quads inside getQuads, reseeded with COVER_SEED each
      * time. The renderer's own random is used up by weighted models after the first call.
      */
     private static final ThreadLocal<RandomSource> LAYER_RANDOM = ThreadLocal.withInitial(RandomSource::create);
+    /** Step 129: the faded cover's layer. */
+    private static final ChunkRenderTypeSet TRANSLUCENT_ONLY = ChunkRenderTypeSet.of(RenderType.translucent());
     static final int LINK = 0;
     static final int INSERT = 1;
     static final int PULL = 2;
@@ -236,16 +234,11 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
         BlockState cover = extraData.get(PipeDataBlockEntity.COVER_MODEL);
         Integer seeThrough = extraData.get(SEE_THROUGH);
         if (cover != null && seeThrough != null) {
-            // Step 129a: wrench in hand: the pipe plus the cover's frame, both in the pipe's own layer (cutout).
-            List<BakedQuad> pipeQuads = seeThroughPipe(state, side, rand, extraData, renderType, seeThrough);
-            List<BakedQuad> frame = coverFrame(cover, side, extraData);
-            if (frame.isEmpty()) {
-                return pipeQuads;
+            // Step 129: wrench in hand. The translucent layer gets the faded cover, the others (cutout) the pipe.
+            if (renderType == RenderType.translucent()) {
+                return fadedCover(cover, side, extraData);
             }
-            List<BakedQuad> both = new ArrayList<>(pipeQuads.size() + frame.size());
-            both.addAll(pipeQuads);
-            both.addAll(frame);
-            return both;
+            return seeThroughPipe(state, side, rand, extraData, renderType, seeThrough);
         }
         if (cover != null) {
             try {
@@ -298,11 +291,10 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     }
 
     /**
-     * Step 129a: the cover's quads from all of its own render layers, each cut down to a frame (four strips of
-     * FRAME_WIDTH along its edges), drawn in the pipe's cutout layer. Only while a chunk section with a covered pipe is
-     * built and a wrench is held; never per frame.
+     * Step 129: the cover's quads from all of its own render layers, faded to FADE_ALPHA (drawn in the translucent
+     * layer). Only while a chunk section with a covered pipe is built and a wrench is held; never per frame.
      */
-    private static List<BakedQuad> coverFrame(BlockState cover, @Nullable Direction side, ModelData extraData) {
+    private static List<BakedQuad> fadedCover(BlockState cover, @Nullable Direction side, ModelData extraData) {
         Long stored = extraData.get(COVER_SEED);
         long seed = stored == null ? 42L : stored;
         RandomSource random = LAYER_RANDOM.get();
@@ -311,71 +303,38 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             ModelData data = coverData(extraData);
             random.setSeed(seed);
             ChunkRenderTypeSet layers = model.getRenderTypes(cover, random, data);
-            List<BakedQuad> source = new ArrayList<>();
+            List<BakedQuad> faded = new ArrayList<>();
             for (RenderType layer : layers) {
                 random.setSeed(seed);
                 List<BakedQuad> quads = model.getQuads(cover, side, random, data, layer);
                 for (int i = 0; i < quads.size(); i++) {
                     BakedQuad quad = quads.get(i);
-                    if (!source.contains(quad)) {
-                        source.add(quad);
+                    if (!faded.contains(quad)) {
+                        faded.add(quad);
                     }
                 }
             }
-            List<BakedQuad> frame = new ArrayList<>(source.size() * 4);
-            float w = FRAME_WIDTH;
-            for (int i = 0; i < source.size(); i++) {
-                BakedQuad quad = source.get(i);
-                frame.add(subQuad(quad, 0.0F, 0.0F, 1.0F, w));          // one edge
-                frame.add(subQuad(quad, 0.0F, 1.0F - w, 1.0F, 1.0F));   // the opposite edge
-                frame.add(subQuad(quad, 0.0F, w, w, 1.0F - w));         // the two sides between them
-                frame.add(subQuad(quad, 1.0F - w, w, 1.0F, 1.0F - w));
+            for (int i = 0; i < faded.size(); i++) {
+                faded.set(i, fadedQuad(faded.get(i)));
             }
-            return frame;
+            return faded;
         } catch (RuntimeException e) {
             warnCover(cover, e);
             return List.of(); // the pipe alone
         }
     }
 
-    /**
-     * Step 129a: the part of a quad between (s0, t0) and (s1, t1), where s runs from vertex 0 to vertex 1 and t from
-     * vertex 0 to vertex 3 (0..1). Position and texture coordinates are blended between the four corners, so it works
-     * for any flat four-cornered face, not only full block faces; color, light and normal come from the nearest corner.
-     * The corners keep the original's order, so the face still points the same way. Tint index moves by
-     * COVER_TINT_OFFSET.
-     */
-    private static BakedQuad subQuad(BakedQuad quad, float s0, float t0, float s1, float t1) {
-        int[] src = quad.getVertices();
-        int stride = src.length / 4;
-        int[] out = new int[src.length];
-        float[][] corners = {{s0, t0}, {s1, t0}, {s1, t1}, {s0, t1}};
+    /** Step 129: a copy with its vertex alpha scaled down to FADE_ALPHA, tint index moved by COVER_TINT_OFFSET. */
+    private static BakedQuad fadedQuad(BakedQuad quad) {
+        int[] vertices = quad.getVertices().clone();
+        int stride = vertices.length / 4;
         for (int v = 0; v < 4; v++) {
-            float s = corners[v][0];
-            float t = corners[v][1];
-            float w0 = (1 - s) * (1 - t);
-            float w1 = s * (1 - t);
-            float w2 = s * t;
-            float w3 = (1 - s) * t;
-            int base = v * stride;
-            System.arraycopy(src, nearestCorner(s, t) * stride, out, base, stride); // color, light, normal
-            for (int f : BLENDED_FIELDS) {
-                float value = w0 * Float.intBitsToFloat(src[f])
-                        + w1 * Float.intBitsToFloat(src[stride + f])
-                        + w2 * Float.intBitsToFloat(src[2 * stride + f])
-                        + w3 * Float.intBitsToFloat(src[3 * stride + f]);
-                out[base + f] = Float.floatToRawIntBits(value);
-            }
+            int color = vertices[v * stride + 3]; // BLOCK format: x, y, z, color (ABGR), u, v, light, normal
+            int alpha = (color >>> 24) * FADE_ALPHA / 255;
+            vertices[v * stride + 3] = (color & 0x00FFFFFF) | alpha << 24;
         }
-        return new BakedQuad(out, quad.isTinted() ? quad.getTintIndex() + COVER_TINT_OFFSET : quad.getTintIndex(),
+        return new BakedQuad(vertices, quad.isTinted() ? quad.getTintIndex() + COVER_TINT_OFFSET : quad.getTintIndex(),
                 quad.getDirection(), quad.getSprite(), quad.isShade(), quad.hasAmbientOcclusion());
-    }
-
-    /** Step 129a: the original corner closest to (s, t): 0 = (0,0), 1 = (1,0), 2 = (1,1), 3 = (0,1). */
-    private static int nearestCorner(float s, float t) {
-        boolean right = s >= 0.5F;
-        boolean far = t >= 0.5F;
-        return far ? (right ? 2 : 3) : (right ? 1 : 0);
     }
 
     /**
@@ -409,8 +368,8 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     public ChunkRenderTypeSet getRenderTypes(BlockState state, RandomSource rand, ModelData data) {
         BlockState cover = data.get(PipeDataBlockEntity.COVER_MODEL);
         if (cover != null && data.get(SEE_THROUGH) != null) {
-            // Step 129a: the pipe and the cover's frame are both drawn in the pipe's own layer (cutout).
-            return super.getRenderTypes(state, rand, data);
+            // Step 129: the pipe's own layers (cutout) plus translucent for the faded cover.
+            return ChunkRenderTypeSet.union(super.getRenderTypes(state, rand, data), TRANSLUCENT_ONLY);
         }
         if (cover != null) {
             try {
@@ -425,9 +384,8 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     @Override
     public TriState useAmbientOcclusion(BlockState state, ModelData data, RenderType renderType) {
         BlockState cover = data.get(PipeDataBlockEntity.COVER_MODEL);
-        // Step 129a: while see-through the layer is the pipe's, so the pipe's own setting (each frame quad still carries
-        // its own ambient-occlusion flag from the cover model).
-        if (cover != null && data.get(SEE_THROUGH) == null) {
+        // Step 129: while see-through, only the translucent layer is the cover; the pipe's layer keeps its own setting.
+        if (cover != null && (data.get(SEE_THROUGH) == null || renderType == RenderType.translucent())) {
             try {
                 return coverModel(cover).useAmbientOcclusion(cover, coverData(data), renderType);
             } catch (RuntimeException e) {
@@ -532,7 +490,7 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
 
     /**
      * Step 129: a pipe face lying on the block's outer surface (a pull cap's or insert arm's end) is moved EDGE_INSET
-     * inward, so it doesn't flicker against the cover frame in the same plane. Other quads are returned as they
+     * inward, so it doesn't flicker against the faded cover's face in the same plane. Other quads are returned as they
      * are.
      */
     private static BakedQuad insetFromSurface(BakedQuad quad) {
