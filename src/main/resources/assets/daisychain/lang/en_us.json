@@ -378,5 +378,15 @@
   "message.daisychain.facade_mass_covered": "Covered %s pipes",
   "message.daisychain.facade_mass_replaced": "Swapped the cover on %s pipes",
   "message.daisychain.facade_mass_none": "No pipes changed",
-  "tooltip.daisychain.facade.mass": "Sneak + right-click: cover the linked pipes of the same type too"
+  "tooltip.daisychain.facade.mass": "Sneak + right-click: cover the linked pipes of the same type too",
+  "hud.daisychain.facade_mass.cover": "Cover %s pipes · %s facades",
+  "hud.daisychain.facade_mass.cover_one": "Cover 1 pipe · 1 facade",
+  "hud.daisychain.facade_mass.cover_short": "Cover %s of %s pipes · not enough facades",
+  "hud.daisychain.facade_mass.cover_creative": "Cover %s pipes",
+  "hud.daisychain.facade_mass.cover_creative_one": "Cover 1 pipe",
+  "hud.daisychain.facade_mass.swap": "Swap the cover on %s pipes · %s facades",
+  "hud.daisychain.facade_mass.swap_one": "Swap the cover on 1 pipe · 1 facade",
+  "hud.daisychain.facade_mass.swap_short": "Swap the cover on %s of %s pipes · not enough facades",
+  "hud.daisychain.facade_mass.swap_creative": "Swap the cover on %s pipes",
+  "hud.daisychain.facade_mass.swap_creative_one": "Swap the cover on 1 pipe"
 }

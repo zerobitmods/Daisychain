@@ -290,7 +290,7 @@ public final class PasteHighlights {
     }
 
     /** Runs the draw with blending on and the depth test, depth writes and culling off; puts everything back after. */
-    private static void drawThroughWalls(Minecraft minecraft, Runnable drawCall) {
+    static void drawThroughWalls(Minecraft minecraft, Runnable drawCall) {
         RenderSystem.setShader(GameRenderer::getRendertypeLinesShader);
         RenderSystem.enableBlend();
         RenderSystem.defaultBlendFunc();
