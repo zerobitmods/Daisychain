@@ -324,17 +324,31 @@ public final class WrenchCoverOverlay {
         RenderType type = RenderType.translucent();
         type.setupRenderState();
         RenderSystem.depthMask(false); // the point of this class: faded faces never hide each other
-        ShaderInstance shader = RenderSystem.getShader();
-        if (shader != null) {
-            if (shader.CHUNK_OFFSET != null) {
-                shader.CHUNK_OFFSET.set(0.0F, 0.0F, 0.0F);
-            }
-            buffer.bind();
-            buffer.drawWithShader(MODEL_VIEW, event.getProjectionMatrix(), shader);
-            VertexBuffer.unbind();
-        }
+        draw(event);
         RenderSystem.depthMask(true);
         type.clearRenderState();
+        // Step 134a: a second pass that writes only depth, after all faces are blended. Without it clouds, rain,
+        // snow and particles (drawn later) painted over the faded covers wherever sky was behind them. The cutout
+        // shader skips pixels under 10% alpha, so the clear middle of a faded glass cover still shows what's behind.
+        RenderType depth = RenderType.cutout();
+        depth.setupRenderState();
+        RenderSystem.colorMask(false, false, false, false);
+        draw(event);
+        RenderSystem.colorMask(true, true, true, true);
+        depth.clearRenderState();
+    }
+
+    private static void draw(RenderLevelStageEvent event) {
+        ShaderInstance shader = RenderSystem.getShader();
+        if (shader == null) {
+            return;
+        }
+        if (shader.CHUNK_OFFSET != null) {
+            shader.CHUNK_OFFSET.set(0.0F, 0.0F, 0.0F);
+        }
+        buffer.bind();
+        buffer.drawWithShader(MODEL_VIEW, event.getProjectionMatrix(), shader);
+        VertexBuffer.unbind();
     }
 
     /** F3: how many covers the overlay holds and how long the last build took. */

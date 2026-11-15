@@ -67,8 +67,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>
  * Step 134 (transparent facade): a pipe wearing the transparent cover draws nothing at all (no pipe, no cover) until a
  * wrench is held; then it is drawn like any see-through cover, except the cover (the hologram cube) isn't faded: its
- * texture is see-through already. Plain pipes linked to it cap their arm's end, as next to a glass cover (step 128); its
- * block state says "no cover", so that one is read from the neighbor's block entity.
+ * texture is see-through already. Its block state says CLEAR (step 134a: a full block like glass), so linked plain pipes
+ * cap their arm's end as next to a glass cover (step 128).
  */
 public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     /**
@@ -215,9 +215,8 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             if (neighbor.getBlock() instanceof FlowPipeBlock) {
                 // Pipes meet at the block edge. Step 128: a covered neighbor draws only its cover, so this arm's end
                 // would be open; cap it (not pull arms, they have their own cap).
-                if (caps && state.getValue(FlowPipeBlock.propertyFor(direction)) != SideState.EXTRACT
-                        && (neighbor.getValue(FlowPipeBlock.COVER) != CoverShape.NONE
-                        || wearsTransparentCover(level, pos.relative(direction), neighbor))) {
+                if (caps && neighbor.getValue(FlowPipeBlock.COVER) != CoverShape.NONE
+                        && state.getValue(FlowPipeBlock.propertyFor(direction)) != SideState.EXTRACT) {
                     insert |= 1 << (6 + direction.get3DDataValue());
                 }
                 continue;
@@ -228,16 +227,6 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             }
         }
         return insert;
-    }
-
-    /**
-     * Step 134: a pipe wearing the transparent cover (its block state says no cover). Meshing reads the chunk copy's
-     * block entities (vanilla does the same for block entity renderers), so this is safe off the main thread.
-     */
-    private static boolean wearsTransparentCover(BlockAndTintGetter level, BlockPos pos, BlockState state) {
-        return state.getValue(FlowPipeBlock.HAS_DATA)
-                && level.getBlockEntity(pos) instanceof PipeDataBlockEntity data
-                && FacadeItem.isTransparent(data.cover());
     }
 
     @Override

@@ -444,30 +444,33 @@ public final class FacadeTests {
     }
 
     /**
-     * A transparent cover leaves the pipe as if bare: block state "no cover", pipe-shaped outline and collision, light
-     * passes, no redstone. It still counts as a cover (stored, comes off with sneak + empty hand, nothing drops).
+     * Step 134a: a transparent cover acts like glass: block state CLEAR, full block to walk on and click, light passes,
+     * no redstone. It comes off with sneak + empty hand (anywhere on the block), nothing drops.
      */
     @GameTest(template = EMPTY)
-    public static void transparentFacadeKeepsPipeShape(GameTestHelper helper) {
+    public static void transparentFacadeIsClearBlock(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos at = helper.absolutePos(PIPE);
         BlockState clear = FacadeItem.transparentCover();
         pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
         coverWithSurvivalPlayer(helper, PIPE, clear);
         BlockState state = level.getBlockState(at);
-        helper.assertTrue(state.getValue(FlowPipeBlock.COVER) == CoverShape.NONE, "Cover state: " + state);
+        helper.assertTrue(state.getValue(FlowPipeBlock.COVER) == CoverShape.CLEAR, "Cover state: " + state);
         helper.assertTrue(data(helper, PIPE).coverStateMatches(), "Stored cover and block state disagree");
-        helper.assertFalse(state.isCollisionShapeFullBlock(level, at), "Transparent-covered pipe is a full block to walk into");
-        helper.assertFalse(Block.isShapeFullBlock(state.getShape(level, at)), "Outline is a full block");
+        helper.assertTrue(state.isCollisionShapeFullBlock(level, at), "Transparent-covered pipe isn't a full block to walk on");
+        helper.assertTrue(Block.isShapeFullBlock(state.getShape(level, at)), "Outline isn't a full block");
+        helper.assertTrue(state.propagatesSkylightDown(level, at), "Sky light stops at a transparent cover");
         helper.assertTrue(state.getLightBlock(level, at) == 0, "Transparent cover blocks light: " + state.getLightBlock(level, at));
         helper.assertFalse(state.isRedstoneConductor(level, at), "Transparent cover conducts redstone");
         helper.assertTrue(data(helper, PIPE).getModelData().get(PipeDataBlockEntity.COVER_MODEL) == clear,
                 "The model doesn't hear about the transparent cover");
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
         player.setShiftKeyDown(true);
-        clickAt(helper, player, ItemStack.EMPTY, centerHit(helper, PIPE));
+        // A corner of the top face: on the full block, nowhere near the pipe inside.
+        BlockHitResult corner = new BlockHitResult(Vec3.atLowerCornerOf(at).add(0.05, 1.0, 0.05), Direction.UP, at, false);
+        clickAt(helper, player, ItemStack.EMPTY, corner);
         ItemStack inHand = player.getMainHandItem();
-        helper.assertTrue(cover(helper, PIPE) == null, "Transparent cover didn't come off");
+        helper.assertTrue(cover(helper, PIPE) == null, "Transparent cover didn't come off from a corner click");
         helper.assertTrue(inHand.is(ModItems.FACADE.get()) && FacadeItem.isTransparent(FacadeItem.coverOf(inHand))
                 && inHand.getCount() == 1, "Hand holds " + inHand + " (should be 1 transparent facade)");
         helper.assertTrue(itemsOnGround(helper) == 0, "Something dropped");
@@ -526,8 +529,8 @@ public final class FacadeTests {
         for (int x = 2; x <= 6; x++) {
             BlockPos pos = new BlockPos(x, 1, 2);
             helper.assertTrue(cover(helper, pos) == clear, "Pipe at x " + x + " has " + cover(helper, pos));
-            helper.assertTrue(helper.getBlockState(pos).getValue(FlowPipeBlock.COVER) == CoverShape.NONE,
-                    "Pipe at x " + x + " isn't shaped like a bare pipe");
+            helper.assertTrue(helper.getBlockState(pos).getValue(FlowPipeBlock.COVER) == CoverShape.CLEAR,
+                    "Pipe at x " + x + " isn't a clear full block");
         }
         helper.assertTrue(facades.getCount() == 3, "Facades left: " + facades.getCount() + " (should be 3)");
         helper.succeed();

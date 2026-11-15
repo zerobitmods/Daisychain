@@ -1251,10 +1251,10 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
 
     /**
      * What a cover block means for the pipe's block state: SOLID for opaque full blocks, CLEAR for see-through ones.
-     * Step 134: a transparent facade is NONE: the pipe keeps its own outline, collision and light, as if bare.
+     * Step 134a: a transparent facade is CLEAR like glass (full block to walk on and click, lets light through).
      */
     public static CoverShape coverShapeOf(@Nullable BlockState cover) {
-        if (cover == null || cover.isAir() || FacadeItem.isTransparent(cover)) {
+        if (cover == null || cover.isAir()) {
             return CoverShape.NONE;
         }
         return cover.isSolidRender(EmptyBlockGetter.INSTANCE, BlockPos.ZERO) ? CoverShape.SOLID : CoverShape.CLEAR;
