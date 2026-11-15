@@ -1,6 +1,7 @@
 package com.daisychain.client;
 
 import com.daisychain.Daisychain;
+import com.daisychain.block.CoverShape;
 import com.daisychain.block.FlowPipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.SideState;
@@ -45,6 +46,13 @@ import java.util.concurrent.ConcurrentHashMap;
  * occlusion, break particles), with that model's own data so connected-texture models still work. The cover comes from
  * the block entity's model data ({@link PipeDataBlockEntity#COVER_MODEL}); the cover model's quads are returned as they
  * are (no copy). If a modded cover model throws, the pipe is drawn plain and the error is logged once.
+ * <p>
+ * Step 128: a see-through cover (block state {@code cover=clear}: glass, ice, leaves) draws the pipe inside it too. The
+ * model's render layers are the pipe's and the cover's together; each layer gets the pipe's quads (if the pipe draws in
+ * it) followed by the cover's (if the cover draws in it). Tinted cover quads get {@link #COVER_TINT_OFFSET} added to
+ * their tint index so {@link PipeColors} can tell them from the pipe's rings. Pipe faces lying on the block's outer
+ * surface (pull cap ends) are moved 1/8 pixel inward so they don't flicker against the cover's face in the same plane.
+ * Opaque covers ({@code cover=solid}) still draw only the cover.
  */
 public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     /** One bit per side (Direction.get3DDataValue): a connected side that touches a block, not a pipe. */
@@ -53,6 +61,18 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     static final ModelProperty<ModelData> COVER_DATA = new ModelProperty<>();
     /** Step 126: a broken cover model was logged already. */
     private static volatile boolean warnedAboutCover;
+    /**
+     * Step 128: added to the tint index of a see-through cover's tinted quads (leaves, grass), so they don't collide with
+     * the pipe's own tint indexes (0-14). PipeColors subtracts it again and asks the cover's block colors.
+     */
+    public static final int COVER_TINT_OFFSET = 1000;
+    /** Step 128: how far pipe faces on the block's surface are moved inward under a see-through cover (1/8 pixel). */
+    private static final float EDGE_INSET = 1.0F / 128.0F;
+    /**
+     * Step 128: a fixed-seed random for asking a model its render layers inside getQuads. Asking with the renderer's
+     * own random would use it up (weighted models pick a variant with it) and change which variant the quads come from.
+     */
+    private static final ThreadLocal<RandomSource> LAYER_RANDOM = ThreadLocal.withInitial(RandomSource::create);
     static final int LINK = 0;
     static final int INSERT = 1;
     static final int PULL = 2;
@@ -111,8 +131,9 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
         // removes the block entity (HAS_DATA false) and NeoForge never clears the model data it stored for this spot,
         // so without this check the old cover stayed drawn until the chunk reloaded.
         BlockState cover = state.getValue(FlowPipeBlock.HAS_DATA) ? modelData.get(PipeDataBlockEntity.COVER_MODEL) : null;
+        ModelData.Builder builder = ModelData.builder();
         if (cover != null) {
-            ModelData.Builder builder = ModelData.builder().with(PipeDataBlockEntity.COVER_MODEL, cover);
+            builder.with(PipeDataBlockEntity.COVER_MODEL, cover);
             try {
                 ModelData coverData = coverModel(cover).getModelData(level, pos, cover, ModelData.EMPTY);
                 if (coverData != null && coverData != ModelData.EMPTY) {
@@ -121,7 +142,9 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             } catch (RuntimeException e) {
                 warnCover(cover, e);
             }
-            return builder.build();
+            if (!showsPipe(state)) {
+                return builder.build(); // opaque cover: only the cover is drawn
+            }
         }
         int insert = 0;
         for (Direction direction : DIRECTIONS) {
@@ -137,7 +160,12 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
                 insert |= 1 << direction.get3DDataValue();
             }
         }
-        return ModelData.builder().with(INSERT_SIDES, insert).build();
+        return builder.with(INSERT_SIDES, insert).build();
+    }
+
+    /** Step 128: a see-through cover shows the pipe inside it (read from the block state). */
+    private static boolean showsPipe(BlockState state) {
+        return state.getValue(FlowPipeBlock.COVER) == CoverShape.CLEAR;
     }
 
     @Override
@@ -153,12 +181,21 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
         }
         BlockState cover = extraData.get(PipeDataBlockEntity.COVER_MODEL);
         if (cover != null) {
+            if (showsPipe(state)) {
+                return pipeAndCover(state, cover, side, rand, extraData, renderType);
+            }
             try {
                 return coverModel(cover).getQuads(cover, side, rand, coverData(extraData), renderType);
             } catch (RuntimeException e) {
                 warnCover(cover, e); // and draw the plain pipe below
             }
         }
+        return pipeQuads(state, side, rand, extraData, renderType);
+    }
+
+    /** The pipe's own quads (as if uncovered), built once per (block state, insert sides, glow) and kept. */
+    private List<BakedQuad> pipeQuads(BlockState state, @Nullable Direction side, RandomSource rand, ModelData extraData,
+                                      @Nullable RenderType renderType) {
         Integer stored = extraData.get(INSERT_SIDES);
         int insert = stored == null ? 0 : stored & 0b111111;
         // Step 90: the energy glow setting is part of the key (top bit), so switching it builds the glowing or plain quads.
@@ -175,13 +212,72 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
         return lists[side == null ? 6 : side.get3DDataValue()];
     }
 
+    /**
+     * Step 128: a see-through cover. For this render layer: the pipe's quads if the pipe draws in it, then the cover's
+     * if the cover draws in it (a null layer, e.g. the breaking overlay, gets both). Only called while a chunk section
+     * is built, never per frame; still, a list is only copied when both parts have quads or the cover's need tinting.
+     */
+    private List<BakedQuad> pipeAndCover(BlockState state, BlockState cover, @Nullable Direction side, RandomSource rand,
+                                         ModelData extraData, @Nullable RenderType renderType) {
+        List<BakedQuad> pipe = renderType == null || pipeLayers(state).contains(renderType)
+                ? pipeQuads(state, side, rand, extraData, renderType) : List.of();
+        List<BakedQuad> coverQuads;
+        try {
+            BakedModel model = coverModel(cover);
+            ModelData data = coverData(extraData);
+            coverQuads = renderType == null || coverLayers(model, cover, data).contains(renderType)
+                    ? model.getQuads(cover, side, rand, data, renderType) : List.of();
+        } catch (RuntimeException e) {
+            warnCover(cover, e);
+            coverQuads = List.of(); // the pipe alone
+        }
+        boolean tinted = false;
+        for (int i = 0; i < coverQuads.size(); i++) {
+            if (coverQuads.get(i).isTinted()) {
+                tinted = true;
+                break;
+            }
+        }
+        if (coverQuads.isEmpty()) {
+            return pipe;
+        }
+        if (pipe.isEmpty() && !tinted) {
+            return coverQuads;
+        }
+        List<BakedQuad> quads = new ArrayList<>(pipe.size() + coverQuads.size());
+        quads.addAll(pipe);
+        for (int i = 0; i < coverQuads.size(); i++) {
+            BakedQuad quad = coverQuads.get(i);
+            quads.add(quad.isTinted() ? new BakedQuad(quad.getVertices(), quad.getTintIndex() + COVER_TINT_OFFSET,
+                    quad.getDirection(), quad.getSprite(), quad.isShade(), quad.hasAmbientOcclusion()) : quad);
+        }
+        return quads;
+    }
+
+    /** The pipe's own render layers (cutout). */
+    private ChunkRenderTypeSet pipeLayers(BlockState state) {
+        RandomSource random = LAYER_RANDOM.get();
+        random.setSeed(42L);
+        return node.getRenderTypes(state, random, ModelData.EMPTY);
+    }
+
+    /** A cover model's render layers, asked with the fixed-seed random (see LAYER_RANDOM). */
+    private static ChunkRenderTypeSet coverLayers(BakedModel model, BlockState cover, ModelData data) {
+        RandomSource random = LAYER_RANDOM.get();
+        random.setSeed(42L);
+        return model.getRenderTypes(cover, random, data);
+    }
+
     /** Step 126: a covered pipe is drawn in its cover's render layers (glass: cutout, ice: translucent). */
     @Override
     public ChunkRenderTypeSet getRenderTypes(BlockState state, RandomSource rand, ModelData data) {
         BlockState cover = data.get(PipeDataBlockEntity.COVER_MODEL);
         if (cover != null) {
             try {
-                return coverModel(cover).getRenderTypes(cover, rand, coverData(data));
+                ChunkRenderTypeSet coverLayers = coverModel(cover).getRenderTypes(cover, rand, coverData(data));
+                // Step 128: a see-through cover draws the pipe too, so both parts' layers.
+                return showsPipe(state)
+                        ? ChunkRenderTypeSet.union(super.getRenderTypes(state, rand, data), coverLayers) : coverLayers;
             } catch (RuntimeException e) {
                 warnCover(cover, e);
             }
@@ -192,7 +288,8 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     @Override
     public TriState useAmbientOcclusion(BlockState state, ModelData data, RenderType renderType) {
         BlockState cover = data.get(PipeDataBlockEntity.COVER_MODEL);
-        if (cover != null) {
+        // Step 128: under a see-through cover the pipe's layer (cutout) keeps the pipe's own setting.
+        if (cover != null && !(showsPipe(state) && renderType != null && pipeLayers(state).contains(renderType))) {
             try {
                 return coverModel(cover).useAmbientOcclusion(cover, coverData(data), renderType);
             } catch (RuntimeException e) {
@@ -257,18 +354,46 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
                 parts[side] = cores[side][coreMask(side, connected)];
             }
         }
+        boolean inset = showsPipe(state); // step 128: under a see-through cover
         List<BakedQuad>[] lists = new List[7];
         for (int i = 0; i < 7; i++) {
             Direction face = i < 6 ? Direction.from3DDataValue(i) : null;
             List<BakedQuad> quads = new ArrayList<>();
             for (int side = 0; side < 6; side++) {
                 for (BakedQuad quad : parts[side].getQuads(state, face, rand, ModelData.EMPTY, renderType)) {
-                    quads.add(glow && quad.getTintIndex() == PipeColors.BAND_TINT ? glowing(quad) : quad);
+                    BakedQuad shown = glow && quad.getTintIndex() == PipeColors.BAND_TINT ? glowing(quad) : quad;
+                    quads.add(inset ? insetFromSurface(shown) : shown);
                 }
             }
             lists[i] = List.copyOf(quads);
         }
         return lists;
+    }
+
+    /**
+     * Step 128: a pipe face lying on the block's outer surface (a pull cap's end) is moved 1/8 pixel inward, so it doesn't
+     * flicker against the see-through cover's face in the same plane. Other quads are returned as they are. Done once
+     * when the quads are built.
+     */
+    private static BakedQuad insetFromSurface(BakedQuad quad) {
+        Direction direction = quad.getDirection();
+        int axis = direction.getAxis().ordinal(); // x, y, z: the first three ints of each vertex
+        boolean positive = direction.getAxisDirection() == Direction.AxisDirection.POSITIVE;
+        float surface = positive ? 1.0F : 0.0F;
+        int[] vertices = quad.getVertices();
+        int stride = vertices.length / 4;
+        for (int v = 0; v < 4; v++) {
+            if (Math.abs(Float.intBitsToFloat(vertices[v * stride + axis]) - surface) > 1.0E-4F) {
+                return quad;
+            }
+        }
+        int[] moved = vertices.clone();
+        int inward = Float.floatToRawIntBits(positive ? 1.0F - EDGE_INSET : EDGE_INSET);
+        for (int v = 0; v < 4; v++) {
+            moved[v * stride + axis] = inward;
+        }
+        return new BakedQuad(moved, quad.getTintIndex(), direction, quad.getSprite(), quad.isShade(),
+                quad.hasAmbientOcclusion());
     }
 
     /**

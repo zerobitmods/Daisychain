@@ -1,6 +1,7 @@
 package com.daisychain.client;
 
 import com.daisychain.Daisychain;
+import com.daisychain.block.CoverShape;
 import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.block.FlowPipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
@@ -129,10 +130,16 @@ public final class PipeColors {
     private static int ringColor(BlockState state, @Nullable BlockAndTintGetter level, @Nullable BlockPos pos, int tintIndex) {
         if (level != null && pos != null) {
             // Step 126: a covered pipe draws its cover's quads, so their tints are the cover's (grass, leaves, water...).
-            PipeDataBlockEntity covered = FlowPipeBlock.getData(level, pos, state);
-            BlockState cover = covered == null ? null : covered.cover();
-            if (cover != null) {
-                return Minecraft.getInstance().getBlockColors().getColor(cover, level, pos, tintIndex);
+            // Step 128: a see-through cover draws the pipe too; its tinted quads carry PipeBakedModel.COVER_TINT_OFFSET,
+            // so lower tint indexes are the pipe's own and get the pipe colors below.
+            boolean seeThrough = state.getValue(FlowPipeBlock.COVER) == CoverShape.CLEAR;
+            if (!seeThrough || tintIndex >= PipeBakedModel.COVER_TINT_OFFSET) {
+                PipeDataBlockEntity covered = FlowPipeBlock.getData(level, pos, state);
+                BlockState cover = covered == null ? null : covered.cover();
+                if (cover != null) {
+                    int coverTint = seeThrough ? tintIndex - PipeBakedModel.COVER_TINT_OFFSET : tintIndex;
+                    return Minecraft.getInstance().getBlockColors().getColor(cover, level, pos, coverTint);
+                }
             }
         }
         int energyTier = EnergyPipeBlock.tierOf(state.getBlock());
