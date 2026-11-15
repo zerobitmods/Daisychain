@@ -24,7 +24,8 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Facades step 4 (step 129): while the player holds a wrench in the main hand, covered pipes are drawn see-through
- * (the pipe, plus its cover faded; see {@link PipeBakedModel}). The look is baked into chunk meshes, so nothing is done
+ * (the pipe, plus its cover faded; see {@link PipeBakedModel}). Step 129c: the faded covers are drawn by
+ * {@link WrenchCoverOverlay}; the chunk meshes hold only the pipes. The look is baked into chunk meshes, so nothing is done
  * per frame: when the wrench goes into or out of the hand, the chunk sections holding covered pipes are re-meshed.
  * <ul>
  *   <li>Wrench in: every loaded chunk within render distance is checked for covered pipes (block entities only, once
@@ -57,6 +58,11 @@ public final class WrenchSeeThrough {
         return active;
     }
 
+    /** Step 129c: true while the local player holds a wrench (client thread). */
+    static boolean isActive() {
+        return active;
+    }
+
     static int generation() {
         return generation;
     }
@@ -67,17 +73,24 @@ public final class WrenchSeeThrough {
         ClientLevel level = minecraft.level;
         boolean holding = level != null && minecraft.player != null && FlowPipeBlock.isHoldingWrench(minecraft.player);
         if (holding == active) {
+            if (active) {
+                WrenchCoverOverlay.tick(minecraft, level); // step 129c
+            }
             return;
         }
         active = holding;
         if (level == null) {
             SEE_THROUGH_SECTIONS.clear();
             generation++;
+            WrenchCoverOverlay.stop();
             return;
         }
         if (holding) {
             remeshCoveredPipes(minecraft, level);
+            WrenchCoverOverlay.start();
+            WrenchCoverOverlay.tick(minecraft, level);
         } else {
+            WrenchCoverOverlay.stop();
             generation++;
             remeshRecorded(minecraft.levelRenderer);
         }
@@ -88,6 +101,7 @@ public final class WrenchSeeThrough {
         active = false;
         SEE_THROUGH_SECTIONS.clear();
         generation++;
+        WrenchCoverOverlay.stop();
     }
 
     /** Wrench in: re-mesh every section within render distance that has a covered pipe. */

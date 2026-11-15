@@ -55,8 +55,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * opaque cover next to it hides it (hidesNeighborFace) and only see-through covers show it.
  * <p>
  * Step 129 (facades step 4): while the player holds a wrench ({@link WrenchSeeThrough}), a covered pipe is drawn
- * see-through: the pipe's own quads (cutout layer) plus the cover's quads faded to {@link #FADE_ALPHA} in the
- * translucent layer. Pipe faces on the block surface sit 1/8 pixel inside so they don't flicker against the faded cover.
+ * see-through: the pipe's own quads (cutout layer) plus the cover's quads faded to {@link #FADE_ALPHA}.
+ * Step 129c: the faded cover is no longer in the chunk mesh (translucent chunk faces write depth and are sorted per
+ * section, so overlapping faded faces hid each other and flickered). {@link WrenchCoverOverlay} draws it from its own
+ * buffer with depth writing off; it asks this model for the faded quads with {@link #OVERLAY} set. Pipe faces on the block surface sit 1/8 pixel inside so they don't flicker against the faded cover.
  * Under an opaque cover the light inside the block is 0, so the pipe's quads get the brightest light of the six
  * neighbors baked in as a floor (NeoForge keeps the brighter of baked and world light). These quads are cached
  * separately and dropped when the wrench goes away. Tinted cover quads always carry {@link #COVER_TINT_OFFSET}, so
@@ -81,6 +83,8 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     static final ModelProperty<Integer> SEE_THROUGH = new ModelProperty<>();
     /** Step 129: the position's model seed, so the faded cover picks the same variant as when it's drawn solid. */
     static final ModelProperty<Long> COVER_SEED = new ModelProperty<>();
+    /** Step 129c: set only by WrenchCoverOverlay: getQuads returns the faded cover alone (any render type). */
+    static final ModelProperty<Boolean> OVERLAY = new ModelProperty<>();
     /**
      * Step 129: added to the tint index of tinted cover quads (leaves, grass), so they don't collide with the pipe's own
      * tint indexes (0-14). PipeColors subtracts it again and asks the cover's block colors.
@@ -94,7 +98,6 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
      */
     private static final ThreadLocal<RandomSource> LAYER_RANDOM = ThreadLocal.withInitial(RandomSource::create);
     /** Step 129: the faded cover's layer. */
-    private static final ChunkRenderTypeSet TRANSLUCENT_ONLY = ChunkRenderTypeSet.of(RenderType.translucent());
     static final int LINK = 0;
     static final int INSERT = 1;
     static final int PULL = 2;
@@ -234,8 +237,8 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
         BlockState cover = extraData.get(PipeDataBlockEntity.COVER_MODEL);
         Integer seeThrough = extraData.get(SEE_THROUGH);
         if (cover != null && seeThrough != null) {
-            // Step 129: wrench in hand. The translucent layer gets the faded cover, the others (cutout) the pipe.
-            if (renderType == RenderType.translucent()) {
+            // Step 129: wrench in hand. Step 129c: the faded cover only for WrenchCoverOverlay; chunk meshes get the pipe.
+            if (extraData.get(OVERLAY) != null) {
                 return fadedCover(cover, side, extraData);
             }
             return seeThroughPipe(state, side, rand, extraData, renderType, seeThrough);
@@ -368,8 +371,8 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     public ChunkRenderTypeSet getRenderTypes(BlockState state, RandomSource rand, ModelData data) {
         BlockState cover = data.get(PipeDataBlockEntity.COVER_MODEL);
         if (cover != null && data.get(SEE_THROUGH) != null) {
-            // Step 129: the pipe's own layers (cutout) plus translucent for the faded cover.
-            return ChunkRenderTypeSet.union(super.getRenderTypes(state, rand, data), TRANSLUCENT_ONLY);
+            // Step 129c: chunk meshes hold only the pipe's own layers (cutout); WrenchCoverOverlay draws the cover.
+            return super.getRenderTypes(state, rand, data);
         }
         if (cover != null) {
             try {
@@ -384,8 +387,8 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     @Override
     public TriState useAmbientOcclusion(BlockState state, ModelData data, RenderType renderType) {
         BlockState cover = data.get(PipeDataBlockEntity.COVER_MODEL);
-        // Step 129: while see-through, only the translucent layer is the cover; the pipe's layer keeps its own setting.
-        if (cover != null && (data.get(SEE_THROUGH) == null || renderType == RenderType.translucent())) {
+        // Step 129: while see-through, only the overlay's faded cover (129c) uses the cover's setting; the pipe keeps its own.
+        if (cover != null && (data.get(SEE_THROUGH) == null || data.get(OVERLAY) != null)) {
             try {
                 return coverModel(cover).useAmbientOcclusion(cover, coverData(data), renderType);
             } catch (RuntimeException e) {

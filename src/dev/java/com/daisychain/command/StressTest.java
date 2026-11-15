@@ -79,7 +79,34 @@ final class StressTest {
                                 .executes(context -> buildHuge(context.getSource(),
                                         IntegerArgumentType.getInteger(context, "pipes"),
                                         IntegerArgumentType.getInteger(context, "upgrade"))))));
+        // Step 129c: covers every pipe around you (dirt, glass, oak leaves in turn), to measure the wrench see-through.
+        root.then(Commands.literal("cover")
+                .then(Commands.argument("radius", IntegerArgumentType.integer(1, 64))
+                        .executes(context -> coverAround(context.getSource(),
+                                IntegerArgumentType.getInteger(context, "radius")))));
         return root;
+    }
+
+    private static int coverAround(CommandSourceStack source, int radius) {
+        ServerLevel level = source.getLevel();
+        BlockPos center = BlockPos.containing(source.getPosition());
+        BlockState[] covers = {Blocks.DIRT.defaultBlockState(), Blocks.GLASS.defaultBlockState(),
+                Blocks.OAK_LEAVES.defaultBlockState()};
+        int count = 0;
+        for (BlockPos pos : BlockPos.betweenClosed(center.offset(-radius, -radius, -radius),
+                center.offset(radius, radius, radius))) {
+            if (!level.isLoaded(pos) || !(level.getBlockState(pos).getBlock() instanceof FlowPipeBlock)) {
+                continue;
+            }
+            FlowPipeBlock.ensureData(level, pos);
+            if (level.getBlockEntity(pos) instanceof PipeDataBlockEntity data) {
+                data.setCover(covers[count % covers.length]);
+                count++;
+            }
+        }
+        int covered = count;
+        source.sendSuccess(() -> Component.literal("Covered " + covered + " pipes."), true);
+        return covered;
     }
 
     private static int build(CommandSourceStack source, String kind, int networks, int length, int upgrade) {
