@@ -13,8 +13,6 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockState;
-import net.neoforged.neoforge.common.util.BlockSnapshot;
-import net.neoforged.neoforge.event.EventHooks;
 
 import javax.annotation.Nullable;
 import java.util.ArrayDeque;
@@ -33,7 +31,7 @@ import java.util.Set;
  *   but left alone. Holding a facade of X itself does nothing.</li>
  *   <li>At most {@code facades.max_mass_apply} pipes per click (server config); one facade per pipe, stopping when
  *   the stack runs out (creative uses none). Build rights and claims are checked for every pipe (step 132: claim
- *   mods through the place event, see mayCoverHere).</li>
+ *   mods through the place event, see ClaimCheck).</li>
  * </ul>
  * {@link #selection} is plain reading, so the client can use it later for the highlight (step 131).
  */
@@ -115,7 +113,7 @@ public final class FacadeMassApply {
             if (!creative && stack.isEmpty()) {
                 break;
             }
-            if (!mayCoverHere(level, pos, player)) {
+            if (!ClaimCheck.mayChange(level, pos, player)) {
                 continue; // claimed or protected: skip this pipe, keep going
             }
             FlowPipeBlock.ensureData(level, pos);
@@ -149,17 +147,6 @@ public final class FacadeMassApply {
                 ? Component.translatable("message.daisychain.facade_mass_none")
                 : Component.translatable(match == null ? "message.daisychain.facade_mass_covered"
                         : "message.daisychain.facade_mass_replaced", changed), true);
-    }
-
-    /**
-     * Step 132: may this player change this pipe, which they may not have clicked? Build rights and spawn protection
-     * (mayChange), and then claim mods: FTB Chunks and others guard claims through NeoForge's place and right-click
-     * events, not through Level.mayInteract, so on its own mayChange let a mass click reach into someone else's claim.
-     * A place event for the pipe as it stands asks them; cancelled = not allowed here. The pipe itself doesn't change.
-     */
-    static boolean mayCoverHere(ServerLevel level, BlockPos pos, Player player) {
-        return FlowPipeBlock.mayChange(level, pos, player)
-                && !EventHooks.onBlockPlace(player, BlockSnapshot.create(level.dimension(), level, pos), Direction.UP);
     }
 
     @Nullable

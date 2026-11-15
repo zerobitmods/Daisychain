@@ -1,5 +1,6 @@
 package com.daisychain.item;
 
+import com.daisychain.block.ClaimCheck;
 import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.block.FlowPipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
@@ -215,6 +216,7 @@ public final class SettingsCopierItem extends Item {
         // Collect the targets first: pasting insert settings rebuilds the network.
         LongArrayList targetPipes = new LongArrayList();
         List<Direction> targetSides = new java.util.ArrayList<>();
+        int protectedSides = 0;
         for (int i = 0; i < network.pipeCount(); i++) {
             BlockPos pipePos = BlockPos.of(network.pipeAt(i));
             if (!level.isLoaded(pipePos)) {
@@ -224,10 +226,18 @@ public final class SettingsCopierItem extends Item {
             if (!(pipeState.getBlock() instanceof FlowPipeBlock)) {
                 continue;
             }
+            int allowed = -1; // step 133: asked once per pipe, only if it has a matching side (-1 = not asked yet)
             for (Direction side : Direction.values()) {
                 boolean match = copied.insert() ? FlowPipeBlock.isInsertSide(level, pipePos, pipeState, side)
                         : FlowPipeBlock.isPullSide(level, pipePos, pipeState, side);
                 if (match) {
+                    if (allowed < 0) {
+                        allowed = ClaimCheck.mayChange(level, pipePos, player) ? 1 : 0;
+                    }
+                    if (allowed == 0) {
+                        protectedSides++; // in a claim this player can't build in: left alone
+                        continue;
+                    }
                     targetPipes.add(pipePos.asLong());
                     targetSides.add(side);
                 }
@@ -235,6 +245,10 @@ public final class SettingsCopierItem extends Item {
         }
         int count = targetSides.size();
         String kind = copied.insert() ? "insert" : "pull";
+        if (count == 0 && protectedSides > 0) {
+            tell(player, Component.translatable("message.daisychain.copier.network_all_protected"), ChatFormatting.YELLOW);
+            return;
+        }
         if (count == 0) {
             tell(player, Component.translatable("message.daisychain.copier.network_none_" + kind), ChatFormatting.YELLOW);
             return;
@@ -247,8 +261,12 @@ public final class SettingsCopierItem extends Item {
         CopierSessions.Session session = CopierSessions.of(player.getUUID());
         if (!session.confirm(level.dimension(), pos, null, level.getGameTime())) {
             highlight(player, PasteHighlightPayload.PREVIEW, targetPipes, targetSides);
-            tell(player, Component.translatable("message.daisychain.copier.confirm_network_" + kind, count),
-                    ChatFormatting.GOLD);
+            MutableComponent confirm = Component.translatable("message.daisychain.copier.confirm_network_" + kind, count);
+            if (protectedSides > 0) {
+                confirm.append(" ").append(Component.translatable("message.daisychain.copier.network_protected",
+                        protectedSides));
+            }
+            tell(player, confirm, ChatFormatting.GOLD);
             return;
         }
         session.reset();
@@ -285,8 +303,12 @@ public final class SettingsCopierItem extends Item {
             message.append(" ").append(Component.translatable("message.daisychain.copier.pasted_network_missing",
                     withoutUpgrade, missingItem.getDescription()));
         }
+        if (protectedSides > 0) {
+            message.append(" ").append(Component.translatable("message.daisychain.copier.network_protected",
+                    protectedSides));
+        }
         message.append(undoKeyHint());
-        tell(player, message, missingItem != null ? ChatFormatting.GOLD : ChatFormatting.GREEN);
+        tell(player, message, missingItem != null || protectedSides > 0 ? ChatFormatting.GOLD : ChatFormatting.GREEN);
     }
 
     /**
@@ -350,7 +372,7 @@ public final class SettingsCopierItem extends Item {
         for (int i = batch.changes.size() - 1; i >= 0; i--) {
             CopierSessions.SideChange change = batch.changes.get(i);
             BlockPos pos = change.pos();
-            if (!level.isLoaded(pos)) {
+            if (!level.isLoaded(pos) || !ClaimCheck.mayChange(level, pos, player)) { // step 133: claims
                 skipped++;
                 continue;
             }
@@ -434,7 +456,7 @@ public final class SettingsCopierItem extends Item {
         Item missingItem = null;
         for (CopierSessions.SideChange change : batch.changes) {
             BlockPos pos = change.pos();
-            if (!level.isLoaded(pos)) {
+            if (!level.isLoaded(pos) || !ClaimCheck.mayChange(level, pos, player)) { // step 133: claims
                 skipped++;
                 continue;
             }
