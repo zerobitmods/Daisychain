@@ -69,6 +69,10 @@ import java.util.concurrent.ConcurrentHashMap;
  * wrench is held; then it is drawn like any see-through cover, except the cover (the hologram cube) isn't faded: its
  * texture is see-through already. Its block state says CLEAR (step 134a: a full block like glass), so linked plain pipes
  * cap their arm's end as next to a glass cover (step 128).
+ * <p>
+ * Step 135: the hologram is drawn full-bright (it glows in the dark), and a cover skips its face toward a neighbor
+ * pipe wearing the same cover ({@link #SAME_COVER_SIDES}), like vanilla glass next to glass: a row of covered pipes
+ * reads as one block, with and without a wrench.
  */
 public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     /**
@@ -89,6 +93,10 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     static final ModelProperty<Integer> SEE_THROUGH = new ModelProperty<>();
     /** Step 129: the position's model seed, so the faded cover picks the same variant as when it's drawn solid. */
     static final ModelProperty<Long> COVER_SEED = new ModelProperty<>();
+    /** Step 135: bit per side (get3DDataValue) whose neighbor is a pipe with the same cover: that face isn't drawn. */
+    static final ModelProperty<Integer> SAME_COVER_SIDES = new ModelProperty<>();
+    /** Step 135: packed light for the hologram (block 15, sky 15). */
+    private static final int FULL_BRIGHT = 0x00F000F0;
     /** Step 129c: set only by WrenchCoverOverlay: getQuads returns the faded cover alone (any render type). */
     static final ModelProperty<Boolean> OVERLAY = new ModelProperty<>();
     /**
@@ -168,6 +176,10 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
         BlockState cover = state.getValue(FlowPipeBlock.HAS_DATA) ? modelData.get(PipeDataBlockEntity.COVER_MODEL) : null;
         if (cover != null) {
             ModelData.Builder builder = ModelData.builder().with(PipeDataBlockEntity.COVER_MODEL, cover);
+            int same = sameCoverSides(level, pos, cover);
+            if (same != 0) {
+                builder.with(SAME_COVER_SIDES, same);
+            }
             try {
                 ModelData coverData = coverModel(cover).getModelData(level, pos, cover, ModelData.EMPTY);
                 if (coverData != null && coverData != ModelData.EMPTY) {
@@ -202,6 +214,34 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             sky = Math.max(sky, LightTexture.sky(packed));
         }
         return block | sky << 4;
+    }
+
+    /**
+     * Step 135: the sides whose neighbor is a pipe wearing this same cover. Reads the neighbors' block entities: on the
+     * main thread for the overlay, from the chunk copy while meshing (vanilla does the same for block entity renderers).
+     * A neighbor's cover changing re-meshes this section too (its block update marks the sections around it).
+     */
+    private static int sameCoverSides(BlockAndTintGetter level, BlockPos pos, BlockState cover) {
+        BlockPos.MutableBlockPos next = new BlockPos.MutableBlockPos();
+        int sides = 0;
+        for (Direction direction : DIRECTIONS) {
+            next.setWithOffset(pos, direction);
+            BlockState neighbor = level.getBlockState(next);
+            if (neighbor.getBlock() instanceof FlowPipeBlock && neighbor.getValue(FlowPipeBlock.COVER) != CoverShape.NONE
+                    && level.getBlockEntity(next) instanceof PipeDataBlockEntity data && data.cover() == cover) {
+                sides |= 1 << direction.get3DDataValue();
+            }
+        }
+        return sides;
+    }
+
+    /** Step 135: true if this face of the cover touches a neighbor with the same cover. */
+    private static boolean sharedFace(ModelData data, @Nullable Direction side) {
+        if (side == null) {
+            return false;
+        }
+        Integer same = data.get(SAME_COVER_SIDES);
+        return same != null && (same & (1 << side.get3DDataValue())) != 0;
     }
 
     /** Insert sides (bits 0-5) and, if asked, end-capped link sides (bits 6-11, step 128). */
@@ -245,12 +285,12 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
         if (cover != null && seeThrough != null) {
             // Step 129: wrench in hand. Step 129c: the faded cover only for WrenchCoverOverlay; chunk meshes get the pipe.
             if (extraData.get(OVERLAY) != null) {
-                return fadedCover(cover, side, extraData);
+                return sharedFace(extraData, side) ? List.of() : fadedCover(cover, side, extraData);
             }
             return seeThroughPipe(state, side, rand, extraData, renderType, seeThrough);
         }
-        if (cover != null && FacadeItem.isTransparent(cover)) {
-            return List.of(); // step 134: looks like no pipe until a wrench is held
+        if (cover != null && (FacadeItem.isTransparent(cover) || sharedFace(extraData, side))) {
+            return List.of(); // step 134: looks like no pipe until a wrench is held; step 135: shared face
         }
         if (cover != null) {
             try {
@@ -315,8 +355,7 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             ModelData data = coverData(extraData);
             random.setSeed(seed);
             ChunkRenderTypeSet layers = model.getRenderTypes(cover, random, data);
-            // Step 134: the transparent facade's hologram is see-through by its texture; fading it too would hide it.
-            int alpha = FacadeItem.isTransparent(cover) ? 255 : FADE_ALPHA;
+            int alpha = FADE_ALPHA; // step 134/135: the hologram isn't faded (glowingQuad below)
             List<BakedQuad> faded = new ArrayList<>();
             for (RenderType layer : layers) {
                 random.setSeed(seed);
@@ -328,8 +367,9 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
                     }
                 }
             }
+            boolean glow = FacadeItem.isTransparent(cover);
             for (int i = 0; i < faded.size(); i++) {
-                faded.set(i, fadedQuad(faded.get(i), alpha));
+                faded.set(i, glow ? glowingQuad(faded.get(i)) : fadedQuad(faded.get(i), alpha));
             }
             return faded;
         } catch (RuntimeException e) {
@@ -349,6 +389,20 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
         }
         return new BakedQuad(vertices, quad.isTinted() ? quad.getTintIndex() + COVER_TINT_OFFSET : quad.getTintIndex(),
                 quad.getDirection(), quad.getSprite(), quad.isShade(), quad.hasAmbientOcclusion());
+    }
+
+    /**
+     * Step 135: the hologram's quad lit full-bright: light 15/15 baked in (NeoForge keeps the brighter of baked and
+     * world light), no side shading, no ambient occlusion, so it glows evenly in caves and at night.
+     */
+    private static BakedQuad glowingQuad(BakedQuad quad) {
+        int[] vertices = quad.getVertices().clone();
+        int stride = vertices.length / 4;
+        for (int v = 0; v < 4; v++) {
+            vertices[v * stride + 6] = FULL_BRIGHT; // BLOCK format: x, y, z, color, u, v, light, normal
+        }
+        return new BakedQuad(vertices, quad.isTinted() ? quad.getTintIndex() + COVER_TINT_OFFSET : quad.getTintIndex(),
+                quad.getDirection(), quad.getSprite(), false, false);
     }
 
     /**
@@ -398,6 +452,9 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     @Override
     public TriState useAmbientOcclusion(BlockState state, ModelData data, RenderType renderType) {
         BlockState cover = data.get(PipeDataBlockEntity.COVER_MODEL);
+        if (FacadeItem.isTransparent(cover) && data.get(OVERLAY) != null) {
+            return TriState.FALSE; // step 135: the hologram glows evenly (flat light, so the baked full-bright wins)
+        }
         // Step 129: while see-through, only the overlay's faded cover (129c) uses the cover's setting; the pipe keeps its own.
         if (cover != null && (data.get(SEE_THROUGH) == null || data.get(OVERLAY) != null)) {
             try {
