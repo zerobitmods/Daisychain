@@ -30,7 +30,8 @@ import java.util.Set;
  *   with block X → the ones covered with X (their old facades go back to the player). Other pipes are walked through
  *   but left alone. Holding a facade of X itself does nothing.</li>
  *   <li>At most {@code facades.max_mass_apply} pipes per click (server config); one facade per pipe, stopping when
- *   the stack runs out (creative uses none). Build rights and claims are checked for every pipe.</li>
+ *   the stack runs out (creative uses none). Build rights and claims are checked for every pipe (step 132: claim
+ *   mods through the place event, see ClaimCheck).</li>
  * </ul>
  * {@link #selection} is plain reading, so the client can use it later for the highlight (step 131).
  */
@@ -112,7 +113,7 @@ public final class FacadeMassApply {
             if (!creative && stack.isEmpty()) {
                 break;
             }
-            if (!FlowPipeBlock.mayChange(level, pos, player)) {
+            if (!ClaimCheck.mayChange(level, pos, player)) {
                 continue; // claimed or protected: skip this pipe, keep going
             }
             FlowPipeBlock.ensureData(level, pos);

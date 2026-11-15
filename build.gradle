@@ -146,8 +146,15 @@ dependencies {
     modCompileOnly("dev.ftb.mods:ftb-ultimine-forge:${ultimine_version}") { transitive = false }
     modCompileOnly("dev.architectury:architectury-forge:${architectury_version}") { transitive = false }
     modRuntimeOnly("dev.ftb.mods:ftb-ultimine-forge:${ultimine_version}") { transitive = false }
-    modRuntimeOnly("dev.ftb.mods:ftb-library-forge:${ftb_library_version}") { transitive = false }
+    // Step F60: ./gradlew runClient -Pwith_ftbchunks also puts FTB Chunks and FTB Teams in the dev game, to check that
+    // claims stop a mass facade click and a network paste. They need a newer FTB Library, which Ultimine accepts too.
+    def withFtbChunks = project.hasProperty('with_ftbchunks')
+    modRuntimeOnly("dev.ftb.mods:ftb-library-forge:${withFtbChunks ? ftbchunks_library_version : ftb_library_version}") { transitive = false }
     modRuntimeOnly("dev.architectury:architectury-forge:${architectury_version}") { transitive = false }
+    if (withFtbChunks) {
+        modRuntimeOnly("dev.ftb.mods:ftb-chunks-forge:${ftbchunks_version}") { transitive = false }
+        modRuntimeOnly("dev.ftb.mods:ftb-teams-forge:${ftbteams_version}") { transitive = false }
+    }
 }
 
 // Fill in mods.toml from gradle.properties.

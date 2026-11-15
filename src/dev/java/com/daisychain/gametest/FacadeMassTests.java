@@ -198,6 +198,31 @@ public final class FacadeMassTests {
         helper.succeed();
     }
 
+    /**
+     * Step 132: a claim mod that refuses the place event on one pipe (like FTB Chunks in someone else's claim) keeps
+     * that pipe as it was: no cover, no facade used. The others still get covered.
+     */
+    @GameTest(template = EMPTY)
+    public static void massSkipsPipesAClaimModRefuses(GameTestHelper helper) {
+        line(helper, 1, 5, ModBlocks.ITEM_PIPE.get());
+        Player player = sneaker(helper, GameType.SURVIVAL);
+        ItemStack oak = FacadeItem.of(OAK, 10);
+        BlockPos refused = helper.absolutePos(at(3));
+        TestClaims.refuse(refused);
+        try {
+            massClick(helper, player, 1, oak, 64);
+        } finally {
+            TestClaims.allow(refused);
+        }
+        for (int x = 1; x <= 5; x++) {
+            BlockState expected = x == 3 ? null : OAK;
+            helper.assertTrue(cover(helper, at(x)) == expected, "x " + x + " is " + cover(helper, at(x)));
+        }
+        helper.assertTrue(oak.getCount() == 6, "Facades left: " + oak.getCount() + " (should be 6)");
+        helper.assertTrue(itemsOnGround(helper) == 0, "Something dropped");
+        helper.succeed();
+    }
+
     // ---------------------------------------------------------------- helpers
 
     private static BlockPos at(int x) {
