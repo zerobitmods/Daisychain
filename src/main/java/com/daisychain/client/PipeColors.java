@@ -127,13 +127,14 @@ public final class PipeColors {
     }
 
     private static int ringColor(BlockState state, @Nullable BlockAndTintGetter level, @Nullable BlockPos pos, int tintIndex) {
-        if (level != null && pos != null) {
+        if (tintIndex >= PipeBakedModel.COVER_TINT_OFFSET) {
             // Step F54: a covered pipe draws its cover's quads, so their tints are the cover's (grass, leaves, water...).
-            PipeDataBlockEntity covered = FlowPipeBlock.getData(level, pos, state);
+            // Step F57: those quads carry COVER_TINT_OFFSET (PipeBakedModel), so with a wrench in hand, when the pipe
+            // is drawn too, lower tint indexes are the pipe's own and get the pipe colors below.
+            PipeDataBlockEntity covered = level == null || pos == null ? null : FlowPipeBlock.getData(level, pos, state);
             BlockState cover = covered == null ? null : covered.cover();
-            if (cover != null) {
-                return Minecraft.getInstance().getBlockColors().getColor(cover, level, pos, tintIndex);
-            }
+            return cover == null ? -1 : Minecraft.getInstance().getBlockColors()
+                    .getColor(cover, level, pos, tintIndex - PipeBakedModel.COVER_TINT_OFFSET);
         }
         int energyTier = EnergyPipeBlock.tierOf(state.getBlock());
         if (tintIndex == BAND_TINT) {

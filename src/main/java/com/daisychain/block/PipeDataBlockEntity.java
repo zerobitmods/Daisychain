@@ -852,6 +852,17 @@ public final class PipeDataBlockEntity extends BlockEntity {
     }
 
     /**
+     * Step 129c: counts covered pipes appearing, changing or going away on the client (loaded, cover changed, broken,
+     * unloaded). The wrench see-through overlay (client/WrenchCoverOverlay) rebuilds when it changes. Plain int: only
+     * the client thread writes and reads it.
+     */
+    private static int clientCoverChanges;
+
+    public static int clientCoverChanges() {
+        return clientCoverChanges;
+    }
+
+    /**
      * Server only. Sets or (null) clears the cover. Callers hand out or take the facade item themselves, and check that
      * the block is allowed (FacadeItem.canCover). Sends the change to clients.
      */
@@ -903,6 +914,9 @@ public final class PipeDataBlockEntity extends BlockEntity {
     @Override
     public void onLoad() {
         super.onLoad();
+        if (level != null && level.isClientSide() && cover != null) {
+            clientCoverChanges++; // step 129c
+        }
         syncExtractor();
         if (level instanceof ServerLevel serverLevel && !coverStateMatches()) {
             // Step F55: a covered pipe saved before covers were in the block state; its tick sets it.
@@ -922,6 +936,9 @@ public final class PipeDataBlockEntity extends BlockEntity {
     @Override
     public void setRemoved() {
         super.setRemoved();
+        if (level != null && level.isClientSide() && cover != null) {
+            clientCoverChanges++; // step 129c: broken or unloaded
+        }
         if (level != null && level.isClientSide() && cover != null && !chunkUnloading) {
             // Step F54 (126b): the block entity went away while covered (the cover was its last setting). Ask Forge to
             // drop the cover it stored for this spot; otherwise break particles would still show the old cover.
@@ -1088,6 +1105,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
         cover = tag.contains("Cover", Tag.TAG_COMPOUND) ? readCover(tag.getCompound("Cover")) : null;
         if (cover != coverBefore && level != null && level.isClientSide()) {
             requestModelDataUpdate(); // step F54: the model reads the cover from getModelData
+            clientCoverChanges++; // step F57 (129c)
         }
     }
 
