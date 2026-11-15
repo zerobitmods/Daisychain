@@ -85,6 +85,7 @@ public final class FacadeItem extends Item {
         }
         tooltip.add(Component.translatable("tooltip.daisychain.facade.looks").withStyle(ChatFormatting.GRAY));
         tooltip.add(Component.translatable("tooltip.daisychain.facade.apply").withStyle(ChatFormatting.DARK_GRAY));
+        tooltip.add(Component.translatable("tooltip.daisychain.facade.mass").withStyle(ChatFormatting.DARK_GRAY));
         tooltip.add(Component.translatable("tooltip.daisychain.facade.remove").withStyle(ChatFormatting.DARK_GRAY));
     }
 }

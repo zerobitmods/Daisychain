@@ -382,10 +382,15 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
             return ItemInteractionResult.SUCCESS;
         }
         // Step 125 (facades): right-click with a facade covers the pipe, or swaps the cover (the old one comes back).
-        // Sneaking with an item never reaches here (vanilla uses the item instead).
+        // Step 130: sneak + right-click covers the linked pipes of the same type (FacadeMassApply). Sneak-clicks reach
+        // this method through DaisychainEvents.onRightClickBlock.
         if (stack.getItem() instanceof FacadeItem && hand == InteractionHand.MAIN_HAND) {
             if (level instanceof ServerLevel serverLevel && mayChange(serverLevel, pos, player)) {
-                applyFacade(serverLevel, pos, player, stack);
+                if (player.isSecondaryUseActive()) {
+                    FacadeMassApply.apply(serverLevel, pos, player, stack);
+                } else {
+                    applyFacade(serverLevel, pos, player, stack);
+                }
             }
             return ItemInteractionResult.SUCCESS;
         }
@@ -1126,7 +1131,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
      * Step 125: may this player put on, swap or take off a cover here? Claim mods and spawn protection usually stop the
      * click earlier (the right-click event); this is the second check, as for tier swaps.
      */
-    private static boolean mayChange(ServerLevel level, BlockPos pos, Player player) {
+    static boolean mayChange(ServerLevel level, BlockPos pos, Player player) {
         return player.mayBuild() && level.mayInteract(player, pos);
     }
 
@@ -1188,7 +1193,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         dropDataIfUnused(level, pos); // a pipe with nothing else stored goes back to a plain block
     }
 
-    private static void giveOrDrop(Player player, ItemStack stack) {
+    static void giveOrDrop(Player player, ItemStack stack) {
         if (!player.getInventory().add(stack)) {
             player.drop(stack, false);
         }
