@@ -1,0 +1,5 @@
+{
+  "variants": {
+    "": { "model": "daisychain:block/transparent_cover" }
+  }
+}

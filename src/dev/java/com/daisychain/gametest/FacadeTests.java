@@ -3,8 +3,10 @@ package com.daisychain.gametest;
 import com.daisychain.Daisychain;
 import com.daisychain.block.CoverShape;
 import com.daisychain.block.EnergyPipeBlock;
+import com.daisychain.block.FacadeMassApply;
 import com.daisychain.block.FlowPipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
+import com.daisychain.config.DaisychainConfig;
 import com.daisychain.item.FacadeItem;
 import com.daisychain.registry.ModBlocks;
 import com.daisychain.registry.ModItems;
@@ -422,6 +424,115 @@ public final class FacadeTests {
             helper.assertTrue(level.getBlockState(otherAt).getValue(FlowPipeBlock.COVER) == CoverShape.NONE,
                     "Pasted cover state with nothing stored: " + level.getBlockState(otherAt));
         });
+    }
+
+    // ---------------------------------------------------------------- step F61 (port of 134 / 134a, transparent facade)
+
+    /** A plain glass pane + item pipe makes 8 transparent facades; stained panes and a lone pane don't. */
+    @GameTest(template = EMPTY)
+    public static void transparentFacadeRecipe(GameTestHelper helper) {
+        ItemStack pipe = new ItemStack(ModItems.ITEM_PIPE.get());
+        ItemStack made = craft(helper, new ItemStack(Items.GLASS_PANE), pipe);
+        helper.assertTrue(made.is(ModItems.FACADE.get()) && FacadeItem.isTransparent(FacadeItem.coverOf(made))
+                && made.getCount() == 8, "Glass pane + pipe made " + made);
+        helper.assertTrue(!craft(helper, new ItemStack(Items.RED_STAINED_GLASS_PANE), pipe).is(ModItems.FACADE.get()),
+                "A stained glass pane made a facade");
+        helper.assertTrue(!craft(helper, new ItemStack(Items.GLASS_PANE), ItemStack.EMPTY).is(ModItems.FACADE.get()),
+                "A pane alone made a facade");
+        helper.succeed();
+    }
+
+    /**
+     * 134a: a transparent cover acts like glass: block state CLEAR, full block to walk on and click, light passes,
+     * no redstone. It comes off with sneak + empty hand (anywhere on the block), nothing drops.
+     */
+    @GameTest(template = EMPTY)
+    public static void transparentFacadeIsClearBlock(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos at = helper.absolutePos(PIPE);
+        BlockState clear = FacadeItem.transparentCover();
+        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
+        coverWithSurvivalPlayer(helper, PIPE, clear);
+        BlockState state = level.getBlockState(at);
+        helper.assertTrue(state.getValue(FlowPipeBlock.COVER) == CoverShape.CLEAR, "Cover state: " + state);
+        helper.assertTrue(data(helper, PIPE).coverStateMatches(), "Stored cover and block state disagree");
+        helper.assertTrue(state.isCollisionShapeFullBlock(level, at), "Transparent-covered pipe isn't a full block to walk on");
+        helper.assertTrue(Block.isShapeFullBlock(state.getShape(level, at)), "Outline isn't a full block");
+        helper.assertTrue(state.propagatesSkylightDown(level, at), "Sky light stops at a transparent cover");
+        helper.assertTrue(state.getLightBlock(level, at) == 0, "Transparent cover blocks light: " + state.getLightBlock(level, at));
+        helper.assertFalse(state.isRedstoneConductor(level, at), "Transparent cover conducts redstone");
+        helper.assertTrue(data(helper, PIPE).getModelData().get(PipeDataBlockEntity.COVER_MODEL) == clear,
+                "The model doesn't hear about the transparent cover");
+        Player player = helper.makeMockPlayer();
+        player.setShiftKeyDown(true);
+        // A corner of the top face: on the full block, nowhere near the pipe inside.
+        BlockHitResult corner = new BlockHitResult(Vec3.atLowerCornerOf(at).add(0.05, 1.0, 0.05), Direction.UP, at, false);
+        clickAt(helper, player, ItemStack.EMPTY, corner);
+        ItemStack inHand = player.getMainHandItem();
+        helper.assertTrue(cover(helper, PIPE) == null, "Transparent cover didn't come off from a corner click");
+        helper.assertTrue(inHand.is(ModItems.FACADE.get()) && FacadeItem.isTransparent(FacadeItem.coverOf(inHand))
+                && inHand.getCount() == 1, "Hand holds " + inHand + " (should be 1 transparent facade)");
+        helper.assertTrue(itemsOnGround(helper) == 0, "Something dropped");
+        helper.succeed();
+    }
+
+    /**
+     * Config allow_transparent = false: no crafting, no putting one on (nothing used), but a pipe already wearing one
+     * can still take it off. The config is set back in the same tick, so other tests never see it off.
+     */
+    @GameTest(template = EMPTY)
+    public static void transparentFacadeTurnedOff(GameTestHelper helper) {
+        BlockState clear = FacadeItem.transparentCover();
+        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
+        coverWithSurvivalPlayer(helper, PIPE, clear); // put on while allowed
+        BlockPos other = PIPE.east(2);
+        pipe(helper, other, ModBlocks.ITEM_PIPE.get());
+        boolean before = DaisychainConfig.ALLOW_TRANSPARENT_FACADES.get();
+        DaisychainConfig.ALLOW_TRANSPARENT_FACADES.set(false);
+        try {
+            helper.assertTrue(!craft(helper, new ItemStack(Items.GLASS_PANE), new ItemStack(ModItems.ITEM_PIPE.get()))
+                    .is(ModItems.FACADE.get()), "Crafted a transparent facade while they're off");
+            Player player = helper.makeMockPlayer();
+            ItemStack facade = FacadeItem.of(clear, 1);
+            player.setItemInHand(InteractionHand.MAIN_HAND, facade);
+            clickAt(helper, player, facade, centerHit(helper, other));
+            helper.assertTrue(cover(helper, other) == null, "A transparent facade went on while they're off");
+            helper.assertTrue(facade.getCount() == 1, "The refused facade was used up");
+
+            Player remover = helper.makeMockPlayer();
+            remover.setShiftKeyDown(true);
+            clickAt(helper, remover, ItemStack.EMPTY, centerHit(helper, PIPE));
+            helper.assertTrue(cover(helper, PIPE) == null, "Couldn't take a transparent facade off while they're off");
+            helper.assertTrue(FacadeItem.isTransparent(FacadeItem.coverOf(remover.getMainHandItem())),
+                    "Taking it off gave " + remover.getMainHandItem());
+        } finally {
+            DaisychainConfig.ALLOW_TRANSPARENT_FACADES.set(before);
+        }
+        helper.succeed();
+    }
+
+    /** Sneak + right-click with transparent facades covers the linked pipes too (mass apply treats it like any cover). */
+    @GameTest(template = EMPTY)
+    public static void transparentFacadeMassApply(GameTestHelper helper) {
+        BlockState clear = FacadeItem.transparentCover();
+        for (int x = 2; x <= 6; x++) {
+            pipe(helper, new BlockPos(x, 1, 2), ModBlocks.ITEM_PIPE.get());
+        }
+        for (int x = 2; x <= 6; x++) {
+            FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(new BlockPos(x, 1, 2)));
+        }
+        Player player = helper.makeMockPlayer();
+        ItemStack facades = FacadeItem.of(clear, 8);
+        player.setItemInHand(InteractionHand.MAIN_HAND, facades);
+        FacadeMassApply.apply(helper.getLevel(), helper.absolutePos(PIPE), player, facades, 64);
+        for (int x = 2; x <= 6; x++) {
+            BlockPos pos = new BlockPos(x, 1, 2);
+            helper.assertTrue(cover(helper, pos) == clear, "Pipe at x " + x + " has " + cover(helper, pos));
+            helper.assertTrue(helper.getBlockState(pos).getValue(FlowPipeBlock.COVER) == CoverShape.CLEAR,
+                    "Pipe at x " + x + " isn't a clear full block");
+        }
+        helper.assertTrue(facades.getCount() == 3, "Facades left: " + facades.getCount() + " (should be 3)");
+        helper.succeed();
     }
 
     private static ItemStack craft(GameTestHelper helper, ItemStack a, ItemStack b) {

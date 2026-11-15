@@ -11,13 +11,15 @@ import net.minecraft.world.item.crafting.CustomRecipe;
 import net.minecraft.world.item.crafting.RecipeSerializer;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.state.BlockState;
+import net.minecraftforge.common.Tags;
 
 import javax.annotation.Nullable;
 
 /**
  * Step F53 (port of step 125): shapeless, any grid. One block that can be a cover (FacadeItem.canCover) + one item pipe
  * = 8 facades of that block. The block is read from the grid, so this is a special recipe
- * (data/daisychain/recipes/facade.json only names the type).
+ * (data/daisychain/recipes/facade.json only names the type). Step F61 (port of 134): a plain (colorless) glass pane
+ * instead of a block makes transparent facades, unless the server config turns them off.
  */
 public final class FacadeRecipe extends CustomRecipe {
     /** Facades per craft: 8 (zerobit, 2026-11-14). */
@@ -51,9 +53,10 @@ public final class FacadeRecipe extends CustomRecipe {
             if (!pipe && stack.is(ModItems.ITEM_PIPE.get())) {
                 pipe = true;
             } else if (cover == null) {
-                cover = FacadeItem.coverFor(stack);
-                if (cover == null) {
-                    return null;
+                cover = stack.is(Tags.Items.GLASS_PANES_COLORLESS) ? FacadeItem.transparentCover()
+                        : FacadeItem.coverFor(stack);
+                if (cover == null || !FacadeItem.canCover(cover)) {
+                    return null; // not a cover block, or transparent facades turned off
                 }
             } else {
                 return null; // a third item

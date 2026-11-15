@@ -4,6 +4,7 @@ import com.daisychain.Daisychain;
 import com.daisychain.block.CoverShape;
 import com.daisychain.block.FlowPipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
+import com.daisychain.item.FacadeItem;
 import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
@@ -215,8 +216,16 @@ public final class WrenchCoverOverlay {
         POSE.pushPose();
         POSE.translate(pos.getX() - ORIGIN.getX(), pos.getY() - ORIGIN.getY(), pos.getZ() - ORIGIN.getZ());
         try {
-            renderer.tesselateBlock(level, model, state, pos, POSE, builder, true, RANDOM, state.getSeed(pos),
-                    OverlayTexture.NO_OVERLAY, modelData, translucent);
+            if (FacadeItem.isTransparent(data.cover())) {
+                // Step F61 (135): the hologram glows evenly: flat light, so its baked full-bright wins on every face.
+                // (NeoForge says this through the model's AO hook; Forge 1.20.1's hook gets no model data.) Belt and
+                // braces: Forge's AO path already lights quads without AO flat, and glowingQuad turns AO off.
+                renderer.tesselateWithoutAO(level, model, state, pos, POSE, builder, true, RANDOM, state.getSeed(pos),
+                        OverlayTexture.NO_OVERLAY, modelData, translucent);
+            } else {
+                renderer.tesselateBlock(level, model, state, pos, POSE, builder, true, RANDOM, state.getSeed(pos),
+                        OverlayTexture.NO_OVERLAY, modelData, translucent);
+            }
             return true;
         } catch (RuntimeException e) {
             if (!warned) {
@@ -325,17 +334,31 @@ public final class WrenchCoverOverlay {
         RenderType type = RenderType.translucent();
         type.setupRenderState();
         RenderSystem.depthMask(false); // the point of this class: faded faces never hide each other
-        ShaderInstance shader = RenderSystem.getShader();
-        if (shader != null) {
-            if (shader.CHUNK_OFFSET != null) {
-                shader.CHUNK_OFFSET.set(0.0F, 0.0F, 0.0F);
-            }
-            buffer.bind();
-            buffer.drawWithShader(MODEL_VIEW, event.getProjectionMatrix(), shader);
-            VertexBuffer.unbind();
-        }
+        draw(event);
         RenderSystem.depthMask(true);
         type.clearRenderState();
+        // Step F61 (134a): a second pass that writes only depth, after all faces are blended. Without it clouds, rain,
+        // snow and particles (drawn later) painted over the faded covers wherever sky was behind them. The cutout
+        // shader skips pixels under 10% alpha, so the clear middle of a faded glass cover still shows what's behind.
+        RenderType depth = RenderType.cutout();
+        depth.setupRenderState();
+        RenderSystem.colorMask(false, false, false, false);
+        draw(event);
+        RenderSystem.colorMask(true, true, true, true);
+        depth.clearRenderState();
+    }
+
+    private static void draw(RenderLevelStageEvent event) {
+        ShaderInstance shader = RenderSystem.getShader();
+        if (shader == null) {
+            return;
+        }
+        if (shader.CHUNK_OFFSET != null) {
+            shader.CHUNK_OFFSET.set(0.0F, 0.0F, 0.0F);
+        }
+        buffer.bind();
+        buffer.drawWithShader(MODEL_VIEW, event.getProjectionMatrix(), shader);
+        VertexBuffer.unbind();
     }
 
     /** F3: how many covers the overlay holds and how long the last build took. */

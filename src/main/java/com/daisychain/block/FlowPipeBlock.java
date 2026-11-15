@@ -1113,8 +1113,9 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
     private static void applyFacade(ServerLevel level, BlockPos pos, Player player, ItemStack stack) {
         BlockState cover = FacadeItem.coverOf(stack);
         if (!FacadeItem.canCover(cover)) {
-            // An empty facade, or one edited in creative to hold a block that can't be a cover.
-            player.displayClientMessage(Component.translatable("message.daisychain.facade_invalid"), true);
+            // An empty facade, or one edited in creative to hold a block that can't be a cover. Step F61 (port of 134):
+            // or a transparent facade on a server that turned them off.
+            player.displayClientMessage(FacadeItem.refusedMessage(cover), true);
             return;
         }
         PipeDataBlockEntity data = getData(level, pos, level.getBlockState(pos));
@@ -1219,7 +1220,10 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
 
     // ---------------------------------------------------------------- covers (step 127, facades step 3)
 
-    /** What a cover block means for the pipe's block state: SOLID for opaque full blocks, CLEAR for see-through ones. */
+    /**
+     * What a cover block means for the pipe's block state: SOLID for opaque full blocks, CLEAR for see-through ones.
+     * Step F61 (port of 134a): a transparent facade is CLEAR like glass (full block to walk on and click, lets light through).
+     */
     public static CoverShape coverShapeOf(@Nullable BlockState cover) {
         if (cover == null || cover.isAir()) {
             return CoverShape.NONE;
