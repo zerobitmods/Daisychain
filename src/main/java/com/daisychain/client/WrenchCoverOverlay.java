@@ -1,6 +1,7 @@
 package com.daisychain.client;
 
 import com.daisychain.Daisychain;
+import com.daisychain.block.CoverShape;
 import com.daisychain.block.FlowPipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -13,15 +14,19 @@ import com.mojang.blaze3d.vertex.VertexBuffer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
+import net.minecraft.client.renderer.LightTexture;
 import net.minecraft.client.renderer.RenderType;
 import net.minecraft.client.renderer.ShaderInstance;
 import net.minecraft.client.renderer.block.BlockRenderDispatcher;
 import net.minecraft.client.renderer.block.ModelBlockRenderer;
 import net.minecraft.client.renderer.texture.OverlayTexture;
+import net.minecraft.client.renderer.block.model.BakedQuad;
 import net.minecraft.client.resources.model.BakedModel;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.Direction;
 import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.RenderShape;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.level.chunk.LevelChunk;
@@ -34,6 +39,9 @@ import net.neoforged.neoforge.client.event.CustomizeGuiOverlayEvent;
 import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import net.neoforged.neoforge.client.model.data.ModelData;
 import org.joml.Matrix4f;
+
+import java.util.ArrayList;
+import java.util.List;
 import org.slf4j.Logger;
 import com.mojang.logging.LogUtils;
 
@@ -46,12 +54,24 @@ import com.mojang.logging.LogUtils;
  * a covered pipe appears, changes or goes away (at most every {@link #REBUILD_TICKS} ticks); each frame is one draw
  * call with no allocations. Light changes while the wrench is held aren't picked up until the next rebuild. F3 shows
  * the pipe count and the last build time (for measuring).
+ * <p>
+ * Step 129d: the faces of blocks touching an opaque-covered pipe (the floor under it, a wall beside it) were either
+ * missing (grass and other non-solid-layer blocks: the cover hides them, hidesNeighborFace) or dark (dirt and other
+ * solid blocks: lit from the covered spot, where the cover blocks all light). With the cover faded both showed. The
+ * overlay now draws those faces first, lit with the brightest light around the pipe and lifted 1/512 of a block toward
+ * the pipe so they sit in front of the dark copy in the chunk mesh; the faded covers go on top. Those neighbor blocks
+ * are checked every {@link #VERIFY_TICKS} ticks, so breaking or placing one next to a covered pipe rebuilds.
  */
 @EventBusSubscriber(modid = Daisychain.MOD_ID, value = Dist.CLIENT)
 public final class WrenchCoverOverlay {
     private static final Logger LOGGER = LogUtils.getLogger();
     /** Shortest gap between two rebuilds. Mass facade apply changes many pipes at once: one rebuild, not one each. */
     private static final int REBUILD_TICKS = 5;
+    /** Step 129d: how often the blocks next to opaque-covered pipes are checked for changes. */
+    private static final int VERIFY_TICKS = 10;
+    /** Step 129d: how far a redrawn neighbor face is moved toward the pipe (in front of the chunk mesh's dark copy). */
+    private static final float FACE_LIFT = 1.0F / 512.0F;
+    private static final Direction[] DIRECTIONS = Direction.values();
 
     private static VertexBuffer buffer;
     /** Where the buffer's vertices are measured from (the player's block when it was built), for float precision. */
@@ -63,10 +83,18 @@ public final class WrenchCoverOverlay {
     private static int lastPipes;
     private static long lastBuildMicros;
     private static boolean warned;
+    /** Step 129d: the neighbors of opaque-covered pipes at the last build (position, state), to spot changes. */
+    private static long[] neighborPositions = new long[64];
+    private static BlockState[] neighborStates = new BlockState[64];
+    private static int neighborCount;
+    private static int verifyIn;
 
     private static final Matrix4f MODEL_VIEW = new Matrix4f();
     private static final PoseStack POSE = new PoseStack();
     private static final RandomSource RANDOM = RandomSource.create();
+    private static final BlockPos.MutableBlockPos NEXT = new BlockPos.MutableBlockPos();
+    private static final float[] SHADE = new float[4];
+    private static final int[] LIGHT = new int[4];
 
     private WrenchCoverOverlay() {
     }
@@ -86,6 +114,8 @@ public final class WrenchCoverOverlay {
         builtLevel = null;
         dirty = false;
         lastPipes = 0;
+        neighborCount = 0;
+        java.util.Arrays.fill(neighborStates, null);
     }
 
     /** Every client tick while a wrench is held (WrenchSeeThrough). */
@@ -94,6 +124,12 @@ public final class WrenchCoverOverlay {
         if (changes != seenChanges || level != builtLevel) {
             seenChanges = changes;
             dirty = true;
+        }
+        if (--verifyIn <= 0) {
+            verifyIn = VERIFY_TICKS;
+            if (!dirty && neighborsChanged(level)) {
+                dirty = true;
+            }
         }
         if (cooldown > 0) {
             cooldown--;
@@ -116,20 +152,30 @@ public final class WrenchCoverOverlay {
         ChunkPos center = minecraft.player.chunkPosition();
         int radius = minecraft.options.getEffectiveRenderDistance() + 1;
         int pipes = 0;
+        neighborCount = 0;
+        List<PipeDataBlockEntity> covered = new ArrayList<>();
+        for (int x = center.x - radius; x <= center.x + radius; x++) {
+            for (int z = center.z - radius; z <= center.z + radius; z++) {
+                LevelChunk chunk = level.getChunkSource().getChunk(x, z, ChunkStatus.FULL, false);
+                if (chunk == null) {
+                    continue;
+                }
+                for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
+                    if (blockEntity instanceof PipeDataBlockEntity data && data.hasCover() && !data.isRemoved()) {
+                        covered.add(data);
+                    }
+                }
+            }
+        }
         try (ByteBufferBuilder bytes = new ByteBufferBuilder(translucent.bufferSize())) {
             BufferBuilder builder = new BufferBuilder(bytes, VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
-            for (int x = center.x - radius; x <= center.x + radius; x++) {
-                for (int z = center.z - radius; z <= center.z + radius; z++) {
-                    LevelChunk chunk = level.getChunkSource().getChunk(x, z, ChunkStatus.FULL, false);
-                    if (chunk == null) {
-                        continue;
-                    }
-                    for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
-                        if (blockEntity instanceof PipeDataBlockEntity data && data.hasCover() && !data.isRemoved()
-                                && addPipe(level, dispatcher, renderer, builder, data, translucent)) {
-                            pipes++;
-                        }
-                    }
+            // Step 129d: neighbor faces first, so the faded covers are drawn over them.
+            for (int i = 0; i < covered.size(); i++) {
+                addNeighborFaces(minecraft, level, dispatcher, builder, covered.get(i).getBlockPos());
+            }
+            for (int i = 0; i < covered.size(); i++) {
+                if (addPipe(level, dispatcher, renderer, builder, covered.get(i), translucent)) {
+                    pipes++;
                 }
             }
             MeshData mesh = builder.build();
@@ -180,6 +226,90 @@ public final class WrenchCoverOverlay {
         } finally {
             POSE.popPose();
         }
+    }
+
+    /**
+     * Step 129d: for a pipe with an opaque cover, draws the face of each block touching it (the face toward the pipe),
+     * lit as if the cover let light through. Records every neighbor's state so changes trigger a rebuild.
+     */
+    private static void addNeighborFaces(Minecraft minecraft, ClientLevel level, BlockRenderDispatcher dispatcher,
+                                         BufferBuilder builder, BlockPos pos) {
+        BlockState pipe = level.getBlockState(pos);
+        if (!(pipe.getBlock() instanceof FlowPipeBlock) || pipe.getValue(FlowPipeBlock.COVER) != CoverShape.SOLID) {
+            return;
+        }
+        int floor = PipeBakedModel.lightFloor(level, pos);
+        java.util.Arrays.fill(LIGHT, LightTexture.pack(floor & 15, floor >> 4));
+        for (Direction direction : DIRECTIONS) {
+            NEXT.setWithOffset(pos, direction);
+            if (!level.isLoaded(NEXT)) {
+                continue;
+            }
+            BlockState neighbor = level.getBlockState(NEXT);
+            remember(NEXT.asLong(), neighbor);
+            if (neighbor.isAir() || neighbor.getBlock() instanceof FlowPipeBlock
+                    || neighbor.getRenderShape() != RenderShape.MODEL) {
+                continue;
+            }
+            Direction face = direction.getOpposite(); // the neighbor's face that looks at the pipe
+            try {
+                BakedModel model = dispatcher.getBlockModel(neighbor);
+                ModelData data = model.getModelData(level, NEXT, neighbor, ModelData.EMPTY);
+                long seed = neighbor.getSeed(NEXT);
+                RANDOM.setSeed(seed);
+                POSE.pushPose();
+                POSE.translate(NEXT.getX() - ORIGIN.getX() + face.getStepX() * FACE_LIFT,
+                        NEXT.getY() - ORIGIN.getY() + face.getStepY() * FACE_LIFT,
+                        NEXT.getZ() - ORIGIN.getZ() + face.getStepZ() * FACE_LIFT);
+                for (RenderType layer : model.getRenderTypes(neighbor, RANDOM, data)) {
+                    RANDOM.setSeed(seed);
+                    List<BakedQuad> quads = model.getQuads(neighbor, face, RANDOM, data, layer);
+                    for (int i = 0; i < quads.size(); i++) {
+                        BakedQuad quad = quads.get(i);
+                        float r = 1.0F;
+                        float g = 1.0F;
+                        float b = 1.0F;
+                        if (quad.isTinted()) {
+                            int color = minecraft.getBlockColors().getColor(neighbor, level, NEXT, quad.getTintIndex());
+                            r = (color >> 16 & 255) / 255.0F;
+                            g = (color >> 8 & 255) / 255.0F;
+                            b = (color & 255) / 255.0F;
+                        }
+                        java.util.Arrays.fill(SHADE, level.getShade(quad.getDirection(), quad.isShade()));
+                        builder.putBulkData(POSE.last(), quad, SHADE, r, g, b, 1.0F, LIGHT,
+                                OverlayTexture.NO_OVERLAY, true);
+                    }
+                }
+                POSE.popPose();
+            } catch (RuntimeException e) {
+                POSE.setIdentity();
+                if (!warned) {
+                    warned = true;
+                    LOGGER.warn("Daisychain: couldn't redraw the block face at {}; skipping it", NEXT, e);
+                }
+            }
+        }
+    }
+
+    private static void remember(long position, BlockState state) {
+        if (neighborCount == neighborPositions.length) {
+            neighborPositions = java.util.Arrays.copyOf(neighborPositions, neighborCount * 2);
+            neighborStates = java.util.Arrays.copyOf(neighborStates, neighborCount * 2);
+        }
+        neighborPositions[neighborCount] = position;
+        neighborStates[neighborCount] = state;
+        neighborCount++;
+    }
+
+    /** Step 129d: true if a block next to an opaque-covered pipe changed (or unloaded) since the last build. */
+    private static boolean neighborsChanged(ClientLevel level) {
+        for (int i = 0; i < neighborCount; i++) {
+            NEXT.set(neighborPositions[i]);
+            if (!level.isLoaded(NEXT) || level.getBlockState(NEXT) != neighborStates[i]) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @SubscribeEvent

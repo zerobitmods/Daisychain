@@ -186,7 +186,7 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
      * Step 129: the brightest block and sky light of the six neighbors (block | sky << 4). An opaque cover blocks light,
      * so its own position is dark; this is baked into the see-through pipe's quads as a floor.
      */
-    private static int lightFloor(BlockAndTintGetter level, BlockPos pos) {
+    static int lightFloor(BlockAndTintGetter level, BlockPos pos) {
         BlockPos.MutableBlockPos next = new BlockPos.MutableBlockPos();
         int block = 0;
         int sky = 0;
