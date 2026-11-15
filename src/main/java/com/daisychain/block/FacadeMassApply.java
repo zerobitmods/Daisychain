@@ -98,7 +98,7 @@ public final class FacadeMassApply {
     public static void apply(ServerLevel level, BlockPos clicked, Player player, ItemStack stack, int max) {
         BlockState cover = FacadeItem.coverOf(stack);
         if (!FacadeItem.canCover(cover)) {
-            player.displayClientMessage(Component.translatable("message.daisychain.facade_invalid"), true);
+            player.displayClientMessage(FacadeItem.refusedMessage(cover), true);
             return;
         }
         BlockState clickedState = level.getBlockState(clicked);

@@ -46,6 +46,7 @@ public final class DaisychainConfig {
     public static final ModConfigSpec.IntValue MAX_NETWORK_PASTE_SIDES;
     public static final ModConfigSpec.IntValue MAX_SEND_INTERVAL;
     public static final ModConfigSpec.IntValue MAX_FACADE_MASS_APPLY;
+    public static final ModConfigSpec.BooleanValue ALLOW_TRANSPARENT_FACADES;
 
     private static final int MAX_ITEMS = 1_000_000;
     private static final int MAX_INTERVAL = 1200;
@@ -195,6 +196,10 @@ public final class DaisychainConfig {
         MAX_FACADE_MASS_APPLY = builder
                 .comment("Most pipes one sneak + right-click with facades may cover or re-cover (one facade each).")
                 .defineInRange("max_mass_apply", 64, 1, 4096);
+        ALLOW_TRANSPARENT_FACADES = builder
+                .comment("Allow transparent facades (glass pane + item pipe): they hide a pipe completely until a wrench is held.",
+                        "Off: they can't be crafted or put on. Pipes that already wear one keep it, and it can still be taken off.")
+                .define("allow_transparent", true);
         builder.pop();
 
         builder.comment("Settings Copier").push("copier");
@@ -210,5 +215,14 @@ public final class DaisychainConfig {
     }
 
     private DaisychainConfig() {
+    }
+
+    /** Step 134: allow_transparent, or true while the server config isn't loaded yet (title screen, early client). */
+    public static boolean transparentFacadesAllowed() {
+        try {
+            return ALLOW_TRANSPARENT_FACADES.get();
+        } catch (IllegalStateException e) {
+            return true;
+        }
     }
 }

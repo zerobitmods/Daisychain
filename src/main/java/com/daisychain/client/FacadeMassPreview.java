@@ -127,7 +127,7 @@ public final class FacadeMassPreview {
                                 boolean creative) {
         if (!FacadeItem.canCover(cover)) {
             edges = new int[0];
-            line = Component.translatable("message.daisychain.facade_invalid");
+            line = FacadeItem.refusedMessage(cover);
             return;
         }
         BlockState current = currentCover(level, pos);

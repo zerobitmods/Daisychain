@@ -6,6 +6,7 @@ import com.daisychain.block.FlowPipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.SideState;
 import com.daisychain.config.DaisychainClientConfig;
+import com.daisychain.item.FacadeItem;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.LightTexture;
@@ -63,6 +64,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * neighbors baked in as a floor (NeoForge keeps the brighter of baked and world light). These quads are cached
  * separately and dropped when the wrench goes away. Tinted cover quads always carry {@link #COVER_TINT_OFFSET}, so
  * {@link PipeColors} can tell a cover's tints (leaves, grass) from the pipe's rings when both are drawn.
+ * <p>
+ * Step 134 (transparent facade): a pipe wearing the transparent cover draws nothing at all (no pipe, no cover) until a
+ * wrench is held; then it is drawn like any see-through cover, except the cover (the hologram cube) isn't faded: its
+ * texture is see-through already. Plain pipes linked to it cap their arm's end, as next to a glass cover (step 128); its
+ * block state says "no cover", so that one is read from the neighbor's block entity.
  */
 public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     /**
@@ -209,8 +215,9 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             if (neighbor.getBlock() instanceof FlowPipeBlock) {
                 // Pipes meet at the block edge. Step 128: a covered neighbor draws only its cover, so this arm's end
                 // would be open; cap it (not pull arms, they have their own cap).
-                if (caps && neighbor.getValue(FlowPipeBlock.COVER) != CoverShape.NONE
-                        && state.getValue(FlowPipeBlock.propertyFor(direction)) != SideState.EXTRACT) {
+                if (caps && state.getValue(FlowPipeBlock.propertyFor(direction)) != SideState.EXTRACT
+                        && (neighbor.getValue(FlowPipeBlock.COVER) != CoverShape.NONE
+                        || wearsTransparentCover(level, pos.relative(direction), neighbor))) {
                     insert |= 1 << (6 + direction.get3DDataValue());
                 }
                 continue;
@@ -221,6 +228,16 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             }
         }
         return insert;
+    }
+
+    /**
+     * Step 134: a pipe wearing the transparent cover (its block state says no cover). Meshing reads the chunk copy's
+     * block entities (vanilla does the same for block entity renderers), so this is safe off the main thread.
+     */
+    private static boolean wearsTransparentCover(BlockAndTintGetter level, BlockPos pos, BlockState state) {
+        return state.getValue(FlowPipeBlock.HAS_DATA)
+                && level.getBlockEntity(pos) instanceof PipeDataBlockEntity data
+                && FacadeItem.isTransparent(data.cover());
     }
 
     @Override
@@ -242,6 +259,9 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
                 return fadedCover(cover, side, extraData);
             }
             return seeThroughPipe(state, side, rand, extraData, renderType, seeThrough);
+        }
+        if (cover != null && FacadeItem.isTransparent(cover)) {
+            return List.of(); // step 134: looks like no pipe until a wrench is held
         }
         if (cover != null) {
             try {
@@ -306,6 +326,8 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             ModelData data = coverData(extraData);
             random.setSeed(seed);
             ChunkRenderTypeSet layers = model.getRenderTypes(cover, random, data);
+            // Step 134: the transparent facade's hologram is see-through by its texture; fading it too would hide it.
+            int alpha = FacadeItem.isTransparent(cover) ? 255 : FADE_ALPHA;
             List<BakedQuad> faded = new ArrayList<>();
             for (RenderType layer : layers) {
                 random.setSeed(seed);
@@ -318,7 +340,7 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
                 }
             }
             for (int i = 0; i < faded.size(); i++) {
-                faded.set(i, fadedQuad(faded.get(i)));
+                faded.set(i, fadedQuad(faded.get(i), alpha));
             }
             return faded;
         } catch (RuntimeException e) {
@@ -327,13 +349,13 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
         }
     }
 
-    /** Step 129: a copy with its vertex alpha scaled down to FADE_ALPHA, tint index moved by COVER_TINT_OFFSET. */
-    private static BakedQuad fadedQuad(BakedQuad quad) {
+    /** Step 129: a copy with its vertex alpha scaled down to fade (0-255), tint index moved by COVER_TINT_OFFSET. */
+    private static BakedQuad fadedQuad(BakedQuad quad, int fade) {
         int[] vertices = quad.getVertices().clone();
         int stride = vertices.length / 4;
         for (int v = 0; v < 4; v++) {
             int color = vertices[v * stride + 3]; // BLOCK format: x, y, z, color (ABGR), u, v, light, normal
-            int alpha = (color >>> 24) * FADE_ALPHA / 255;
+            int alpha = (color >>> 24) * fade / 255;
             vertices[v * stride + 3] = (color & 0x00FFFFFF) | alpha << 24;
         }
         return new BakedQuad(vertices, quad.isTinted() ? quad.getTintIndex() + COVER_TINT_OFFSET : quad.getTintIndex(),
@@ -374,7 +396,7 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             // Step 129c: chunk meshes hold only the pipe's own layers (cutout); WrenchCoverOverlay draws the cover.
             return super.getRenderTypes(state, rand, data);
         }
-        if (cover != null) {
+        if (cover != null && !FacadeItem.isTransparent(cover)) { // step 134: transparent draws nothing, keep the pipe's layers
             try {
                 return coverModel(cover).getRenderTypes(cover, rand, coverData(data));
             } catch (RuntimeException e) {
@@ -402,7 +424,7 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     @Override
     public TextureAtlasSprite getParticleIcon(ModelData data) {
         BlockState cover = data.get(PipeDataBlockEntity.COVER_MODEL);
-        if (cover != null) {
+        if (cover != null && !FacadeItem.isTransparent(cover)) { // step 134: an invisible pipe breaks with pipe bits
             try {
                 return coverModel(cover).getParticleIcon(coverData(data));
             } catch (RuntimeException e) {

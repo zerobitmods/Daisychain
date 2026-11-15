@@ -33,6 +33,25 @@ public final class ModBlocks {
     public static final DeferredBlock<UniversalPipeBlock> UNIVERSAL_PIPE =
             BLOCKS.register("universal_pipe", () -> new UniversalPipeBlock(pipeProperties().mapColor(MapColor.COLOR_BLACK)));
 
+    /**
+     * Step 134 (transparent facade): the "block" a transparent facade covers a pipe with. Never placed in the world by
+     * the mod and has no item; it only exists so the facade code (apply, swap, remove, drops, mass apply, icon) treats
+     * it like any other cover. Its model is the wrench-only hologram cube. If someone /setblocks it: no collision,
+     * breaks instantly, drops nothing, anything can replace it.
+     */
+    public static final DeferredBlock<Block> TRANSPARENT_COVER = BLOCKS.register("transparent_cover",
+            () -> new Block(BlockBehaviour.Properties.of()
+                    .noCollission()
+                    .noOcclusion()
+                    .instabreak()
+                    .noLootTable()
+                    .replaceable()
+                    .sound(SoundType.GLASS)
+                    .pushReaction(PushReaction.DESTROY)
+                    .isRedstoneConductor((state, level, pos) -> false)
+                    .isSuffocating((state, level, pos) -> false)
+                    .isViewBlocking((state, level, pos) -> false)));
+
     private ModBlocks() {
     }
 
