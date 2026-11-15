@@ -374,5 +374,9 @@
   "tooltip.daisychain.facade.apply": "Right-click a pipe to cover it; right-click a covered pipe to swap covers",
   "tooltip.daisychain.facade.remove": "Remove: sneak + right-click the pipe with an empty hand",
   "message.daisychain.facade_invalid": "That block can't be a facade",
-  "message.daisychain.facade_same": "This pipe is already wearing that"
+  "message.daisychain.facade_same": "This pipe is already wearing that",
+  "message.daisychain.facade_mass_covered": "Covered %s pipes",
+  "message.daisychain.facade_mass_replaced": "Swapped the cover on %s pipes",
+  "message.daisychain.facade_mass_none": "No pipes changed",
+  "tooltip.daisychain.facade.mass": "Sneak + right-click: cover the linked pipes of the same type too"
 }

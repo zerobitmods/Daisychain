@@ -2,6 +2,7 @@ package com.daisychain;
 
 import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.item.FacadeItem;
 import com.daisychain.command.DaisychainCommands;
 import com.daisychain.item.CopierSessions;
 import com.daisychain.net.PipeAccess;
@@ -67,7 +68,9 @@ public final class DaisychainEvents {
         }
         BlockState target = event.getLevel().getBlockState(event.getPos());
         // Step 93: also a higher-tier energy pipe on an energy pipe (swaps it in place instead of placing next to it).
-        if ((ModTags.isWrench(event.getItemStack()) && target.getBlock() instanceof FlowPipeBlock)
+        // Step 130: also facades (sneak + right-click covers the linked pipes of the same type).
+        if (((ModTags.isWrench(event.getItemStack()) || event.getItemStack().getItem() instanceof FacadeItem)
+                && target.getBlock() instanceof FlowPipeBlock)
                 || (EnergyPipeBlock.canSwap(target, event.getItemStack())
                         && !FlowPipeBlock.isPullCapHit(target, event.getPos(), event.getHitVec()))) {
             event.setUseBlock(Event.Result.ALLOW);

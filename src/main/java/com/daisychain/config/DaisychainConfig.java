@@ -46,6 +46,7 @@ public final class DaisychainConfig {
     public static final ForgeConfigSpec.IntValue BLOCKED_WAIT_TICKS;
     public static final ForgeConfigSpec.IntValue MAX_NETWORK_PASTE_SIDES;
     public static final ForgeConfigSpec.IntValue MAX_SEND_INTERVAL;
+    public static final ForgeConfigSpec.IntValue MAX_FACADE_MASS_APPLY;
 
     private static final int MAX_ITEMS = 1_000_000;
     private static final int MAX_INTERVAL = 1200;
@@ -189,6 +190,12 @@ public final class DaisychainConfig {
                 .comment("The slowest a player can set a pull side's Send every, in ticks. Sides set slower than this",
                         "send at this interval. 20 ticks = 1 second; the default 2400 is 2 minutes.")
                 .defineInRange("max_ticks", 2400, 20, 72000);
+        builder.pop();
+
+        builder.comment("Facades").push("facades");
+        MAX_FACADE_MASS_APPLY = builder
+                .comment("Most pipes one sneak + right-click with facades may cover or re-cover (one facade each).")
+                .defineInRange("max_mass_apply", 64, 1, 4096);
         builder.pop();
 
         builder.comment("Settings Copier").push("copier");
