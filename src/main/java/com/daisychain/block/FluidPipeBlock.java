@@ -7,7 +7,7 @@ import net.minecraft.world.level.Level;
 import net.minecraftforge.common.capabilities.ForgeCapabilities;
 
 /** Fluid pipe: connects to other fluid pipes and to any block that exposes a fluid handler. */
-public final class FluidPipeBlock extends FlowPipeBlock {
+public final class FluidPipeBlock extends BasePipeBlock {
 
 
     public FluidPipeBlock(Properties properties) {

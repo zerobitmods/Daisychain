@@ -18,7 +18,7 @@ import java.util.function.Supplier;
  * their whole width and are placed with real 1 px gaps, so their left edges line up with labels at x 7. Text is centered
  * in the visible part of the key. Step 47c: corners rounded 1 px; "on" keys use the soft colors. Client only.
  */
-final class FlowKey extends AbstractButton {
+final class DaisyKey extends AbstractButton {
     private final Supplier<String[]> icon;
     private final IntSupplier iconColor;
     private final Supplier<Component> label;
@@ -33,7 +33,7 @@ final class FlowKey extends AbstractButton {
     /** Slot-grid key: the left column is drawn in the panel color (spec 4, icon button). */
     private boolean segmented;
 
-    private FlowKey(int x, int y, int w, int h, Supplier<String[]> icon, IntSupplier iconColor, Supplier<Component> label,
+    private DaisyKey(int x, int y, int w, int h, Supplier<String[]> icon, IntSupplier iconColor, Supplier<Component> label,
                     BooleanSupplier on, int onColor, int onInk, BooleanSupplier dot, int dotColor, Runnable onLeft,
                     Runnable onRight) {
         super(x, y, w, h, Component.empty());
@@ -50,21 +50,21 @@ final class FlowKey extends AbstractButton {
     }
 
     /** 18x18 icon key. */
-    static FlowKey icon(int x, int y, Supplier<String[]> icon, IntSupplier color, BooleanSupplier on,
+    static DaisyKey icon(int x, int y, Supplier<String[]> icon, IntSupplier color, BooleanSupplier on,
                         BooleanSupplier dot, int dotColor, Runnable onLeft, Runnable onRight) {
-        return new FlowKey(x, y, 18, 18, icon, color, null, on, FlowGui.ON, FlowGui.ON_INK, dot, dotColor, onLeft,
+        return new DaisyKey(x, y, 18, 18, icon, color, null, on, DaisyGui.ON, DaisyGui.ON_INK, dot, dotColor, onLeft,
                 onRight).segmented();
     }
 
     /** Step 47g: a 2x2 dot in the top-right corner while dot is true (e.g. a text key pointing at settings in use). */
-    FlowKey withDot(BooleanSupplier dot, int dotColor) {
+    DaisyKey withDot(BooleanSupplier dot, int dotColor) {
         this.dot = dot;
         this.dotColor = dotColor;
         return this;
     }
 
     /** Draws the panel-colored left column, like the icon keys on the slot grid (used for the page keys). */
-    FlowKey segmented() {
+    DaisyKey segmented() {
         this.segmented = true;
         return this;
     }
@@ -73,15 +73,15 @@ final class FlowKey extends AbstractButton {
      * Step 47: a small icon key of any size (13x13 back, page arrows and reset keys in the filter entry drawer). Never
      * "on"; an inactive one draws its icon faint.
      */
-    static FlowKey small(int x, int y, int w, int h, Supplier<String[]> icon, IntSupplier color, Runnable onLeft) {
-        return new FlowKey(x, y, w, h, icon, color, null, () -> false, FlowGui.ON, FlowGui.ON_INK, () -> false, 0,
+    static DaisyKey small(int x, int y, int w, int h, Supplier<String[]> icon, IntSupplier color, Runnable onLeft) {
+        return new DaisyKey(x, y, w, h, icon, color, null, () -> false, DaisyGui.ON, DaisyGui.ON_INK, () -> false, 0,
                 onLeft, null);
     }
 
     /** Text key (e.g. the page numbers), filled with onColor when on. */
-    static FlowKey text(int x, int y, int w, int h, Supplier<Component> label, BooleanSupplier on, int onColor,
+    static DaisyKey text(int x, int y, int w, int h, Supplier<Component> label, BooleanSupplier on, int onColor,
                         int onInk, Runnable onLeft) {
-        return new FlowKey(x, y, w, h, null, () -> FlowGui.TEXT, label, on, onColor, onInk, () -> false, 0, onLeft,
+        return new DaisyKey(x, y, w, h, null, () -> DaisyGui.TEXT, label, on, onColor, onInk, () -> false, 0, onLeft,
                 null);
     }
 
@@ -105,15 +105,15 @@ final class FlowKey extends AbstractButton {
         int x = getX();
         int y = getY();
         boolean isOn = active && on.getAsBoolean();
-        int fill = isOn ? onColor : active && isHovered() ? FlowGui.KEY_HOVER : FlowGui.KEY;
+        int fill = isOn ? onColor : active && isHovered() ? DaisyGui.KEY_HOVER : DaisyGui.KEY;
         int left = segmented ? 1 : 0; // slot-grid keys leave their first column as a gap (segmented-bar look)
-        FlowGui.round(graphics, x + left, y, x + width, y + height, fill, 1);
+        DaisyGui.round(graphics, x + left, y, x + width, y + height, fill, 1);
         if (icon != null) {
             String[] rows = icon.get();
             int iw = rows.length == 0 ? 0 : rows[0].length();
             graphics.pose().pushPose();
-            FlowGui.icon(graphics, x + (width - iw + 1) / 2, y + (height - rows.length + 1) / 2, rows,
-                    !active ? FlowGui.FAINT : isOn ? onInk : iconColor.getAsInt());
+            DaisyGui.icon(graphics, x + (width - iw + 1) / 2, y + (height - rows.length + 1) / 2, rows,
+                    !active ? DaisyGui.FAINT : isOn ? onInk : iconColor.getAsInt());
             graphics.pose().popPose();
         } else if (label != null) {
             Minecraft minecraft = Minecraft.getInstance();
@@ -121,8 +121,8 @@ final class FlowKey extends AbstractButton {
             // Spec: page numbers sit in 18 px keys at cap-top + 5, moved down half a pixel to center exactly.
             graphics.pose().pushPose();
             graphics.pose().translate(0, height % 2 == 0 ? 0.5F : 0.0F, 0);
-            FlowGui.centered(graphics, minecraft.font, text, x + left, width - left, y + (height - 7) / 2,
-                    !active ? FlowGui.FAINT : isOn ? onInk : FlowGui.TEXT);
+            DaisyGui.centered(graphics, minecraft.font, text, x + left, width - left, y + (height - 7) / 2,
+                    !active ? DaisyGui.FAINT : isOn ? onInk : DaisyGui.TEXT);
             graphics.pose().popPose();
         }
         if (dot.getAsBoolean()) {

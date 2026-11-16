@@ -2,7 +2,7 @@ package com.daisychain.compat.jade;
 
 import com.daisychain.Daisychain;
 import com.daisychain.block.EnergyPipeBlock;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.network.NetworkManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -36,13 +36,13 @@ public enum PipeNetworkDataProvider implements IServerDataProvider<BlockAccessor
     @Override
     public void appendServerData(CompoundTag data, BlockAccessor accessor) {
         BlockState state = accessor.getBlockState();
-        if (!(accessor.getLevel() instanceof ServerLevel level) || !(state.getBlock() instanceof FlowPipeBlock)) {
+        if (!(accessor.getLevel() instanceof ServerLevel level) || !(state.getBlock() instanceof BasePipeBlock)) {
             return;
         }
         BlockPos pos = accessor.getPosition();
         // Jade 11 (1.20.1) asks every provider while you look at a pipe with settings: only pull sides need this.
-        Direction looked = FlowPipeBlock.targetedSide(state, pos, accessor.getHitResult());
-        if (!FlowPipeBlock.isPullSide(level, pos, state, looked)) {
+        Direction looked = BasePipeBlock.targetedSide(state, pos, accessor.getHitResult());
+        if (!BasePipeBlock.isPullSide(level, pos, state, looked)) {
             return;
         }
         NetworkManager manager = NetworkManager.get(level);

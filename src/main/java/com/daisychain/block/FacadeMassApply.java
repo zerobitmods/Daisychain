@@ -50,7 +50,7 @@ public final class FacadeMassApply {
     public static List<BlockPos> selection(Level level, BlockPos clicked, @Nullable BlockState facadeCover, int max) {
         List<BlockPos> result = new ArrayList<>();
         BlockState start = level.getBlockState(clicked);
-        if (!(start.getBlock() instanceof FlowPipeBlock) || !FacadeItem.canCover(facadeCover) || max <= 0) {
+        if (!(start.getBlock() instanceof BasePipeBlock) || !FacadeItem.canCover(facadeCover) || max <= 0) {
             return result;
         }
         BlockState match = coverAt(level, clicked, start); // null = uncovered pipes
@@ -70,7 +70,7 @@ public final class FacadeMassApply {
                 result.add(pos);
             }
             for (Direction direction : DIRECTIONS) {
-                if (state.getValue(FlowPipeBlock.propertyFor(direction)) == SideState.NONE) {
+                if (state.getValue(BasePipeBlock.propertyFor(direction)) == SideState.NONE) {
                     continue;
                 }
                 next.setWithOffset(pos, direction);
@@ -79,7 +79,7 @@ public final class FacadeMassApply {
                 }
                 BlockState other = level.getBlockState(next);
                 if (other.getBlock() == type
-                        && other.getValue(FlowPipeBlock.propertyFor(direction.getOpposite())) != SideState.NONE) {
+                        && other.getValue(BasePipeBlock.propertyFor(direction.getOpposite())) != SideState.NONE) {
                     BlockPos found = next.immutable();
                     visited.add(found);
                     queue.add(found);
@@ -116,8 +116,8 @@ public final class FacadeMassApply {
             if (!ClaimCheck.mayChange(level, pos, player)) {
                 continue; // claimed or protected: skip this pipe, keep going
             }
-            FlowPipeBlock.ensureData(level, pos);
-            PipeDataBlockEntity data = FlowPipeBlock.getData(level, pos, level.getBlockState(pos));
+            BasePipeBlock.ensureData(level, pos);
+            PipeDataBlockEntity data = BasePipeBlock.getData(level, pos, level.getBlockState(pos));
             if (data == null || data.cover() != match) {
                 continue; // no settings storage, or changed since the walk: nothing used
             }
@@ -134,7 +134,7 @@ public final class FacadeMassApply {
                 ItemStack back = FacadeItem.of(match, 1);
                 int count = Math.min(left, back.getMaxStackSize());
                 back.setCount(count);
-                FlowPipeBlock.giveOrDrop(player, back);
+                BasePipeBlock.giveOrDrop(player, back);
                 left -= count;
             }
         }
@@ -151,7 +151,7 @@ public final class FacadeMassApply {
 
     @Nullable
     private static BlockState coverAt(Level level, BlockPos pos, BlockState state) {
-        PipeDataBlockEntity data = FlowPipeBlock.getData(level, pos, state);
+        PipeDataBlockEntity data = BasePipeBlock.getData(level, pos, state);
         return data == null ? null : data.cover();
     }
 }

@@ -13,11 +13,11 @@ import net.minecraftforge.client.event.RenderTooltipEvent;
  * Uses NeoForge's RenderTooltipEvent.Color (1.21.1). Client only.
  */
 @Mod.EventBusSubscriber(modid = Daisychain.MOD_ID, value = Dist.CLIENT, bus = Mod.EventBusSubscriber.Bus.FORGE)
-public final class FlowTooltips {
+public final class DaisyTooltips {
     private static final int BACKGROUND = 0xF008090B;
     private static final int BORDER = 0xFF3A3D46;
 
-    private FlowTooltips() {
+    private DaisyTooltips() {
     }
 
     @SubscribeEvent

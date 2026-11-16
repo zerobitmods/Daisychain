@@ -2,7 +2,7 @@ package com.daisychain.gametest;
 
 import com.daisychain.Daisychain;
 import com.daisychain.block.FacadeMassApply;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.item.FacadeItem;
 import com.daisychain.registry.ModBlocks;
@@ -239,12 +239,12 @@ public final class FacadeMassTests {
     }
 
     private static void refresh(GameTestHelper helper, BlockPos pos) {
-        FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(pos));
+        BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(pos));
     }
 
     private static void setCover(GameTestHelper helper, BlockPos pos, BlockState block) {
         BlockPos abs = helper.absolutePos(pos);
-        FlowPipeBlock.ensureData(helper.getLevel(), abs);
+        BasePipeBlock.ensureData(helper.getLevel(), abs);
         data(helper, pos).setCover(block);
     }
 
@@ -265,14 +265,14 @@ public final class FacadeMassTests {
     @Nullable
     private static BlockState cover(GameTestHelper helper, BlockPos pos) {
         BlockPos abs = helper.absolutePos(pos);
-        PipeDataBlockEntity data = FlowPipeBlock.getData(helper.getLevel(), abs, helper.getLevel().getBlockState(abs));
+        PipeDataBlockEntity data = BasePipeBlock.getData(helper.getLevel(), abs, helper.getLevel().getBlockState(abs));
         return data == null ? null : data.cover();
     }
 
     private static PipeDataBlockEntity data(GameTestHelper helper, BlockPos pos) {
         BlockPos abs = helper.absolutePos(pos);
         ServerLevel level = helper.getLevel();
-        PipeDataBlockEntity data = FlowPipeBlock.getData(level, abs, level.getBlockState(abs));
+        PipeDataBlockEntity data = BasePipeBlock.getData(level, abs, level.getBlockState(abs));
         if (data == null) {
             throw new GameTestAssertException("No settings storage at " + pos);
         }

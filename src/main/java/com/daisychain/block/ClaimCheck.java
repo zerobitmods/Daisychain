@@ -9,7 +9,7 @@ import net.minecraftforge.event.ForgeEventFactory;
 
 /**
  * Steps 132/133: may this player change this pipe, which they didn't click? (Mass facade click, Settings Copier
- * network paste, copier undo and redo.) Build rights and spawn protection first (FlowPipeBlock.mayChange), then claim
+ * network paste, copier undo and redo.) Build rights and spawn protection first (BasePipeBlock.mayChange), then claim
  * mods: FTB Chunks and others guard claims through Forge's place and right-click events, not Level.mayInteract, so
  * without this a change could reach into someone else's claim. A place event for the pipe as it stands asks them;
  * cancelled = not allowed here. The pipe itself doesn't change. A pipe the player clicks needs no check here: the
@@ -20,7 +20,7 @@ public final class ClaimCheck {
     }
 
     public static boolean mayChange(ServerLevel level, BlockPos pos, Player player) {
-        return FlowPipeBlock.mayChange(level, pos, player)
+        return BasePipeBlock.mayChange(level, pos, player)
                 && !ForgeEventFactory.onBlockPlace(player, BlockSnapshot.create(level.dimension(), level, pos), Direction.UP);
     }
 }

@@ -2,7 +2,7 @@ package com.daisychain.client;
 
 import com.daisychain.Daisychain;
 import com.daisychain.block.CoverShape;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.SideState;
 import com.daisychain.config.DaisychainClientConfig;
@@ -167,13 +167,13 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
 
     @Override
     public ModelData getModelData(BlockAndTintGetter level, BlockPos pos, BlockState state, ModelData modelData) {
-        if (!(state.getBlock() instanceof FlowPipeBlock)) {
+        if (!(state.getBlock() instanceof BasePipeBlock)) {
             return modelData;
         }
         // Step 126b: only while the pipe has its data block. When the last setting (the cover) comes off, the server
         // removes the block entity (HAS_DATA false) and Forge never clears the model data it stored for this spot,
         // so without this check the old cover stayed drawn until the chunk reloaded.
-        BlockState cover = state.getValue(FlowPipeBlock.HAS_DATA) ? modelData.get(PipeDataBlockEntity.COVER_MODEL) : null;
+        BlockState cover = state.getValue(BasePipeBlock.HAS_DATA) ? modelData.get(PipeDataBlockEntity.COVER_MODEL) : null;
         if (cover != null) {
             ModelData.Builder builder = ModelData.builder().with(PipeDataBlockEntity.COVER_MODEL, cover);
             int same = sameCoverSides(level, pos, cover);
@@ -190,7 +190,7 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             }
             if (WrenchSeeThrough.drawSeeThrough(pos)) {
                 // Step 129: wrench in hand, so the pipe is drawn too (no end caps: covered neighbors show their pipe).
-                int light = state.getValue(FlowPipeBlock.COVER) == CoverShape.SOLID ? lightFloor(level, pos) : 0;
+                int light = state.getValue(BasePipeBlock.COVER) == CoverShape.SOLID ? lightFloor(level, pos) : 0;
                 builder.with(INSERT_SIDES, sideBits(level, pos, state, false))
                         .with(SEE_THROUGH, light)
                         .with(COVER_SEED, state.getSeed(pos));
@@ -227,7 +227,7 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
         for (Direction direction : DIRECTIONS) {
             next.setWithOffset(pos, direction);
             BlockState neighbor = level.getBlockState(next);
-            if (neighbor.getBlock() instanceof FlowPipeBlock && neighbor.getValue(FlowPipeBlock.COVER) != CoverShape.NONE
+            if (neighbor.getBlock() instanceof BasePipeBlock && neighbor.getValue(BasePipeBlock.COVER) != CoverShape.NONE
                     && level.getBlockEntity(next) instanceof PipeDataBlockEntity data && data.cover() == cover) {
                 sides |= 1 << direction.get3DDataValue();
             }
@@ -248,20 +248,20 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     private static int sideBits(BlockAndTintGetter level, BlockPos pos, BlockState state, boolean caps) {
         int insert = 0;
         for (Direction direction : DIRECTIONS) {
-            if (state.getValue(FlowPipeBlock.propertyFor(direction)) == SideState.NONE) {
+            if (state.getValue(BasePipeBlock.propertyFor(direction)) == SideState.NONE) {
                 continue;
             }
             BlockState neighbor = level.getBlockState(pos.relative(direction));
-            if (neighbor.getBlock() instanceof FlowPipeBlock) {
+            if (neighbor.getBlock() instanceof BasePipeBlock) {
                 // Pipes meet at the block edge. Step 128: a covered neighbor draws only its cover, so this arm's end
                 // would be open; cap it (not pull arms, they have their own cap).
-                if (caps && neighbor.getValue(FlowPipeBlock.COVER) != CoverShape.NONE
-                        && state.getValue(FlowPipeBlock.propertyFor(direction)) != SideState.EXTRACT) {
+                if (caps && neighbor.getValue(BasePipeBlock.COVER) != CoverShape.NONE
+                        && state.getValue(BasePipeBlock.propertyFor(direction)) != SideState.EXTRACT) {
                     insert |= 1 << (6 + direction.get3DDataValue());
                 }
                 continue;
             }
-            if (state.getValue(FlowPipeBlock.propertyFor(direction)) == SideState.CONNECTED
+            if (state.getValue(BasePipeBlock.propertyFor(direction)) == SideState.CONNECTED
                     && neighbor.getBlock() != state.getBlock()) {
                 insert |= 1 << direction.get3DDataValue();
             }
@@ -277,7 +277,7 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     @Override
     public List<BakedQuad> getQuads(@Nullable BlockState state, @Nullable Direction side, RandomSource rand,
                                     ModelData extraData, @Nullable RenderType renderType) {
-        if (state == null || !(state.getBlock() instanceof FlowPipeBlock)) {
+        if (state == null || !(state.getBlock() instanceof BasePipeBlock)) {
             return node.getQuads(state, side, rand, ModelData.EMPTY, renderType);
         }
         BlockState cover = extraData.get(PipeDataBlockEntity.COVER_MODEL);
@@ -487,7 +487,7 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
         int connected = 0;
         int pull = 0;
         for (Direction direction : DIRECTIONS) {
-            SideState sideState = state.getValue(FlowPipeBlock.propertyFor(direction));
+            SideState sideState = state.getValue(BasePipeBlock.propertyFor(direction));
             int bit = 1 << direction.get3DDataValue();
             if (sideState != SideState.NONE) {
                 connected |= bit;

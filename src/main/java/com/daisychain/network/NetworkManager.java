@@ -1,7 +1,7 @@
 package com.daisychain.network;
 
 import com.daisychain.block.EnergyPipeBlock;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.PipeKind;
 import com.daisychain.block.RedstoneMode;
@@ -207,7 +207,7 @@ public final class NetworkManager {
         }
         extractor.extractMask = extractMask;
         extractor.data = data;
-        extractor.kind = FlowPipeBlock.kindOf(data.getBlockState());
+        extractor.kind = BasePipeBlock.kindOf(data.getBlockState());
         extractor.cachedState = null; // read the pipe's block state again on its next run
         extractor.wake();
     }
@@ -412,7 +412,7 @@ public final class NetworkManager {
         PipeDataBlockEntity data = extractor.data;
         PipeNetwork network = pushNetwork(extractor);
         if (network == null || data == null || extractor.cachedState == null
-                || extractor.cachedState.getValue(FlowPipeBlock.propertyFor(side)) != SideState.EXTRACT) {
+                || extractor.cachedState.getValue(BasePipeBlock.propertyFor(side)) != SideState.EXTRACT) {
             return 0;
         }
         int s = side.get3DDataValue();
@@ -501,7 +501,7 @@ public final class NetworkManager {
             if (state == null) {
                 return null;
             }
-            network = state.getBlock() instanceof FlowPipeBlock ? getOrBuild(extractor.pos) : null;
+            network = state.getBlock() instanceof BasePipeBlock ? getOrBuild(extractor.pos) : null;
             extractor.cachedState = network != null ? state : null;
             if (network == null) {
                 return null;
@@ -925,7 +925,7 @@ public final class NetworkManager {
         PipeNetwork network = extractor.sortedFor;
         if (state == null || network == null || !network.valid) {
             state = level.getBlockState(extractor.pos);
-            network = data != null && state.getBlock() instanceof FlowPipeBlock ? getOrBuild(extractor.pos) : null;
+            network = data != null && state.getBlock() instanceof BasePipeBlock ? getOrBuild(extractor.pos) : null;
             extractor.cachedState = network != null ? state : null;
         }
         if (network == null || data == null) {
@@ -965,7 +965,7 @@ public final class NetworkManager {
             Direction direction = Direction.from3DDataValue(side);
             int bit = 1 << side;
             if ((extractor.extractMask & bit) == 0
-                    || state.getValue(FlowPipeBlock.propertyFor(direction)) != SideState.EXTRACT) {
+                    || state.getValue(BasePipeBlock.propertyFor(direction)) != SideState.EXTRACT) {
                 extractor.sideNextRun[side] = 0;
                 continue;
             }
@@ -1311,7 +1311,7 @@ public final class NetworkManager {
     }
 
     /**
-     * Step 118 (review R12): pipes a player just placed while the place event could still cancel it; FlowPipeBlock
+     * Step 118 (review R12): pipes a player just placed while the place event could still cancel it; BasePipeBlock
      * changes their neighbors in onPlace once it has passed. Entries live only within one placement call (onPlace or,
      * if cancelled, onRemove takes them out), so this stays empty in normal running.
      */
@@ -1410,7 +1410,7 @@ public final class NetworkManager {
             return network;
         }
         BlockState state = Loaded.stateIfLoaded(level, pos); // review R4
-        if (state == null || !(state.getBlock() instanceof FlowPipeBlock)) {
+        if (state == null || !(state.getBlock() instanceof BasePipeBlock)) {
             return null;
         }
         return build(pos, state.getBlock());
@@ -1525,7 +1525,7 @@ public final class NetworkManager {
                 continue;
             }
             BlockState state = pipeChunk.getBlockState(cursor.set(pipe));
-            if (!FlowPipeBlock.sameNetwork(pipeBlock, state.getBlock())) {
+            if (!BasePipeBlock.sameNetwork(pipeBlock, state.getBlock())) {
                 continue;
             }
             int pipeIndex = network.pipes.size();
@@ -1546,7 +1546,7 @@ public final class NetworkManager {
             }
 
             for (Direction direction : DIRECTIONS) {
-                SideState side = state.getValue(FlowPipeBlock.propertyFor(direction));
+                SideState side = state.getValue(BasePipeBlock.propertyFor(direction));
                 if (side == SideState.NONE) {
                     continue;
                 }
@@ -1560,7 +1560,7 @@ public final class NetworkManager {
                     continue;
                 }
                 BlockState neighborState = neighborChunk.getBlockState(cursor.set(neighbor));
-                if (FlowPipeBlock.sameNetwork(pipeBlock, neighborState.getBlock())) {
+                if (BasePipeBlock.sameNetwork(pipeBlock, neighborState.getBlock())) {
                     links |= 1 << direction.get3DDataValue();
                     if (visited.add(neighbor)) {
                         queue.enqueue(neighbor);
@@ -1568,7 +1568,7 @@ public final class NetworkManager {
                 } else {
                     PipeNetwork.Endpoint endpoint =
                             new PipeNetwork.Endpoint(BlockPos.of(pipe), pipeIndex, direction, side == SideState.EXTRACT);
-                    if (side == SideState.CONNECTED && state.getValue(FlowPipeBlock.HAS_DATA)
+                    if (side == SideState.CONNECTED && state.getValue(BasePipeBlock.HAS_DATA)
                             && level.getBlockEntity(cursor.set(pipe)) instanceof PipeDataBlockEntity pipeData) {
                         readInsertSettings(endpoint, pipeData);
                         RedstoneMode insertRedstone = pipeData.insertRedstoneMode(direction);

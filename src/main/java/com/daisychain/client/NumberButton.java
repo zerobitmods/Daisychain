@@ -63,17 +63,17 @@ final class NumberButton extends AbstractButton {
         int x = getX();
         int y = getY();
         boolean warn = fieldWarn.getAsBoolean();
-        int border = warn ? FlowGui.WARN : active && !editing && isHovered() ? FlowGui.FIELD_HOVER : FlowGui.FIELD_BORDER;
-        FlowGui.round(graphics, x, y, x + width, y + height, border, 1);
-        graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, FlowGui.SLOT);
+        int border = warn ? DaisyGui.WARN : active && !editing && isHovered() ? DaisyGui.FIELD_HOVER : DaisyGui.FIELD_BORDER;
+        DaisyGui.round(graphics, x, y, x + width, y + height, border, 1);
+        graphics.fill(x + 1, y + 1, x + width - 1, y + height - 1, DaisyGui.SLOT);
         if (warn) {
-            graphics.fill(x - 6, y + 3, x - 4, y + 10, FlowGui.WARN);
+            graphics.fill(x - 6, y + 3, x - 4, y + 10, DaisyGui.WARN);
         }
         if (!editing) {
             Font font = Minecraft.getInstance().font;
             Component value = fieldValue.get();
-            FlowGui.text(graphics, font, value, x + width - 5 - FlowGui.inkWidth(font, value), y + 3,
-                    warn ? FlowGui.WARN_TEXT : fieldColor.getAsInt());
+            DaisyGui.text(graphics, font, value, x + width - 5 - DaisyGui.inkWidth(font, value), y + 3,
+                    warn ? DaisyGui.WARN_TEXT : fieldColor.getAsInt());
         }
     }
 

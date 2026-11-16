@@ -2,7 +2,7 @@ package com.daisychain.client;
 
 import com.daisychain.Daisychain;
 import com.daisychain.block.CoverShape;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.item.FacadeItem;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -204,7 +204,7 @@ public final class WrenchCoverOverlay {
                                    BufferBuilder builder, PipeDataBlockEntity data, RenderType translucent) {
         BlockPos pos = data.getBlockPos();
         BlockState state = level.getBlockState(pos);
-        if (!(state.getBlock() instanceof FlowPipeBlock)) {
+        if (!(state.getBlock() instanceof BasePipeBlock)) {
             return false;
         }
         BakedModel model = dispatcher.getBlockModel(state);
@@ -245,7 +245,7 @@ public final class WrenchCoverOverlay {
     private static void addNeighborFaces(Minecraft minecraft, ClientLevel level, BlockRenderDispatcher dispatcher,
                                          BufferBuilder builder, BlockPos pos) {
         BlockState pipe = level.getBlockState(pos);
-        if (!(pipe.getBlock() instanceof FlowPipeBlock) || pipe.getValue(FlowPipeBlock.COVER) != CoverShape.SOLID) {
+        if (!(pipe.getBlock() instanceof BasePipeBlock) || pipe.getValue(BasePipeBlock.COVER) != CoverShape.SOLID) {
             return;
         }
         int floor = PipeBakedModel.lightFloor(level, pos);
@@ -257,7 +257,7 @@ public final class WrenchCoverOverlay {
             }
             BlockState neighbor = level.getBlockState(NEXT);
             remember(NEXT.asLong(), neighbor);
-            if (neighbor.isAir() || neighbor.getBlock() instanceof FlowPipeBlock
+            if (neighbor.isAir() || neighbor.getBlock() instanceof BasePipeBlock
                     || neighbor.getRenderShape() != RenderShape.MODEL) {
                 continue;
             }

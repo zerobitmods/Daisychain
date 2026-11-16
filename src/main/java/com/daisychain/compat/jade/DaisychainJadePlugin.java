@@ -1,6 +1,6 @@
 package com.daisychain.compat.jade;
 
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import snownee.jade.api.IWailaClientRegistration;
 import snownee.jade.api.IWailaCommonRegistration;
@@ -21,9 +21,9 @@ public final class DaisychainJadePlugin implements IWailaPlugin {
 
     @Override
     public void registerClient(IWailaClientRegistration registration) {
-        registration.registerBlockComponent(PipeInfoProvider.INSTANCE, FlowPipeBlock.class);
+        registration.registerBlockComponent(PipeInfoProvider.INSTANCE, BasePipeBlock.class);
         // Step F62 (port of 136): "Cover: ..." line, and the pipe keeps its own icon when covered.
-        registration.registerBlockComponent(PipeCoverProvider.INSTANCE, FlowPipeBlock.class);
-        registration.registerBlockIcon(PipeCoverProvider.INSTANCE, FlowPipeBlock.class);
+        registration.registerBlockComponent(PipeCoverProvider.INSTANCE, BasePipeBlock.class);
+        registration.registerBlockIcon(PipeCoverProvider.INSTANCE, BasePipeBlock.class);
     }
 }

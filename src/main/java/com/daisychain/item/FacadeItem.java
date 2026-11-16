@@ -1,6 +1,6 @@
 package com.daisychain.item;
 
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.config.DaisychainConfig;
 import com.daisychain.registry.ModBlocks;
 import com.daisychain.registry.ModDataComponents;
@@ -83,7 +83,7 @@ public final class FacadeItem extends Item {
         if (isTransparent(state)) {
             return DaisychainConfig.transparentFacadesAllowed(); // step F61: pack makers can turn them off
         }
-        if (state == null || state.isAir() || state.getBlock() instanceof FlowPipeBlock || state.hasBlockEntity()
+        if (state == null || state.isAir() || state.getBlock() instanceof BasePipeBlock || state.hasBlockEntity()
                 || state.getRenderShape() != RenderShape.MODEL || state.is(ModTags.NOT_FACADES)) {
             return false;
         }

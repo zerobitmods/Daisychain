@@ -2,7 +2,7 @@ package com.daisychain.compat.jade;
 
 import com.daisychain.Daisychain;
 import com.daisychain.block.EnergyPipeBlock;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.PipeKind;
 import com.daisychain.config.UpgradeSpeeds;
@@ -42,13 +42,13 @@ public enum PipeInfoProvider implements IBlockComponentProvider {
     @Override
     public void appendTooltip(ITooltip tooltip, BlockAccessor accessor, IPluginConfig config) {
         BlockState state = accessor.getBlockState();
-        if (!(state.getBlock() instanceof FlowPipeBlock)) {
+        if (!(state.getBlock() instanceof BasePipeBlock)) {
             return;
         }
         Level level = accessor.getLevel();
         BlockPos pos = accessor.getPosition();
-        Direction looked = FlowPipeBlock.targetedSide(state, pos, accessor.getHitResult());
-        if (!FlowPipeBlock.isPullSide(level, pos, state, looked)) {
+        Direction looked = BasePipeBlock.targetedSide(state, pos, accessor.getHitResult());
+        if (!BasePipeBlock.isPullSide(level, pos, state, looked)) {
             return; // only pull sides move things, so only they have a status, an upgrade and a speed
         }
         CompoundTag server = accessor.getServerData();
@@ -84,9 +84,9 @@ public enum PipeInfoProvider implements IBlockComponentProvider {
             }
             return;
         }
-        PipeDataBlockEntity data = FlowPipeBlock.getData(level, pos, state);
+        PipeDataBlockEntity data = BasePipeBlock.getData(level, pos, state);
         int upgrade = data == null ? 0 : data.upgradeLevel(looked);
-        tooltip.add(upgradeAndSpeed(FlowPipeBlock.kindOf(state), upgrade).withStyle(ChatFormatting.GRAY));
+        tooltip.add(upgradeAndSpeed(BasePipeBlock.kindOf(state), upgrade).withStyle(ChatFormatting.GRAY));
     }
 
     private static Component upgradeName(int level) {
