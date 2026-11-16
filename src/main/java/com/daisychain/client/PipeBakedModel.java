@@ -69,8 +69,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * faded: its texture is see-through already. Its block state says CLEAR (134a: a full block like glass), so linked plain
  * pipes cap their arm's end as next to a glass cover (step 128).
  * <p>
- * Step F61 (port of 135): the hologram is drawn full-bright (it glows in the dark; WrenchCoverOverlay draws it without
- * ambient occlusion, because Forge 1.20.1's AO hook gets no model data), and a cover skips its face toward a neighbor
+ * Step F61 (port of 135): the hologram is drawn full-bright (it glows in the dark; since F67 WrenchCoverOverlay draws
+ * every cover flat-lit, vertex by vertex, keeping the brighter of baked and given light), and a cover skips its face toward a neighbor
  * pipe wearing the same cover ({@link #SAME_COVER_SIDES}), like vanilla glass next to glass: a row of covered pipes
  * reads as one block, with and without a wrench.
  */
