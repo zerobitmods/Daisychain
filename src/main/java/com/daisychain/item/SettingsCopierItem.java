@@ -2,7 +2,7 @@ package com.daisychain.item;
 
 import com.daisychain.block.ClaimCheck;
 import com.daisychain.block.EnergyPipeBlock;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.config.DaisychainConfig;
 import com.daisychain.network.NetworkManager;
@@ -64,7 +64,7 @@ public final class SettingsCopierItem extends Item {
         Player player = context.getPlayer();
         BlockPos pos = context.getClickedPos();
         BlockState state = level.getBlockState(pos);
-        if (!(state.getBlock() instanceof FlowPipeBlock)) {
+        if (!(state.getBlock() instanceof BasePipeBlock)) {
             // Sneaking on another block: stop here, so the click doesn't fall through to "clear" (that's for the air).
             return player != null && player.isSecondaryUseActive() ? InteractionResult.FAIL : InteractionResult.PASS;
         }
@@ -73,10 +73,10 @@ public final class SettingsCopierItem extends Item {
         }
         if (level instanceof ServerLevel serverLevel) {
             ItemStack stack = context.getItemInHand();
-            if (player.isSecondaryUseActive() && FlowPipeBlock.isCoreHit(state, pos, context.getClickLocation())) {
+            if (player.isSecondaryUseActive() && BasePipeBlock.isCoreHit(state, pos, context.getClickLocation())) {
                 pasteNetwork(serverLevel, pos, state, player, stack);
             } else {
-                Direction side = FlowPipeBlock.targetedSide(state, pos, context.getClickLocation(),
+                Direction side = BasePipeBlock.targetedSide(state, pos, context.getClickLocation(),
                         context.getClickedFace());
                 if (player.isSecondaryUseActive()) {
                     paste(serverLevel, pos, state, side, player, stack);
@@ -106,13 +106,13 @@ public final class SettingsCopierItem extends Item {
 
     private static void copy(ServerLevel level, BlockPos pos, BlockState state, Direction side, Player player,
                              ItemStack stack) {
-        boolean pull = FlowPipeBlock.isPullSide(level, pos, state, side);
-        boolean insert = !pull && FlowPipeBlock.isInsertSide(level, pos, state, side);
+        boolean pull = BasePipeBlock.isPullSide(level, pos, state, side);
+        boolean insert = !pull && BasePipeBlock.isInsertSide(level, pos, state, side);
         if (!pull && !insert) {
             tell(player, Component.translatable("message.daisychain.copier.no_side"), ChatFormatting.YELLOW);
             return;
         }
-        PipeDataBlockEntity data = FlowPipeBlock.getData(level, pos, state);
+        PipeDataBlockEntity data = BasePipeBlock.getData(level, pos, state);
         // A side nobody changed has no data yet: copy the defaults (an empty tag means "all default").
         CompoundTag settings = data != null ? data.copySide(side, insert, level.registryAccess()) : new CompoundTag();
         if (state.getBlock() instanceof EnergyPipeBlock) {
@@ -151,8 +151,8 @@ public final class SettingsCopierItem extends Item {
         if (copied == null) {
             return;
         }
-        boolean pullHere = FlowPipeBlock.isPullSide(level, pos, state, side);
-        boolean insertHere = !pullHere && FlowPipeBlock.isInsertSide(level, pos, state, side);
+        boolean pullHere = BasePipeBlock.isPullSide(level, pos, state, side);
+        boolean insertHere = !pullHere && BasePipeBlock.isInsertSide(level, pos, state, side);
         if (!pullHere && !insertHere) {
             tell(player, Component.translatable("message.daisychain.copier.no_side"), ChatFormatting.YELLOW);
             return;
@@ -223,13 +223,13 @@ public final class SettingsCopierItem extends Item {
                 continue;
             }
             BlockState pipeState = level.getBlockState(pipePos);
-            if (!(pipeState.getBlock() instanceof FlowPipeBlock)) {
+            if (!(pipeState.getBlock() instanceof BasePipeBlock)) {
                 continue;
             }
             int allowed = -1; // step 133: asked once per pipe, only if it has a matching side (-1 = not asked yet)
             for (Direction side : Direction.values()) {
-                boolean match = copied.insert() ? FlowPipeBlock.isInsertSide(level, pipePos, pipeState, side)
-                        : FlowPipeBlock.isPullSide(level, pipePos, pipeState, side);
+                boolean match = copied.insert() ? BasePipeBlock.isInsertSide(level, pipePos, pipeState, side)
+                        : BasePipeBlock.isPullSide(level, pipePos, pipeState, side);
                 if (match) {
                     if (allowed < 0) {
                         allowed = ClaimCheck.mayChange(level, pipePos, player) ? 1 : 0;
@@ -277,7 +277,7 @@ public final class SettingsCopierItem extends Item {
         Item[] missing = new Item[1];
         for (int i = 0; i < count; i++) {
             BlockPos pipePos = BlockPos.of(targetPipes.getLong(i));
-            if (!(level.getBlockState(pipePos).getBlock() instanceof FlowPipeBlock)) {
+            if (!(level.getBlockState(pipePos).getBlock() instanceof BasePipeBlock)) {
                 continue;
             }
             missing[0] = null;
@@ -319,11 +319,11 @@ public final class SettingsCopierItem extends Item {
     private static CopierSessions.SideChange pasteOne(ServerLevel level, BlockPos pos, Direction side,
                                                       CopiedSettings copied, Player player, Item[] missing) {
         boolean insert = copied.insert();
-        PipeDataBlockEntity existing = FlowPipeBlock.getData(level, pos, level.getBlockState(pos));
+        PipeDataBlockEntity existing = BasePipeBlock.getData(level, pos, level.getBlockState(pos));
         CompoundTag before = existing != null ? existing.copySide(side, insert, level.registryAccess()) : null;
         int beforeUpgrade = existing != null ? existing.upgradeLevel(side) : 0;
-        FlowPipeBlock.ensureData(level, pos);
-        PipeDataBlockEntity data = FlowPipeBlock.getData(level, pos, level.getBlockState(pos));
+        BasePipeBlock.ensureData(level, pos);
+        PipeDataBlockEntity data = BasePipeBlock.getData(level, pos, level.getBlockState(pos));
         if (data == null) {
             return null;
         }
@@ -335,7 +335,7 @@ public final class SettingsCopierItem extends Item {
         missing[0] = insert || energyPipe ? null : pasteUpgrade(data, side, copied.upgradeLevel(), player);
         CompoundTag after = data.copySide(side, insert, level.registryAccess());
         // Pasting all-default insert settings leaves nothing the block entity must keep: let the pipe drop it.
-        FlowPipeBlock.dropDataIfUnused(level, pos);
+        BasePipeBlock.dropDataIfUnused(level, pos);
         return before.equals(after) ? null
                 : new CopierSessions.SideChange(pos.immutable(), side, insert, before, beforeUpgrade, after);
     }
@@ -377,21 +377,21 @@ public final class SettingsCopierItem extends Item {
                 continue;
             }
             BlockState state = level.getBlockState(pos);
-            boolean sameKind = state.getBlock() instanceof FlowPipeBlock && pipeId(state).equals(batch.pipe)
-                    && (change.insert() ? FlowPipeBlock.isInsertSide(level, pos, state, change.side())
-                    : FlowPipeBlock.isPullSide(level, pos, state, change.side()));
+            boolean sameKind = state.getBlock() instanceof BasePipeBlock && pipeId(state).equals(batch.pipe)
+                    && (change.insert() ? BasePipeBlock.isInsertSide(level, pos, state, change.side())
+                    : BasePipeBlock.isPullSide(level, pos, state, change.side()));
             if (!sameKind) {
                 skipped++;
                 continue;
             }
-            FlowPipeBlock.ensureData(level, pos);
-            PipeDataBlockEntity data = FlowPipeBlock.getData(level, pos, level.getBlockState(pos));
+            BasePipeBlock.ensureData(level, pos);
+            PipeDataBlockEntity data = BasePipeBlock.getData(level, pos, level.getBlockState(pos));
             if (data == null) {
                 skipped++;
                 continue;
             }
             if (!data.copySide(change.side(), change.insert(), level.registryAccess()).equals(change.after())) {
-                FlowPipeBlock.dropDataIfUnused(level, pos);
+                BasePipeBlock.dropDataIfUnused(level, pos);
                 skipped++;
                 continue;
             }
@@ -403,7 +403,7 @@ public final class SettingsCopierItem extends Item {
                     missingItem = missing;
                 }
             }
-            FlowPipeBlock.dropDataIfUnused(level, pos);
+            BasePipeBlock.dropDataIfUnused(level, pos);
             restored++;
             restoredPipes.add(pos.asLong());
             restoredSides.add(change.side());
@@ -461,21 +461,21 @@ public final class SettingsCopierItem extends Item {
                 continue;
             }
             BlockState state = level.getBlockState(pos);
-            boolean sameKind = state.getBlock() instanceof FlowPipeBlock && pipeId(state).equals(batch.pipe)
-                    && (change.insert() ? FlowPipeBlock.isInsertSide(level, pos, state, change.side())
-                    : FlowPipeBlock.isPullSide(level, pos, state, change.side()));
+            boolean sameKind = state.getBlock() instanceof BasePipeBlock && pipeId(state).equals(batch.pipe)
+                    && (change.insert() ? BasePipeBlock.isInsertSide(level, pos, state, change.side())
+                    : BasePipeBlock.isPullSide(level, pos, state, change.side()));
             if (!sameKind) {
                 skipped++;
                 continue;
             }
-            FlowPipeBlock.ensureData(level, pos);
-            PipeDataBlockEntity data = FlowPipeBlock.getData(level, pos, level.getBlockState(pos));
+            BasePipeBlock.ensureData(level, pos);
+            PipeDataBlockEntity data = BasePipeBlock.getData(level, pos, level.getBlockState(pos));
             if (data == null) {
                 skipped++;
                 continue;
             }
             if (!data.copySide(change.side(), change.insert(), level.registryAccess()).equals(change.before())) {
-                FlowPipeBlock.dropDataIfUnused(level, pos);
+                BasePipeBlock.dropDataIfUnused(level, pos);
                 skipped++;
                 continue;
             }
@@ -487,7 +487,7 @@ public final class SettingsCopierItem extends Item {
                     missingItem = missing;
                 }
             }
-            FlowPipeBlock.dropDataIfUnused(level, pos);
+            BasePipeBlock.dropDataIfUnused(level, pos);
             redone.changes.add(change);
             pipes.add(pos.asLong());
             sides.add(change.side());
@@ -520,7 +520,7 @@ public final class SettingsCopierItem extends Item {
         }
         if (before == 0) {
             data.setUpgradeLevel(side, 0);
-            FlowPipeBlock.giveUpgradeBack(player, current);
+            BasePipeBlock.giveUpgradeBack(player, current);
             return null;
         }
         return pasteUpgrade(data, side, before, player);
@@ -589,7 +589,7 @@ public final class SettingsCopierItem extends Item {
             inventory.removeItem(slot, 1);
         }
         data.setUpgradeLevel(side, wanted);
-        FlowPipeBlock.giveUpgradeBack(player, current);
+        BasePipeBlock.giveUpgradeBack(player, current);
         return null;
     }
 

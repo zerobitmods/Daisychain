@@ -1,7 +1,7 @@
 package com.daisychain.client;
 
 import com.daisychain.Daisychain;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.config.DaisychainClientConfig;
 import com.daisychain.item.SettingsCopierItem;
 import com.mojang.blaze3d.vertex.PoseStack;
@@ -30,7 +30,7 @@ import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 /**
  * While the player holds a wrench, sneaks (step 66) and looks at a pipe, shows the ghost arm ("hologram") of the one side being looked at
  * (step 34b, zerobit): light blue for an open side, red for a side set to Off. Every armless side can still be clicked
- * (the click shape includes all ghost arms for wrench holders, see FlowPipeBlock.getShape); only the looked-at one is
+ * (the click shape includes all ghost arms for wrench holders, see BasePipeBlock.getShape); only the looked-at one is
  * drawn, as a soft see-through box with a faint edge (step 60). The black selection outline is redrawn as the pipe itself, without any ghost arms (step 58: the hologram
  * already shows the ghost, and a black copy inside it looked like stray lines).
  * Only the one pipe under the crosshair. Client only; nothing is sent to the server.
@@ -53,11 +53,11 @@ public final class WrenchGhostRenderer {
     private static final double GROW = -0.002;
     private static final AABB[] GHOST_BOXES = new AABB[6];
     /** Step 55: the outline shown when the crosshair is on the middle of a pipe while holding the Settings Copier. */
-    private static final VoxelShape CORE_SHAPE = Shapes.create(FlowPipeBlock.coreBounds());
+    private static final VoxelShape CORE_SHAPE = Shapes.create(BasePipeBlock.coreBounds());
 
     static {
         for (int i = 0; i < 6; i++) {
-            GHOST_BOXES[i] = FlowPipeBlock.armBounds(i).inflate(GROW);
+            GHOST_BOXES[i] = BasePipeBlock.armBounds(i).inflate(GROW);
         }
     }
 
@@ -67,8 +67,8 @@ public final class WrenchGhostRenderer {
     /** The armless side the player is looking at on this pipe (as a bit), or 0. */
     private static int lookedAtGhost(Minecraft minecraft, BlockHitResult hit, BlockState state) {
         BlockPos pos = hit.getBlockPos();
-        int ghosts = FlowPipeBlock.ghostArmMask(minecraft.level, pos, state);
-        int bit = 1 << FlowPipeBlock.targetedSide(state, pos, hit).get3DDataValue();
+        int ghosts = BasePipeBlock.ghostArmMask(minecraft.level, pos, state);
+        int bit = 1 << BasePipeBlock.targetedSide(state, pos, hit).get3DDataValue();
         return ghosts & bit;
     }
 
@@ -81,9 +81,9 @@ public final class WrenchGhostRenderer {
         if (minecraft.player == null || minecraft.level == null || minecraft.hitResult == null
                 || minecraft.hitResult.getType() != HitResult.Type.BLOCK
                 || !(minecraft.hitResult instanceof BlockHitResult hit)
-                || !FlowPipeBlock.isHoldingWrench(minecraft.player)
+                || !BasePipeBlock.isHoldingWrench(minecraft.player)
                 || !minecraft.player.isSecondaryUseActive() // step 66: only while sneaking
-                || FlowPipeBlock.clientGhostsHidden()) { // step 68: hidden while the click-through key is held
+                || BasePipeBlock.clientGhostsHidden()) { // step 68: hidden while the click-through key is held
             return;
         }
         BlockPos pos = hit.getBlockPos();
@@ -93,7 +93,7 @@ public final class WrenchGhostRenderer {
             return;
         }
         int side = Integer.numberOfTrailingZeros(ghost);
-        boolean off = (FlowPipeBlock.offMask(minecraft.level, pos, state) & ghost) != 0;
+        boolean off = (BasePipeBlock.offMask(minecraft.level, pos, state) & ghost) != 0;
 
         // Step 60 (zerobit chose "glass + faint outline"): a soft see-through fill with a fainter edge.
         float r = off ? OFF_RED : RED;
@@ -131,20 +131,20 @@ public final class WrenchGhostRenderer {
         if (minecraft.player == null || minecraft.level == null) {
             return;
         }
-        boolean wrench = FlowPipeBlock.isHoldingWrench(minecraft.player);
+        boolean wrench = BasePipeBlock.isHoldingWrench(minecraft.player);
         if (!wrench && !holdingCopier(minecraft.player)) {
             return;
         }
         BlockHitResult hit = event.getTarget();
         BlockPos pos = hit.getBlockPos();
         BlockState state = minecraft.level.getBlockState(pos);
-        if (!(state.getBlock() instanceof FlowPipeBlock)) {
+        if (!(state.getBlock() instanceof BasePipeBlock)) {
             return;
         }
         VoxelShape shape;
         if (wrench) {
-            shape = FlowPipeBlock.shapeFor(state, 0);
-        } else if (FlowPipeBlock.isCoreHit(state, pos, hit.getLocation())) {
+            shape = BasePipeBlock.shapeFor(state, 0);
+        } else if (BasePipeBlock.isCoreHit(state, pos, hit.getLocation())) {
             shape = CORE_SHAPE;
         } else {
             return;
@@ -172,11 +172,11 @@ public final class WrenchGhostRenderer {
         });
     }
 
-    /** Reads the hologram setting once per tick for FlowPipeBlock.getShape (toggled with the Bloom Wrench). */
+    /** Reads the hologram setting once per tick for BasePipeBlock.getShape (toggled with the Bloom Wrench). */
     @SubscribeEvent
     public static void onClientTick(ClientTickEvent.Post event) {
         // Step 72: the client setting turns them off for good.
-        FlowPipeBlock.setClientGhostsHidden(!DaisychainClientConfig.wrenchHolograms());
+        BasePipeBlock.setClientGhostsHidden(!DaisychainClientConfig.wrenchHolograms());
     }
 
     private static boolean holdingCopier(Player player) {

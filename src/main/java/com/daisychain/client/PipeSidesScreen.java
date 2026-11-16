@@ -1,6 +1,6 @@
 package com.daisychain.client;
 
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.SideState;
 import com.daisychain.config.DaisychainClientConfig;
@@ -58,7 +58,7 @@ import java.util.Optional;
  *   then a sliders key that opens that side's settings.</li>
  * </ul>
  * Client only. Mode keys send SetSideModePayload; the server applies only modes allowed for the side
- * (FlowPipeBlock.allowedModes, the same rule this screen uses to grey keys out).
+ * (BasePipeBlock.allowedModes, the same rule this screen uses to grey keys out).
  */
 public final class PipeSidesScreen extends Screen {
     private static final int PANEL_WIDTH = 176;
@@ -93,15 +93,15 @@ public final class PipeSidesScreen extends Screen {
     private static final int SHOW_LINK = 4;
     private static final int SHOW_OFF = 5;
     private static final String[] SHOW_KEYS = {"nothing", "pull", "pull_missing", "insert", "connected", "disconnected"};
-    private static final int[] SHOW_COLORS = {FlowGui.MODE_NONE, FlowGui.MODE_PULL, FlowGui.MODE_PULL_EMPTY,
-            FlowGui.MODE_INSERT, FlowGui.MODE_LINK, FlowGui.MODE_OFF};
+    private static final int[] SHOW_COLORS = {DaisyGui.MODE_NONE, DaisyGui.MODE_PULL, DaisyGui.MODE_PULL_EMPTY,
+            DaisyGui.MODE_INSERT, DaisyGui.MODE_LINK, DaisyGui.MODE_OFF};
 
     /** The four mode keys: label key, the mode sent, and the fill / ink when chosen. */
     private static final String[] KEY_NAMES = {"pull", "insert", "link", "off"};
-    private static final int[] KEY_MODES = {FlowPipeBlock.MODE_PULL, FlowPipeBlock.MODE_NORMAL, FlowPipeBlock.MODE_NORMAL,
-            FlowPipeBlock.MODE_DISCONNECTED};
-    private static final int[] KEY_TINTS = {FlowGui.PULL_TINT, FlowGui.INSERT_TINT, FlowGui.ON, FlowGui.WARN_TINT};
-    private static final int[] KEY_INKS = {FlowGui.PULL_INK, FlowGui.INSERT_INK, FlowGui.ON_INK, FlowGui.WARN_TEXT};
+    private static final int[] KEY_MODES = {BasePipeBlock.MODE_PULL, BasePipeBlock.MODE_NORMAL, BasePipeBlock.MODE_NORMAL,
+            BasePipeBlock.MODE_DISCONNECTED};
+    private static final int[] KEY_TINTS = {DaisyGui.PULL_TINT, DaisyGui.INSERT_TINT, DaisyGui.ON, DaisyGui.WARN_TINT};
+    private static final int[] KEY_INKS = {DaisyGui.PULL_INK, DaisyGui.INSERT_INK, DaisyGui.ON_INK, DaisyGui.WARN_TEXT};
 
     /** Square positions in the cross (column, row), in this order: front, left, right, back, up, down. */
     private static final int[][] CELLS = {{1, 1}, {0, 1}, {2, 1}, {3, 1}, {1, 0}, {1, 2}};
@@ -114,7 +114,7 @@ public final class PipeSidesScreen extends Screen {
     private final Direction[] sides = {Direction.SOUTH, Direction.WEST, Direction.EAST, Direction.NORTH,
             Direction.UP, Direction.DOWN};
     private final int[] shown = new int[6];
-    /** Per slot: bits of FlowPipeBlock.MODE_* the side may be set to. */
+    /** Per slot: bits of BasePipeBlock.MODE_* the side may be set to. */
     private final int[] allowed = new int[6];
     private final boolean[] neighborIsPipe = new boolean[6];
     private final boolean[] hasSettings = new boolean[6];
@@ -124,9 +124,9 @@ public final class PipeSidesScreen extends Screen {
             ItemStack.EMPTY, ItemStack.EMPTY};
     private final Component[] blockNames = new Component[6];
     private final SideSquare[] squares = new SideSquare[6];
-    private final FlowKey[] modeKeys = new FlowKey[4];
-    private FlowKey settingsKey;
-    private FlowTab thisSideTab;
+    private final DaisyKey[] modeKeys = new DaisyKey[4];
+    private DaisyKey settingsKey;
+    private DaisyTab thisSideTab;
     private Direction facing = Direction.NORTH;
     private int panelX;
     private int panelY;
@@ -165,17 +165,17 @@ public final class PipeSidesScreen extends Screen {
         selectReturnSide();
 
         // Tabs: this side's settings (the side we came from, else the selected side) and this screen.
-        thisSideTab = addRenderableWidget(new FlowTab(panelX, panelY + 8, FlowGui.FACE, false,
+        thisSideTab = addRenderableWidget(new DaisyTab(panelX, panelY + 8, DaisyGui.FACE, false,
                 Component.translatable("screen.daisychain.tab.this_side"), this::openTabSide));
-        addRenderableWidget(new FlowTab(panelX, panelY + 34, FlowGui.CUBE, true,
+        addRenderableWidget(new DaisyTab(panelX, panelY + 34, DaisyGui.CUBE, true,
                 Component.translatable("screen.daisychain.tab.all_sides"), () -> { }));
 
         // 3D key: right-aligned to x 169 on the header line.
         Component label3d = Component.translatable("screen.daisychain.sides.view_3d");
-        int width3d = FlowGui.inkWidth(font, label3d) + 8;
+        int width3d = DaisyGui.inkWidth(font, label3d) + 8;
         headerRight = 169 - width3d - 4;
-        addRenderableWidget(FlowKey.text(panelX + 169 - width3d, panelY + 5, width3d, 13, () -> label3d,
-                () -> view3d, FlowGui.ON, FlowGui.ON_INK, () -> setView(!view3d)))
+        addRenderableWidget(DaisyKey.text(panelX + 169 - width3d, panelY + 5, width3d, 13, () -> label3d,
+                () -> view3d, DaisyGui.ON, DaisyGui.ON_INK, () -> setView(!view3d)))
                 .setTooltip(Tooltip.create(Component.translatable("screen.daisychain.sides.view_3d_help")));
 
         for (int i = 0; i < 6; i++) {
@@ -191,7 +191,7 @@ public final class PipeSidesScreen extends Screen {
         int used = 3;
         for (int k = 0; k < 4; k++) {
             labels[k] = Component.translatable("screen.daisychain.sides.mode." + KEY_NAMES[k]);
-            widths[k] = FlowGui.inkWidth(font, labels[k]) + 8;
+            widths[k] = DaisyGui.inkWidth(font, labels[k]) + 8;
             used += widths[k];
         }
         int extra = Math.max(0, MODE_ROW_RIGHT - 7 - used);
@@ -200,12 +200,12 @@ public final class PipeSidesScreen extends Screen {
             int key = k;
             Component label = labels[k];
             int keyWidth = widths[k] + extra / 4 + (k < extra % 4 ? 1 : 0);
-            modeKeys[k] = addRenderableWidget(FlowKey.text(keyX, panelY + MODE_ROW_Y, keyWidth, MODE_ROW_HEIGHT,
+            modeKeys[k] = addRenderableWidget(DaisyKey.text(keyX, panelY + MODE_ROW_Y, keyWidth, MODE_ROW_HEIGHT,
                     () -> label, () -> chosenKey() == key, KEY_TINTS[k], KEY_INKS[k], () -> setMode(key)));
             keyX += keyWidth + 1;
         }
-        settingsKey = addRenderableWidget(FlowKey.small(panelX + SETTINGS_KEY_X, panelY + MODE_ROW_Y, 18,
-                MODE_ROW_HEIGHT, () -> FlowGui.SLIDERS, () -> FlowGui.TEXT, () -> openSettings(sides[selected])));
+        settingsKey = addRenderableWidget(DaisyKey.small(panelX + SETTINGS_KEY_X, panelY + MODE_ROW_Y, 18,
+                MODE_ROW_HEIGHT, () -> DaisyGui.SLIDERS, () -> DaisyGui.TEXT, () -> openSettings(sides[selected])));
 
         refresh();
         applyView();
@@ -245,7 +245,7 @@ public final class PipeSidesScreen extends Screen {
             return null;
         }
         BlockState state = minecraft.level.getBlockState(pos);
-        return state.getBlock() instanceof FlowPipeBlock ? state : null;
+        return state.getBlock() instanceof BasePipeBlock ? state : null;
     }
 
     /** The side settings screen has a real item slot, so the server opens it (after checking the request). */
@@ -266,8 +266,8 @@ public final class PipeSidesScreen extends Screen {
     private boolean hasSettings(Direction side) {
         BlockState state = pipeState();
         return state != null && minecraft != null && minecraft.level != null
-                && (FlowPipeBlock.isPullSide(minecraft.level, pos, state, side)
-                || FlowPipeBlock.isInsertSide(minecraft.level, pos, state, side));
+                && (BasePipeBlock.isPullSide(minecraft.level, pos, state, side)
+                || BasePipeBlock.isInsertSide(minecraft.level, pos, state, side));
     }
 
     /** A mode key: sets the selected side to that key's mode (the server checks it's allowed). */
@@ -331,18 +331,18 @@ public final class PipeSidesScreen extends Screen {
             return;
         }
         updateSides();
-        FlowPipeBlock pipe = (FlowPipeBlock) state.getBlock();
-        PipeDataBlockEntity data = FlowPipeBlock.getData(minecraft.level, pos, state);
+        BasePipeBlock pipe = (BasePipeBlock) state.getBlock();
+        PipeDataBlockEntity data = BasePipeBlock.getData(minecraft.level, pos, state);
         for (int i = 0; i < 6; i++) {
             Direction side = sides[i];
             BlockState neighbor = minecraft.level.getBlockState(pos.relative(side));
             neighborIsPipe[i] = pipe.linksWith(neighbor); // step 84: energy pipes of every tier link
-            SideState sideState = state.getValue(FlowPipeBlock.propertyFor(side));
+            SideState sideState = state.getValue(BasePipeBlock.propertyFor(side));
             if (data != null && data.isDisconnected(side)) {
                 shown[i] = SHOW_OFF;
             } else if (sideState == SideState.EXTRACT) {
                 shown[i] = SHOW_PULL;
-            } else if (FlowPipeBlock.isPullSide(minecraft.level, pos, state, side)) {
+            } else if (BasePipeBlock.isPullSide(minecraft.level, pos, state, side)) {
                 shown[i] = SHOW_PULL_EMPTY; // pull mark kept, nothing to pull from
             } else if (sideState == SideState.CONNECTED) {
                 shown[i] = neighborIsPipe[i] ? SHOW_LINK : SHOW_INSERT;
@@ -351,8 +351,8 @@ public final class PipeSidesScreen extends Screen {
             }
             allowed[i] = pipe.allowedModes(minecraft.level, pos, side);
             upgradeTier[i] = data == null ? 0 : data.upgradeLevel(side);
-            hasSettings[i] = FlowPipeBlock.isPullSide(minecraft.level, pos, state, side)
-                    || FlowPipeBlock.isInsertSide(minecraft.level, pos, state, side);
+            hasSettings[i] = BasePipeBlock.isPullSide(minecraft.level, pos, state, side)
+                    || BasePipeBlock.isInsertSide(minecraft.level, pos, state, side);
             ItemStack icon = neighbor.isAir() ? ItemStack.EMPTY : new ItemStack(neighbor.getBlock().asItem());
             if (!ItemStack.isSameItem(icon, icons[i])) {
                 icons[i] = icon;
@@ -409,7 +409,7 @@ public final class PipeSidesScreen extends Screen {
     @Override
     public void renderBackground(GuiGraphics graphics, int mouseX, int mouseY, float partialTick) {
         super.renderBackground(graphics, mouseX, mouseY, partialTick);
-        FlowGui.panel(graphics, panelX, panelY, PANEL_WIDTH, PANEL_HEIGHT);
+        DaisyGui.panel(graphics, panelX, panelY, PANEL_WIDTH, PANEL_HEIGHT);
         // Header (caps on y 8): what the selected side touches, its compass name, the block's name.
         ItemStack icon = icons[selected];
         if (!icon.isEmpty()) {
@@ -420,10 +420,10 @@ public final class PipeSidesScreen extends Screen {
             graphics.pose().popPose();
         }
         Component name = sideName(selected);
-        FlowGui.text(graphics, font, name, panelX + 22, panelY + 8, FlowGui.TEXT);
-        int blockX = panelX + 22 + FlowGui.inkWidth(font, name) + 4;
-        FlowGui.text(graphics, font, fit(blockNames[selected], panelX + headerRight - blockX), blockX, panelY + 8,
-                FlowGui.DIM);
+        DaisyGui.text(graphics, font, name, panelX + 22, panelY + 8, DaisyGui.TEXT);
+        int blockX = panelX + 22 + DaisyGui.inkWidth(font, name) + 4;
+        DaisyGui.text(graphics, font, fit(blockNames[selected], panelX + headerRight - blockX), blockX, panelY + 8,
+                DaisyGui.DIM);
     }
 
     /** "Front (North)" for the four flat sides, just "Top" or "Bottom" for the other two. */
@@ -438,7 +438,7 @@ public final class PipeSidesScreen extends Screen {
 
     /** Cuts a name down to fit the given width, ending it with "..." when it was too long. */
     private Component fit(Component text, int maxWidth) {
-        if (FlowGui.inkWidth(font, text) <= maxWidth) {
+        if (DaisyGui.inkWidth(font, text) <= maxWidth) {
             return text;
         }
         String dots = "...";
@@ -466,11 +466,11 @@ public final class PipeSidesScreen extends Screen {
         }
         int left = panelX + VIEW_LEFT;
         int top = panelY + VIEW_TOP;
-        FlowGui.round(graphics, left, top, left + VIEW_WIDTH, top + VIEW_HEIGHT, FlowGui.SLOT_EDGE, 1);
-        graphics.fill(left + 1, top + 1, left + VIEW_WIDTH - 1, top + VIEW_HEIGHT - 1, FlowGui.SLOT);
+        DaisyGui.round(graphics, left, top, left + VIEW_WIDTH, top + VIEW_HEIGHT, DaisyGui.SLOT_EDGE, 1);
+        graphics.fill(left + 1, top + 1, left + VIEW_WIDTH - 1, top + VIEW_HEIGHT - 1, DaisyGui.SLOT);
         if (DaisychainClientConfig.showHints()) {
             graphics.drawString(font, Component.translatable("screen.daisychain.view_3d_hint"), left + 4, top + 4,
-                    FlowGui.FAINT, false);
+                    DaisyGui.FAINT, false);
         }
         graphics.flush();
         graphics.enableScissor(left + 1, top + 1, left + VIEW_WIDTH - 1, top + VIEW_HEIGHT - 1);
@@ -511,7 +511,7 @@ public final class PipeSidesScreen extends Screen {
         pose.translate(-0.5F, -0.5F, -0.5F);
         VertexConsumer lines = buffers.getBuffer(RenderType.lines());
         for (int i = 0; i < 6; i++) {
-            int color = i == selected ? FlowGui.WHITE : i == hovered ? FlowGui.DIM : SHOW_COLORS[shown[i]];
+            int color = i == selected ? DaisyGui.WHITE : i == hovered ? DaisyGui.DIM : SHOW_COLORS[shown[i]];
             double grow = i == selected ? 0.04 : 0.015;
             LevelRenderer.renderLineBox(pose, lines, neighborBox(sides[i]).inflate(grow),
                     ((color >> 16) & 0xFF) / 255.0F, ((color >> 8) & 0xFF) / 255.0F, (color & 0xFF) / 255.0F, 1.0F);
@@ -566,7 +566,7 @@ public final class PipeSidesScreen extends Screen {
         }
         for (int i = 0; i < 6; i++) {
             Direction side = sides[i];
-            Optional<Vec3> armHit = FlowPipeBlock.armBounds(side.get3DDataValue()).clip(from, to);
+            Optional<Vec3> armHit = BasePipeBlock.armBounds(side.get3DDataValue()).clip(from, to);
             if (armHit.isPresent() && armHit.get().distanceToSqr(from) < best) {
                 best = armHit.get().distanceToSqr(from);
                 bestSide = i;
@@ -679,16 +679,16 @@ public final class PipeSidesScreen extends Screen {
                 int r1 = x + SQUARE + 2;
                 int s0 = y - 2;
                 int s1 = y + SQUARE + 2;
-                FlowGui.round(graphics, r0, s0, r1, s1, FlowGui.WHITE, 1);
-                FlowGui.round(graphics, r0 + 1, s0 + 1, r1 - 1, s1 - 1, FlowGui.PANEL, 1);
+                DaisyGui.round(graphics, r0, s0, r1, s1, DaisyGui.WHITE, 1);
+                DaisyGui.round(graphics, r0 + 1, s0 + 1, r1 - 1, s1 - 1, DaisyGui.PANEL, 1);
             }
-            FlowGui.round(graphics, x, y, x + SQUARE, y + SQUARE, SHOW_COLORS[shown[slot]], 1);
-            graphics.fill(x + 2, y + 2, x + SQUARE - 2, y + SQUARE - 2, isHovered() ? FlowGui.KEY : FlowGui.SLOT);
+            DaisyGui.round(graphics, x, y, x + SQUARE, y + SQUARE, SHOW_COLORS[shown[slot]], 1);
+            graphics.fill(x + 2, y + 2, x + SQUARE - 2, y + SQUARE - 2, isHovered() ? DaisyGui.KEY : DaisyGui.SLOT);
             Component letter = Component.translatable("screen.daisychain.side_letter." + RELATIVE_KEYS[slot]);
-            FlowGui.text(graphics, font, letter, x + 5, y + 5, FlowGui.DIM);
+            DaisyGui.text(graphics, font, letter, x + 5, y + 5, DaisyGui.DIM);
             if (upgradeTier[slot] > 0) {
                 // Step 67: the side holds an upgrade (pulling, or parked): a tier-colored mark top right.
-                FlowGui.round(graphics, x + SQUARE - 10, y + 4, x + SQUARE - 4, y + 10, FlowGui.PANEL, 1);
+                DaisyGui.round(graphics, x + SQUARE - 10, y + 4, x + SQUARE - 4, y + 10, DaisyGui.PANEL, 1);
                 graphics.fill(x + SQUARE - 9, y + 5, x + SQUARE - 5, y + 9, 0xFF000000 | PipeColors.tierColor(upgradeTier[slot]));
             }
             ItemStack icon = icons[slot];

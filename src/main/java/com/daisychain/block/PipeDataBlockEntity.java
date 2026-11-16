@@ -150,8 +150,8 @@ public final class PipeDataBlockEntity extends BlockEntity {
             return null;
         }
         BlockState state = getBlockState();
-        if (!(state.getBlock() instanceof FlowPipeBlock pipe) || !pipe.kind().carries(PipeKind.ENERGY_RES)
-                || state.getValue(FlowPipeBlock.propertyFor(side)) != SideState.EXTRACT) {
+        if (!(state.getBlock() instanceof BasePipeBlock pipe) || !pipe.kind().carries(PipeKind.ENERGY_RES)
+                || state.getValue(BasePipeBlock.propertyFor(side)) != SideState.EXTRACT) {
             return null;
         }
         if (energyInputs == null) {
@@ -437,7 +437,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
             serverLevel.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_CLIENTS);
             NetworkManager.get(serverLevel).wakeExtractor(worldPosition);
             if (keptPullMask() != keptBefore) {
-                FlowPipeBlock.refreshArms(serverLevel, worldPosition); // a pull side with no inventory may appear/disappear
+                BasePipeBlock.refreshArms(serverLevel, worldPosition); // a pull side with no inventory may appear/disappear
             }
             if (isInsertSetting(setting)) {
                 // Step 117: the network's destinations are updated in place (no rebuild).
@@ -448,7 +448,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
 
     /** What this pipe carries (decides which resources its sides have). */
     public PipeKind kind() {
-        return FlowPipeBlock.kindOf(getBlockState());
+        return BasePipeBlock.kindOf(getBlockState());
     }
 
     // ---------------------------------------------------------------- filters
@@ -561,7 +561,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
         filterMask = computeFilterMask();
         setChanged();
         if (before != filterMask && level instanceof ServerLevel serverLevel) {
-            FlowPipeBlock.refreshArms(serverLevel, worldPosition); // a pull side with no inventory may appear/disappear
+            BasePipeBlock.refreshArms(serverLevel, worldPosition); // a pull side with no inventory may appear/disappear
         }
         if (level instanceof ServerLevel serverLevel) {
             // Items that were blocked may pass now (or the other way round): run the side again soon.
@@ -736,7 +736,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
             serverLevel.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_CLIENTS);
             NetworkManager.get(serverLevel).wakeExtractor(worldPosition);
             if (keptPullMask() != keptBefore) {
-                FlowPipeBlock.refreshArms(serverLevel, worldPosition); // a pull side with no inventory may appear/disappear
+                BasePipeBlock.refreshArms(serverLevel, worldPosition); // a pull side with no inventory may appear/disappear
             }
             if (insert) {
                 // Step 117: the network's destinations are updated in place (no rebuild).
@@ -777,7 +777,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
             serverLevel.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_CLIENTS);
             NetworkManager.get(serverLevel).wakeExtractor(worldPosition);
             if (hadOne != (level != 0)) {
-                FlowPipeBlock.refreshArms(serverLevel, worldPosition); // a pull side with no inventory may appear/disappear
+                BasePipeBlock.refreshArms(serverLevel, worldPosition); // a pull side with no inventory may appear/disappear
             }
         }
     }
@@ -787,7 +787,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
         for (int i = 0; i < upgrades.length; i++) {
             UpgradeItem item = ModItems.upgradeFor(upgrades[i]);
             if (item != null) {
-                FlowPipeBlock.dropAt(world, pos, new ItemStack(item)); // review R2: not popResource (doTileDrops)
+                BasePipeBlock.dropAt(world, pos, new ItemStack(item)); // review R2: not popResource (doTileDrops)
             }
             upgrades[i] = 0;
         }
@@ -829,7 +829,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
         cover = value;
         setChanged();
         if (level instanceof ServerLevel serverLevel) {
-            FlowPipeBlock.syncCoverState(serverLevel, worldPosition); // step 127: full block, light
+            BasePipeBlock.syncCoverState(serverLevel, worldPosition); // step 127: full block, light
             BlockState state = serverLevel.getBlockState(worldPosition);
             serverLevel.sendBlockUpdated(worldPosition, state, state, Block.UPDATE_CLIENTS);
         }
@@ -838,8 +838,8 @@ public final class PipeDataBlockEntity extends BlockEntity {
     /** Step 127: false if the block state's cover value doesn't match the stored cover (saved before step 127). */
     public boolean coverStateMatches() {
         BlockState state = getBlockState();
-        return !(state.getBlock() instanceof FlowPipeBlock)
-                || state.getValue(FlowPipeBlock.COVER) == FlowPipeBlock.coverShapeOf(cover);
+        return !(state.getBlock() instanceof BasePipeBlock)
+                || state.getValue(BasePipeBlock.COVER) == BasePipeBlock.coverShapeOf(cover);
     }
 
     /**
@@ -858,7 +858,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
     /** Drops the cover as a facade item at the pipe and clears it. Never deletes it (same rules as dropUpgrades). */
     public void dropCover(Level world, BlockPos pos) {
         if (cover != null) {
-            FlowPipeBlock.dropAt(world, pos, FacadeItem.of(cover, 1)); // review R2: not popResource (doTileDrops)
+            BasePipeBlock.dropAt(world, pos, FacadeItem.of(cover, 1)); // review R2: not popResource (doTileDrops)
             cover = null;
             setChanged();
         }

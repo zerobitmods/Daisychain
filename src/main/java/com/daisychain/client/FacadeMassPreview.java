@@ -3,7 +3,7 @@ package com.daisychain.client;
 import com.daisychain.Daisychain;
 import com.daisychain.block.FacadeMassApply;
 import com.daisychain.block.FacadeOutline;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.config.DaisychainConfig;
 import com.daisychain.item.FacadeItem;
@@ -101,7 +101,7 @@ public final class FacadeMassPreview {
             return;
         }
         BlockPos pos = hit.getBlockPos();
-        if (!(level.getBlockState(pos).getBlock() instanceof FlowPipeBlock)) {
+        if (!(level.getBlockState(pos).getBlock() instanceof BasePipeBlock)) {
             clear();
             return;
         }
@@ -161,7 +161,7 @@ public final class FacadeMassPreview {
 
     @Nullable
     private static BlockState currentCover(ClientLevel level, BlockPos pos) {
-        PipeDataBlockEntity data = FlowPipeBlock.getData(level, pos, level.getBlockState(pos));
+        PipeDataBlockEntity data = BasePipeBlock.getData(level, pos, level.getBlockState(pos));
         return data == null ? null : data.cover();
     }
 

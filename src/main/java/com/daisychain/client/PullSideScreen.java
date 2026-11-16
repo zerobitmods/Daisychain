@@ -2,7 +2,7 @@ package com.daisychain.client;
 
 import com.daisychain.block.Distribution;
 import com.daisychain.block.EnergyPipeBlock;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.PipeKind;
 import com.daisychain.block.RedstoneMode;
@@ -122,10 +122,10 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
     /** Paused state the Max stock button was last labelled for (null = not yet). */
     private Boolean stockPausedShown;
     /** Drawer choice rows (step 46): Send to, Send back (pull) and Redstone (insert, step 40). */
-    private final FlowKey[] sendToKeys = new FlowKey[3];
-    private final FlowKey[] sendBackKeys = new FlowKey[2];
-    private final FlowKey[] insertRedstoneKeys = new FlowKey[PipeDataBlockEntity.INSERT_REDSTONE_MODES];
-    private FlowKey clearFilterKey;
+    private final DaisyKey[] sendToKeys = new DaisyKey[3];
+    private final DaisyKey[] sendBackKeys = new DaisyKey[2];
+    private final DaisyKey[] insertRedstoneKeys = new DaisyKey[PipeDataBlockEntity.INSERT_REDSTONE_MODES];
+    private DaisyKey clearFilterKey;
     private int clearLabelWidth;
     private int confirmLabelWidth;
     /** Value text of each drawer number field, set by refreshLabels. */
@@ -144,10 +144,10 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
     private NumberButton batchButton;
     private NumberButton keepButton;
     private NumberButton fillButton;
-    private FlowKey filterModeKey;
-    private FlowKey sideKey;
-    private FlowKey advancedKey;
-    private final FlowKey[] pageKeys = new FlowKey[2];
+    private DaisyKey filterModeKey;
+    private DaisyKey sideKey;
+    private DaisyKey advancedKey;
+    private final DaisyKey[] pageKeys = new DaisyKey[2];
     /** Type-a-number box, shown over a number button while editing (Ctrl/Cmd+click the button). */
     private EditBox numberEditor;
     private int editingSetting = -1;
@@ -169,8 +169,8 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
     private final int[] localValue = new int[14];
     private final int[] localTicks = new int[14];
     /** Universal pipes (step 33a): the Items / Fluids / Energy tabs, the on/off key, and the resource they were built for. */
-    private final FlowTab[] resourceTabs = new FlowTab[PipeKind.RESOURCE_COUNT];
-    private FlowKey resourceToggle;
+    private final DaisyTab[] resourceTabs = new DaisyTab[PipeKind.RESOURCE_COUNT];
+    private DaisyKey resourceToggle;
     private int shownResource = -1;
     /** Ticks left in which a second click on Clear filter really clears (0 = not armed). */
     private int clearArmedTicks;
@@ -190,15 +190,15 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
     private int openEntry = -1;
     /** The drawer's height (always the main panel's since step 47b). */
     private int drawerHeight;
-    private FlowKey entryBackKey;
-    private final FlowKey[] matchKeys = new FlowKey[MODE_ORDER.length];
+    private DaisyKey entryBackKey;
+    private final DaisyKey[] matchKeys = new DaisyKey[MODE_ORDER.length];
     private final TagRow[] tagRows = new TagRow[TAG_ROWS];
     private EditBox tagSearch;
     private String tagSearchText = "";
-    private FlowKey tagPrevKey;
-    private FlowKey tagNextKey;
+    private DaisyKey tagPrevKey;
+    private DaisyKey tagNextKey;
     private final NumberButton[] entryFields = new NumberButton[3];
-    private final FlowKey[] entryResetKeys = new FlowKey[3];
+    private final DaisyKey[] entryResetKeys = new DaisyKey[3];
     private final Component[] entryText = {Component.empty(), Component.empty(), Component.empty()};
     private final int[] entryLocalValue = new int[3];
     private final int[] entryLocalTicks = new int[3];
@@ -219,16 +219,16 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
     }
 
     private int sideColor() {
-        return insert ? FlowGui.INSERT : FlowGui.PULL;
+        return insert ? DaisyGui.INSERT : DaisyGui.PULL;
     }
 
     private int sideInk() {
-        return insert ? FlowGui.INSERT_INK : FlowGui.PULL_INK;
+        return insert ? DaisyGui.INSERT_INK : DaisyGui.PULL_INK;
     }
 
     /** Step 47c: a chosen key (or the mode tag) is filled with this soft tint of the side color, text in sideInk. */
     private int sideTint() {
-        return insert ? FlowGui.INSERT_TINT : FlowGui.PULL_TINT;
+        return insert ? DaisyGui.INSERT_TINT : DaisyGui.PULL_TINT;
     }
 
     @Override
@@ -268,9 +268,9 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         hiddenInUse = false;
 
         // Tabs: this side (here) and all sides.
-        addRenderableWidget(new FlowTab(panelX, panelY + 8, FlowGui.FACE, true,
+        addRenderableWidget(new DaisyTab(panelX, panelY + 8, DaisyGui.FACE, true,
                 Component.translatable("screen.daisychain.tab.this_side"), () -> { }));
-        addRenderableWidget(new FlowTab(panelX, panelY + 34, FlowGui.CUBE, false,
+        addRenderableWidget(new DaisyTab(panelX, panelY + 34, DaisyGui.CUBE, false,
                 Component.translatable("screen.daisychain.tab.all_sides"), this::openAllSides))
                 .setTooltip(Tooltip.create(Component.translatable("screen.daisychain.tab.all_sides")));
         // Universal pipes (step 33a, restyled in step 49): one tab per resource (20 tall, 22 apart) below the two
@@ -279,10 +279,10 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         java.util.Arrays.fill(resourceTabs, null);
         resourceToggle = null;
         if (menu.hasResourceTabs()) {
-            String[][] icons = {FlowGui.ITEMS, FlowGui.FLUIDS, FlowGui.ENERGY};
+            String[][] icons = {DaisyGui.ITEMS, DaisyGui.FLUIDS, DaisyGui.ENERGY};
             for (int r = 0; r < PipeKind.RESOURCE_COUNT; r++) {
                 int resource = r;
-                resourceTabs[r] = addRenderableWidget(new FlowTab(panelX, panelY + 64 + r * 22, 20, icons[r],
+                resourceTabs[r] = addRenderableWidget(new DaisyTab(panelX, panelY + 64 + r * 22, 20, icons[r],
                         r == menu.resource(), resourceName(r), () -> showResource(resource),
                         () -> resourceOff(resource)));
             }
@@ -295,14 +295,14 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         if (advanced && hasFilter) {
             for (int p = 0; p < 2; p++) {
                 int page = p;
-                pageKeys[p] = addRenderableWidget(FlowKey.text(column(3 + p), rowY, 18, 18,
-                        () -> FlowGui.styled(Integer.toString(page + 1)), () -> menu.page() == page, sideTint(),
+                pageKeys[p] = addRenderableWidget(DaisyKey.text(column(3 + p), rowY, 18, 18,
+                        () -> DaisyGui.styled(Integer.toString(page + 1)), () -> menu.page() == page, sideTint(),
                         sideInk(), () -> showPage(page)).segmented());
             }
         }
-        filterModeKey = addRenderableWidget(FlowKey.icon(column(6), rowY,
-                () -> filterDenies() ? FlowGui.BAN : FlowGui.CHECK,
-                () -> filterDenies() ? FlowGui.WARN : FlowGui.GREEN, () -> false, () -> false, 0,
+        filterModeKey = addRenderableWidget(DaisyKey.icon(column(6), rowY,
+                () -> filterDenies() ? DaisyGui.BAN : DaisyGui.CHECK,
+                () -> filterDenies() ? DaisyGui.WARN : DaisyGui.GREEN, () -> false, () -> false, 0,
                 () -> cycle(filterSetting(), 2, 1), () -> cycle(filterSetting(), 2, -1)));
         filterModeKey.visible = hasFilter;
         if (menu.hasResourceTabs()) {
@@ -315,21 +315,21 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                 }
             };
             int shown = menu.resource();
-            resourceToggle = addRenderableWidget(FlowKey.icon(column(hasFilter ? 5 : 6), rowY, () -> FlowGui.POWER,
-                    () -> resourceOff(shown) ? FlowGui.WARN : FlowGui.GREEN, () -> false, () -> false, 0, flip, flip));
+            resourceToggle = addRenderableWidget(DaisyKey.icon(column(hasFilter ? 5 : 6), rowY, () -> DaisyGui.POWER,
+                    () -> resourceOff(shown) ? DaisyGui.WARN : DaisyGui.GREEN, () -> false, () -> false, 0, flip, flip));
         }
         if (insert) {
-            sideKey = addRenderableWidget(FlowKey.icon(column(7), rowY, this::priorityIcon, () -> FlowGui.TEXT,
+            sideKey = addRenderableWidget(DaisyKey.icon(column(7), rowY, this::priorityIcon, () -> DaisyGui.TEXT,
                     () -> false, () -> !isPriorityLevel(currentPriority()), sideColor,
                     () -> stepPriority(1), () -> stepPriority(-1)));
         } else {
             int redstoneCount = RedstoneMode.values().length;
-            sideKey = addRenderableWidget(FlowKey.icon(column(7), rowY, this::redstoneIcon, () -> FlowGui.WARN,
+            sideKey = addRenderableWidget(DaisyKey.icon(column(7), rowY, this::redstoneIcon, () -> DaisyGui.WARN,
                     () -> false, () -> false, 0,
                     () -> cycle(PipeDataBlockEntity.SETTING_REDSTONE, redstoneCount, 1),
                     () -> cycle(PipeDataBlockEntity.SETTING_REDSTONE, redstoneCount, -1)));
         }
-        advancedKey = addRenderableWidget(FlowKey.icon(column(8), rowY, () -> FlowGui.SLIDERS, () -> FlowGui.DIM,
+        advancedKey = addRenderableWidget(DaisyKey.icon(column(8), rowY, () -> DaisyGui.SLIDERS, () -> DaisyGui.DIM,
                 () -> advanced, () -> !advanced && hiddenInUse, sideColor, this::toggleAdvanced, null));
 
         // Drawer (Advanced, spec 5.2): rows 13 tall, a dim label at x 7 (drawn in renderBg) and the controls
@@ -342,19 +342,19 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         boolean insertRows = settingsDrawer && insert;
         String[] sendToLabels = {"near", "far", "robin"};
         Distribution[] sendToValues = {Distribution.NEAREST, Distribution.FARTHEST, Distribution.ROUND_ROBIN};
-        choiceRow(sendToKeys, y + 5, i -> FlowGui.styled(Component.translatable("screen.daisychain.choice." + sendToLabels[i])),
+        choiceRow(sendToKeys, y + 5, i -> DaisyGui.styled(Component.translatable("screen.daisychain.choice." + sendToLabels[i])),
                 PipeDataBlockEntity.SETTING_DISTRIBUTION, i -> sendToValues[i].ordinal(),
                 i -> Component.translatable("screen.daisychain.distribution",
                         Component.translatable("screen.daisychain.distribution." + sendToValues[i].getSerializedName())),
                 pullRows && !evenSplitOnly());
-        choiceRow(sendBackKeys, y + 22, i -> FlowGui.styled(Component.translatable(i == 0 ? "screen.daisychain.off"
+        choiceRow(sendBackKeys, y + 22, i -> DaisyGui.styled(Component.translatable(i == 0 ? "screen.daisychain.off"
                         : "screen.daisychain.on")), PipeDataBlockEntity.SETTING_SELF_FEED, i -> i,
                 i -> Component.translatable("screen.daisychain.self_feed",
                         Component.translatable(i == 0 ? "screen.daisychain.off" : "screen.daisychain.on")),
                 pullRows);
         String[] redstoneLabels = {"always", "on", "off"};
         // Insert drawer (step 47b): the choice row first, a divider, then the numbers, like the pull drawer.
-        choiceRow(insertRedstoneKeys, y + 5, i -> FlowGui.styled(Component.translatable(
+        choiceRow(insertRedstoneKeys, y + 5, i -> DaisyGui.styled(Component.translatable(
                         "screen.daisychain.choice.redstone_" + redstoneLabels[i])),
                 PipeDataBlockEntity.SETTING_INSERT_REDSTONE, i -> i,
                 i -> Component.translatable("screen.daisychain.redstone",
@@ -364,7 +364,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         batchButton = addRenderableWidget(new NumberButton(fieldX, y + 49, FIELD_WIDTH, ROW_HEIGHT,
                 (direction, big, jump) -> adjustNumber(PipeDataBlockEntity.SETTING_BATCH, direction, big, jump),
                 () -> requestEditing(PipeDataBlockEntity.SETTING_BATCH, batchButton))
-                .flat(() -> batchText, () -> FlowGui.TEXT, () -> false));
+                .flat(() -> batchText, () -> DaisyGui.TEXT, () -> false));
         keepButton = addRenderableWidget(new NumberButton(fieldX, y + 66, FIELD_WIDTH, ROW_HEIGHT,
                 (direction, big, jump) -> adjustNumber(PipeDataBlockEntity.SETTING_KEEP, direction, big, jump),
                 () -> requestEditing(PipeDataBlockEntity.SETTING_KEEP, keepButton))
@@ -380,20 +380,20 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         priorityButton = addRenderableWidget(new NumberButton(fieldX, y + 32, FIELD_WIDTH, ROW_HEIGHT,
                 (direction, big, jump) -> adjustNumber(PipeDataBlockEntity.SETTING_PRIORITY, direction, big, jump),
                 () -> requestEditing(PipeDataBlockEntity.SETTING_PRIORITY, priorityButton))
-                .flat(() -> priorityText, () -> FlowGui.TEXT, () -> false));
+                .flat(() -> priorityText, () -> DaisyGui.TEXT, () -> false));
         maxStockButton = addRenderableWidget(new NumberButton(fieldX, y + 49, FIELD_WIDTH, ROW_HEIGHT,
                 (direction, big, jump) -> adjustNumber(PipeDataBlockEntity.SETTING_MAX_STOCK, direction, big, jump),
                 () -> requestEditing(PipeDataBlockEntity.SETTING_MAX_STOCK, maxStockButton))
                 .flat(() -> stockText, () -> offColor(PipeDataBlockEntity.SETTING_MAX_STOCK), () -> stockWarn));
         // Clear filter: bottom left, its bottom edge level with the hotbar's (spec). As wide as the label it shows
         // (refreshLabels resizes it when it switches to "Click again").
-        Component clearLabel = FlowGui.styled(Component.translatable("screen.daisychain.clear_filter"));
-        Component confirmLabel = FlowGui.styled(Component.translatable("screen.daisychain.clear_filter_confirm"));
-        clearLabelWidth = FlowGui.inkWidth(font, clearLabel) + 8;
-        confirmLabelWidth = FlowGui.inkWidth(font, confirmLabel) + 8;
-        clearFilterKey = addRenderableWidget(FlowKey.text(dx + DRAWER_PAD, y + mainHeight - 20, clearLabelWidth, ROW_HEIGHT,
-                () -> clearArmedTicks > 0 ? confirmLabel : clearLabel, () -> clearArmedTicks > 0, FlowGui.WARN_TINT,
-                FlowGui.WARN_TEXT, this::clearFilter));
+        Component clearLabel = DaisyGui.styled(Component.translatable("screen.daisychain.clear_filter"));
+        Component confirmLabel = DaisyGui.styled(Component.translatable("screen.daisychain.clear_filter_confirm"));
+        clearLabelWidth = DaisyGui.inkWidth(font, clearLabel) + 8;
+        confirmLabelWidth = DaisyGui.inkWidth(font, confirmLabel) + 8;
+        clearFilterKey = addRenderableWidget(DaisyKey.text(dx + DRAWER_PAD, y + mainHeight - 20, clearLabelWidth, ROW_HEIGHT,
+                () -> clearArmedTicks > 0 ? confirmLabel : clearLabel, () -> clearArmedTicks > 0, DaisyGui.WARN_TINT,
+                DaisyGui.WARN_TEXT, this::clearFilter));
         stockPausedShown = null;
         batchButton.visible = pullRows && amounts;
         keepButton.visible = pullRows && amounts;
@@ -435,20 +435,20 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
      * One row of choice keys (spec 4, text buttons): each as wide as its text + 8, 1 px apart and right-aligned to the
      * drawer's x 143. The chosen one is filled with the side color. Clicking a key sets that value.
      */
-    private void choiceRow(FlowKey[] keys, int y, java.util.function.IntFunction<Component> label, int setting,
+    private void choiceRow(DaisyKey[] keys, int y, java.util.function.IntFunction<Component> label, int setting,
                            java.util.function.IntUnaryOperator value, java.util.function.IntFunction<Component> tooltip,
                            boolean visible) {
         int right = drawerX() + DRAWER_RIGHT;
         int x = right - (keys.length - 1); // 1 px gaps between the keys (spec 4, text button)
         for (int i = 0; i < keys.length; i++) {
-            x -= FlowGui.inkWidth(font, label.apply(i)) + 8;
+            x -= DaisyGui.inkWidth(font, label.apply(i)) + 8;
         }
         for (int i = 0; i < keys.length; i++) {
             int index = i;
             Component text = label.apply(i);
-            int width = FlowGui.inkWidth(font, text) + 8;
+            int width = DaisyGui.inkWidth(font, text) + 8;
             int v = value.applyAsInt(i);
-            keys[i] = addRenderableWidget(FlowKey.text(x, y, width, ROW_HEIGHT, () -> text,
+            keys[i] = addRenderableWidget(DaisyKey.text(x, y, width, ROW_HEIGHT, () -> text,
                     () -> currentSetting(setting) == v, sideTint(), sideInk(), () -> selectSetting(setting, v)));
             keys[i].setTooltip(Tooltip.create(tooltip.apply(index)));
             keys[i].visible = visible;
@@ -470,7 +470,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
 
     /** "Off" (0) is drawn dim, a set amount in the normal text color. */
     private int offColor(int setting) {
-        return currentSetting(setting) == 0 ? FlowGui.DIM : FlowGui.TEXT;
+        return currentSetting(setting) == 0 ? DaisyGui.DIM : DaisyGui.TEXT;
     }
 
     /**
@@ -487,7 +487,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
             case ENERGY -> " FE";
             default -> "";
         };
-        return FlowGui.styled(number + unit);
+        return DaisyGui.styled(number + unit);
     }
 
     /** The full value for a tooltip, when the field shows the short form. */
@@ -503,11 +503,11 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
     private void layoutFields(int right, String[] labelKeys, Component[] texts, NumberButton... fields) {
         int width = FIELD_WIDTH;
         for (Component text : texts) {
-            width = Math.max(width, FlowGui.inkWidth(font, text) + 10);
+            width = Math.max(width, DaisyGui.inkWidth(font, text) + 10);
         }
         int labelEnd = 0;
         for (String key : labelKeys) {
-            labelEnd = Math.max(labelEnd, FlowGui.inkWidth(font, Component.translatable(key)));
+            labelEnd = Math.max(labelEnd, DaisyGui.inkWidth(font, Component.translatable(key)));
         }
         width = Math.min(width, right - (drawerX() + DRAWER_PAD + labelEnd + 6));
         int x = right - width;
@@ -605,10 +605,10 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         PipeDataBlockEntity data = data();
         RedstoneMode mode = data == null ? RedstoneMode.ALWAYS : data.redstoneMode(side);
         return switch (mode) {
-            case ON_WITH_SIGNAL -> FlowGui.RS_ON;
-            case OFF_WITH_SIGNAL -> FlowGui.RS_OFF;
-            case PULSE -> FlowGui.RS_PULSE;
-            default -> FlowGui.RS_ALWAYS;
+            case ON_WITH_SIGNAL -> DaisyGui.RS_ON;
+            case OFF_WITH_SIGNAL -> DaisyGui.RS_OFF;
+            case PULSE -> DaisyGui.RS_PULSE;
+            default -> DaisyGui.RS_ALWAYS;
         };
     }
 
@@ -624,7 +624,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
     /** High / Normal / Low; any other number shows Normal with a dot (spec). */
     private String[] priorityIcon() {
         int value = currentPriority();
-        return value == 10 ? FlowGui.PR_HIGH : value == -10 ? FlowGui.PR_LOW : FlowGui.PR_NORM;
+        return value == 10 ? DaisyGui.PR_HIGH : value == -10 ? DaisyGui.PR_LOW : DaisyGui.PR_NORM;
     }
 
     /** Low -> Normal -> High -> Low (right-click goes back). A number set in Advanced counts as Normal here. */
@@ -653,12 +653,12 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
             return null;
         }
         BlockState state = minecraft.level.getBlockState(pos);
-        boolean rightKind = insert ? FlowPipeBlock.isInsertSide(minecraft.level, pos, state, side)
-                : FlowPipeBlock.isPullSide(minecraft.level, pos, state, side);
+        boolean rightKind = insert ? BasePipeBlock.isInsertSide(minecraft.level, pos, state, side)
+                : BasePipeBlock.isPullSide(minecraft.level, pos, state, side);
         if (!rightKind || minecraft.player.distanceToSqr(Vec3.atCenterOf(pos)) > 8.0 * 8.0) {
             return null;
         }
-        return FlowPipeBlock.getData(minecraft.level, pos, state);
+        return BasePipeBlock.getData(minecraft.level, pos, state);
     }
 
     private void cycle(int setting, int valueCount, int step) {
@@ -720,12 +720,12 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
     private int intervalColor() {
         PipeDataBlockEntity data = data();
         boolean pulse = data != null && data.redstoneMode(side) == RedstoneMode.PULSE;
-        return pulse || currentSetting(PipeDataBlockEntity.SETTING_INTERVAL) == 0 ? FlowGui.DIM : FlowGui.TEXT;
+        return pulse || currentSetting(PipeDataBlockEntity.SETTING_INTERVAL) == 0 ? DaisyGui.DIM : DaisyGui.TEXT;
     }
 
     /** "40 t"; past 9,999 ticks the thousands separator keeps it readable. */
     private static Component ticksText(int ticks) {
-        return FlowGui.styled(Component.translatable("screen.daisychain.field.ticks",
+        return DaisyGui.styled(Component.translatable("screen.daisychain.field.ticks",
                 String.format(java.util.Locale.ROOT, "%,d", ticks)));
     }
 
@@ -1153,14 +1153,14 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         int max = tierAmount(data);
         int batch = numberValue(data, PipeDataBlockEntity.SETTING_BATCH);
         batchText = batch == 0 || batch >= max
-                ? FlowGui.styled(Component.translatable("screen.daisychain.field.max", maxFieldAmount(max)))
+                ? DaisyGui.styled(Component.translatable("screen.daisychain.field.max", maxFieldAmount(max)))
                 : fieldAmount(batch);
         int keep = numberValue(data, PipeDataBlockEntity.SETTING_KEEP);
         keepWarn = keep > 0 && menu.isKeepPaused();
-        keepText = keep == 0 ? FlowGui.styled(Component.translatable("screen.daisychain.off")) : fieldAmount(keep);
+        keepText = keep == 0 ? DaisyGui.styled(Component.translatable("screen.daisychain.off")) : fieldAmount(keep);
         int fill = numberValue(data, PipeDataBlockEntity.SETTING_FILL);
         fillWarn = fill > 0 && menu.isFillPaused();
-        fillText = fill == 0 ? FlowGui.styled(Component.translatable("screen.daisychain.off")) : fieldAmount(fill);
+        fillText = fill == 0 ? DaisyGui.styled(Component.translatable("screen.daisychain.off")) : fieldAmount(fill);
         // Step 123: Send every. 0 = follows the upgrade (grey); slower than allowed by a downgrade = red.
         int interval = numberValue(data, PipeDataBlockEntity.SETTING_INTERVAL);
         int fastest = upgradeInterval(data);
@@ -1169,7 +1169,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         boolean pulse = data.redstoneMode(side) == RedstoneMode.PULSE;
         intervalWarn = !pulse && interval != 0 && interval < fastest;
         intervalText = interval == 0
-                ? FlowGui.styled(Component.translatable("screen.daisychain.field.fastest", ticksText(fastest)))
+                ? DaisyGui.styled(Component.translatable("screen.daisychain.field.fastest", ticksText(fastest)))
                 : ticksText(interval);
         int perSend = batch == 0 ? max : Math.min(batch, max);
         MutableComponent intervalInfo = Component.translatable("screen.daisychain.interval_now", amount(perSend),
@@ -1184,10 +1184,10 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                     String.format(java.util.Locale.ROOT, "%,d", sendEvery)).withStyle(ChatFormatting.GRAY));
         }
         int priority = numberValue(data, PipeDataBlockEntity.SETTING_PRIORITY);
-        priorityText = FlowGui.styled(Integer.toString(priority));
+        priorityText = DaisyGui.styled(Integer.toString(priority));
         int stock = numberValue(data, PipeDataBlockEntity.SETTING_MAX_STOCK);
         stockWarn = insert && stock > 0 && menu.isStockPaused();
-        stockText = stock == 0 ? FlowGui.styled(Component.translatable("screen.daisychain.off")) : fieldAmount(stock);
+        stockText = stock == 0 ? DaisyGui.styled(Component.translatable("screen.daisychain.off")) : fieldAmount(stock);
         int fieldRight = drawerX() + DRAWER_RIGHT;
         if (insert) {
             layoutFields(fieldRight, new String[] {"screen.daisychain.drawer.priority", "screen.daisychain.drawer.max_stock"},
@@ -1431,20 +1431,20 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
 
     @Override
     protected void renderBg(GuiGraphics graphics, float partialTick, int mouseX, int mouseY) {
-        FlowGui.panel(graphics, panelX, panelY, MAIN_WIDTH, mainHeight);
+        DaisyGui.panel(graphics, panelX, panelY, MAIN_WIDTH, mainHeight);
         if (openEntry >= 0) {
-            FlowGui.panel(graphics, drawerX(), panelY, DRAWER_WIDTH, drawerHeight);
+            DaisyGui.panel(graphics, drawerX(), panelY, DRAWER_WIDTH, drawerHeight);
             drawEntry(graphics);
         } else if (advanced) {
-            FlowGui.panel(graphics, drawerX(), panelY, DRAWER_WIDTH, mainHeight);
+            DaisyGui.panel(graphics, drawerX(), panelY, DRAWER_WIDTH, mainHeight);
             drawDrawerLabels(graphics);
         }
         // Header (caps on y 8): mode tag, the block on this side, its name.
-        Component tag = FlowGui.styled(Component.translatable(insert ? "screen.daisychain.mode_tag.insert"
+        Component tag = DaisyGui.styled(Component.translatable(insert ? "screen.daisychain.mode_tag.insert"
                 : "screen.daisychain.mode_tag.pull"));
-        int tagWidth = FlowGui.inkWidth(font, tag) + 8;
-        FlowGui.round(graphics, panelX + 7, panelY + 6, panelX + 7 + tagWidth, panelY + 17, sideTint(), 1);
-        FlowGui.centered(graphics, font, tag, panelX + 7, tagWidth, panelY + 8, sideInk());
+        int tagWidth = DaisyGui.inkWidth(font, tag) + 8;
+        DaisyGui.round(graphics, panelX + 7, panelY + 6, panelX + 7 + tagWidth, panelY + 17, sideTint(), 1);
+        DaisyGui.centered(graphics, font, tag, panelX + 7, tagWidth, panelY + 8, sideInk());
         int iconX = panelX + 7 + tagWidth + 5;
         if (!neighborIcon.isEmpty()) {
             graphics.pose().pushPose();
@@ -1456,35 +1456,35 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         // Step 74: long block names are cut short with "..." so they stay inside the panel. Step 108: pull sides keep
         // room at the right for the status dot.
         int nameRight = insert ? panelX + MAIN_WIDTH - 8 : statusDotX() - 4;
-        FlowGui.text(graphics, font, fitted(neighborName, nameRight - (iconX + 15)), iconX + 15,
-                panelY + 8, FlowGui.DIM);
+        DaisyGui.text(graphics, font, fitted(neighborName, nameRight - (iconX + 15)), iconX + 15,
+                panelY + 8, DaisyGui.DIM);
         if (!insert) {
             int dotX = statusDotX();
-            FlowGui.round(graphics, dotX, panelY + 9, dotX + 5, panelY + 14,
+            DaisyGui.round(graphics, dotX, panelY + 9, dotX + 5, panelY + 14,
                     0xFF000000 | SideStatus.color(menu.sideStatus()), 1);
         }
 
         // Filter slots, tinted by the side's kind.
-        int filterEdge = insert ? FlowGui.FILTER_EDGE_INSERT : FlowGui.FILTER_EDGE_PULL;
+        int filterEdge = insert ? DaisyGui.FILTER_EDGE_INSERT : DaisyGui.FILTER_EDGE_PULL;
         if (filterRows > 0) {
-            FlowGui.slotGrid(graphics, column(0), panelY + 21, 9, filterRows, filterEdge);
+            DaisyGui.slotGrid(graphics, column(0), panelY + 21, 9, filterRows, filterEdge);
         }
         // Control row: the upgrade slot (pull sides), a faint ring while it's empty.
         int rowY = controlRowY();
         if (!menu.upgradeParked()) {
-            FlowGui.slot(graphics, column(0), rowY, FlowGui.SLOT_EDGE);
+            DaisyGui.slot(graphics, column(0), rowY, DaisyGui.SLOT_EDGE);
             if (!menu.slots.get(0).hasItem()) {
-                FlowGui.icon(graphics, column(0) + 5, rowY + 5, FlowGui.RING, FlowGui.FAINT);
+                DaisyGui.icon(graphics, column(0) + 5, rowY + 5, DaisyGui.RING, DaisyGui.FAINT);
             }
         } else if (menu.slots.get(0).hasItem()) {
             // Step 67: a parked upgrade (kept from when this side pulled). Dimmed in render(), above the item.
-            FlowGui.slot(graphics, column(0), rowY, FlowGui.SLOT_EDGE);
+            DaisyGui.slot(graphics, column(0), rowY, DaisyGui.SLOT_EDGE);
         }
         // Divider, then the inventory and the hotbar.
         // No divider since step 47e: the inventory grid's 2 px edge already separates it from the control row.
         int inventoryY = rowY + 24;
-        FlowGui.slotGrid(graphics, column(0), inventoryY, 9, 3, FlowGui.SLOT_EDGE);
-        FlowGui.slotGrid(graphics, column(0), inventoryY + 58, 9, 1, FlowGui.SLOT_EDGE);
+        DaisyGui.slotGrid(graphics, column(0), inventoryY, 9, 3, DaisyGui.SLOT_EDGE);
+        DaisyGui.slotGrid(graphics, column(0), inventoryY + 58, 9, 1, DaisyGui.SLOT_EDGE);
         drawEntrySelection(graphics);
         if (!menu.hasFilter() && advanced) {
             // Nothing else to show there: the drawer has the settings.
@@ -1503,7 +1503,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         boolean amounts = menu.hasAmounts();
         if (insert) {
             drawerLabel(graphics, "screen.daisychain.drawer.redstone", x, y + 5);
-            FlowGui.hline(graphics, x, y + 25, DRAWER_RIGHT - DRAWER_PAD, FlowGui.LINE);
+            DaisyGui.hline(graphics, x, y + 25, DRAWER_RIGHT - DRAWER_PAD, DaisyGui.LINE);
             drawerLabel(graphics, "screen.daisychain.drawer.priority", x, y + 32);
             if (amounts) {
                 drawerLabel(graphics, "screen.daisychain.drawer.max_stock", x, y + 49);
@@ -1513,13 +1513,13 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         drawerLabel(graphics, "screen.daisychain.drawer.send_to", x, y + 5);
         if (evenSplitOnly()) {
             // Step 122: energy always splits evenly, so the row shows that instead of the Near / Far / Robin keys.
-            Component even = FlowGui.styled(Component.translatable("screen.daisychain.even_split"));
-            FlowGui.text(graphics, font, even, drawerX() + DRAWER_RIGHT - FlowGui.inkWidth(font, even), y + 8,
-                    FlowGui.TEXT);
+            Component even = DaisyGui.styled(Component.translatable("screen.daisychain.even_split"));
+            DaisyGui.text(graphics, font, even, drawerX() + DRAWER_RIGHT - DaisyGui.inkWidth(font, even), y + 8,
+                    DaisyGui.TEXT);
         }
         drawerLabel(graphics, "screen.daisychain.drawer.send_back", x, y + 22);
         if (amounts) {
-            FlowGui.hline(graphics, x, y + 42, DRAWER_RIGHT - DRAWER_PAD, FlowGui.LINE);
+            DaisyGui.hline(graphics, x, y + 42, DRAWER_RIGHT - DRAWER_PAD, DaisyGui.LINE);
             drawerLabel(graphics, "screen.daisychain.drawer.batch", x, y + 49);
             drawerLabel(graphics, "screen.daisychain.drawer.keep", x, y + 66);
             drawerLabel(graphics, "screen.daisychain.drawer.fill", x, y + 83);
@@ -1533,7 +1533,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
     }
 
     private void drawerLabel(GuiGraphics graphics, String key, int x, int rowY) {
-        FlowGui.text(graphics, font, FlowGui.styled(Component.translatable(key)), x, rowY + 3, FlowGui.DIM);
+        DaisyGui.text(graphics, font, DaisyGui.styled(Component.translatable(key)), x, rowY + 3, DaisyGui.DIM);
     }
 
     /** No vanilla title or "Inventory" label (spec); just the markers on filter entries. */
@@ -1589,9 +1589,9 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
             FilterMatch match = stack.get(ModDataComponents.FILTER_MATCH.get());
             if (match != null) {
                 String[] glyph = switch (match.matchMode()) {
-                    case DATA -> FlowGui.BADGE_DATA;
-                    case TAG -> FlowGui.BADGE_TAG;
-                    case MOD -> FlowGui.BADGE_MOD;
+                    case DATA -> DaisyGui.BADGE_DATA;
+                    case TAG -> DaisyGui.BADGE_TAG;
+                    case MOD -> DaisyGui.BADGE_MOD;
                     default -> null;
                 };
                 if (glyph != null) {
@@ -1599,7 +1599,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                 }
             }
             if (stack.has(ModDataComponents.FILTER_NUMBERS.get())) {
-                drawBadge(graphics, slot.x + 9, slot.y + 9, FlowGui.BADGE_AMOUNTS);
+                drawBadge(graphics, slot.x + 9, slot.y + 9, DaisyGui.BADGE_AMOUNTS);
             }
         }
         graphics.pose().popPose();
@@ -1607,8 +1607,8 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
 
     /** A 7x7 badge (corners rounded 1 px) in the side tint with a 5x5 glyph in the side's light ink. */
     private void drawBadge(GuiGraphics graphics, int x, int y, String[] glyph) {
-        FlowGui.round(graphics, x, y, x + 7, y + 7, sideTint(), 1);
-        FlowGui.icon(graphics, x + 1, y + 1, glyph, sideInk());
+        DaisyGui.round(graphics, x, y, x + 7, y + 7, sideTint(), 1);
+        DaisyGui.icon(graphics, x + 1, y + 1, glyph, sideInk());
     }
 
     /** Opens an entry in the drawer (another one replaces it). */
@@ -1712,8 +1712,8 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         allTags = all;
 
         // Header: back key at (7,5); the item and its name are drawn in drawEntry.
-        entryBackKey = addRenderableWidget(FlowKey.small(dx + DRAWER_PAD, y + 5, 13, 13, () -> FlowGui.BACK,
-                () -> FlowGui.TEXT, this::closeEntry));
+        entryBackKey = addRenderableWidget(DaisyKey.small(dx + DRAWER_PAD, y + 5, 13, 13, () -> DaisyGui.BACK,
+                () -> DaisyGui.TEXT, this::closeEntry));
         entryBackKey.setTooltip(Tooltip.create(Component.translatable("screen.daisychain.entry.back")));
         // Match by: four keys filling x 7-143 at y 25, 1 px apart. Each is its text + 8, and the room left over is
         // shared out evenly (the design scripts' rule), so the row ends exactly at x 143.
@@ -1721,8 +1721,8 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         int[] matchWidths = new int[MODE_ORDER.length];
         int used = MODE_ORDER.length - 1;
         for (int i = 0; i < MODE_ORDER.length; i++) {
-            matchLabels[i] = FlowGui.styled(Component.translatable("screen.daisychain.entry.match." + modeKey(MODE_ORDER[i])));
-            matchWidths[i] = FlowGui.inkWidth(font, matchLabels[i]) + 8;
+            matchLabels[i] = DaisyGui.styled(Component.translatable("screen.daisychain.entry.match." + modeKey(MODE_ORDER[i])));
+            matchWidths[i] = DaisyGui.inkWidth(font, matchLabels[i]) + 8;
             used += matchWidths[i];
         }
         int extra = Math.max(0, DRAWER_RIGHT - DRAWER_PAD - used);
@@ -1731,7 +1731,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
             MatchMode mode = MODE_ORDER[i];
             Component label = matchLabels[i];
             int keyWidth = matchWidths[i] + extra / MODE_ORDER.length + (i < extra % MODE_ORDER.length ? 1 : 0);
-            matchKeys[i] = addRenderableWidget(FlowKey.text(keyX, y + 25, keyWidth, ROW_HEIGHT,
+            matchKeys[i] = addRenderableWidget(DaisyKey.text(keyX, y + 25, keyWidth, ROW_HEIGHT,
                     () -> label, () -> shownMatch() == mode, sideTint(), sideInk(), () -> chooseMode(mode)));
             keyX += keyWidth + 1;
         }
@@ -1743,8 +1743,8 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                 Component.translatable("screen.daisychain.entry.search")));
         tagSearch.setBordered(false);
         tagSearch.setMaxLength(256);
-        tagSearch.setHint(FlowGui.styled(Component.translatable("screen.daisychain.entry.search"))
-                .withStyle(style -> style.withColor(FlowGui.FAINT & 0xFFFFFF)));
+        tagSearch.setHint(DaisyGui.styled(Component.translatable("screen.daisychain.entry.search"))
+                .withStyle(style -> style.withColor(DaisyGui.FAINT & 0xFFFFFF)));
         tagSearch.setValue(tagSearchText);
         tagSearch.setResponder(text -> {
             tagSearchText = text;
@@ -1752,11 +1752,11 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
             filterTags();
             refreshEntry();
         });
-        tagPrevKey = addRenderableWidget(FlowKey.small(dx + 116, y + 84, 13, 13, () -> FlowGui.ARROW_LEFT,
-                () -> FlowGui.TEXT, () -> turnTagPage(-1)));
+        tagPrevKey = addRenderableWidget(DaisyKey.small(dx + 116, y + 84, 13, 13, () -> DaisyGui.ARROW_LEFT,
+                () -> DaisyGui.TEXT, () -> turnTagPage(-1)));
         tagPrevKey.setTooltip(Tooltip.create(Component.translatable("screen.daisychain.entry.previous_page")));
-        tagNextKey = addRenderableWidget(FlowKey.small(dx + 130, y + 84, 13, 13, () -> FlowGui.ARROW_RIGHT,
-                () -> FlowGui.TEXT, () -> turnTagPage(1)));
+        tagNextKey = addRenderableWidget(DaisyKey.small(dx + 130, y + 84, 13, 13, () -> DaisyGui.ARROW_RIGHT,
+                () -> DaisyGui.TEXT, () -> turnTagPage(1)));
         tagNextKey.setTooltip(Tooltip.create(Component.translatable("screen.daisychain.entry.next_page")));
         filterTags();
 
@@ -1773,24 +1773,24 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                         (direction, big, jump) -> adjustEntryNumber(which, direction, big, jump),
                         () -> requestEditing(ENTRY_EDIT + which, entryFields[which]))
                         .flat(() -> entryText[which], () -> entryColor(which), () -> false));
-                entryResetKeys[which] = addRenderableWidget(FlowKey.small(dx + ENTRY_FIELD_RIGHT + 1, rowY, 13, 13,
-                        () -> FlowGui.CROSS, () -> FlowGui.WARN_TEXT, () -> sendEntryNumber(which, ItemFilter.UNSET)));
+                entryResetKeys[which] = addRenderableWidget(DaisyKey.small(dx + ENTRY_FIELD_RIGHT + 1, rowY, 13, 13,
+                        () -> DaisyGui.CROSS, () -> DaisyGui.WARN_TEXT, () -> sendEntryNumber(which, ItemFilter.UNSET)));
                 entryResetKeys[which].setTooltip(Tooltip.create(Component.translatable("screen.daisychain.entry_reset")));
             }
         }
         if (!advanced && menu.hasAmounts()) {
             // Simple view (step 47g): amounts live in Advanced; this key goes there with the entry still open. Its dot
             // says the entry already has amounts of its own.
-            Component label = FlowGui.styled(Component.translatable("screen.daisychain.entry.open_advanced"));
-            int keyWidth = FlowGui.inkWidth(font, label) + 12; // 4 px more so the dot has its own room (step 47h)
-            FlowKey openAdvanced = addRenderableWidget(FlowKey.text(dx + DRAWER_RIGHT - keyWidth, y + 110, keyWidth,
+            Component label = DaisyGui.styled(Component.translatable("screen.daisychain.entry.open_advanced"));
+            int keyWidth = DaisyGui.inkWidth(font, label) + 12; // 4 px more so the dot has its own room (step 47h)
+            DaisyKey openAdvanced = addRenderableWidget(DaisyKey.text(dx + DRAWER_RIGHT - keyWidth, y + 110, keyWidth,
                     ROW_HEIGHT, () -> label, () -> false, sideTint(), sideInk(), this::toggleAdvanced)
                     .withDot(this::entryHasOwnAmounts, sideColor()));
             openAdvanced.setTooltip(Tooltip.create(Component.translatable("screen.daisychain.entry.open_advanced_help")));
         }
-        Component done = FlowGui.styled(CommonComponents.GUI_DONE);
-        addRenderableWidget(FlowKey.text(dx + 99, y + drawerHeight - 20, 44, ROW_HEIGHT, () -> done, () -> true,
-                FlowGui.ON, FlowGui.ON_INK, this::closeEntry));
+        Component done = DaisyGui.styled(CommonComponents.GUI_DONE);
+        addRenderableWidget(DaisyKey.text(dx + 99, y + drawerHeight - 20, 44, ROW_HEIGHT, () -> done, () -> true,
+                DaisyGui.ON, DaisyGui.ON_INK, this::closeEntry));
     }
 
     /** Every tick while an entry is open: close it if it was removed, count down, refresh what's shown. */
@@ -1829,7 +1829,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         for (int i = 0; i < TAG_ROWS; i++) {
             String tag = tagRows[i].tag();
             tagRows[i].visible = pickingTag && tag != null;
-            boolean cut = tag != null && font.width(FlowGui.styled("#" + tag)) > tagRows[i].getWidth() - 10;
+            boolean cut = tag != null && font.width(DaisyGui.styled("#" + tag)) > tagRows[i].getWidth() - 10;
             tagRows[i].setTooltip(cut ? Tooltip.create(Component.literal("#" + tag)) : null);
         }
         if (!pickingTag) {
@@ -1949,7 +1949,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
     }
 
     private void setEntryStatus(String key) {
-        entryStatus = FlowGui.styled(Component.translatable(key));
+        entryStatus = DaisyGui.styled(Component.translatable(key));
         entryStatusTicks = 60;
     }
 
@@ -2007,7 +2007,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
 
     /** Faint = follows the side (or the side is in Blacklist mode, where entry amounts don't apply). */
     private int entryColor(int which) {
-        return sideDenies() || entryNumber(which) == ItemFilter.UNSET ? FlowGui.FAINT : FlowGui.TEXT;
+        return sideDenies() || entryNumber(which) == ItemFilter.UNSET ? DaisyGui.FAINT : DaisyGui.TEXT;
     }
 
     /** Same controls as the side's fields. Starting from the side's value when the entry has none of its own. */
@@ -2096,9 +2096,9 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
             boolean batch = which == ItemFilter.BATCH && !insert;
             entryText[which] = batch
                     ? (value == 0 || value >= max
-                            ? FlowGui.styled(Component.translatable("screen.daisychain.field.max", maxFieldAmount(max)))
+                            ? DaisyGui.styled(Component.translatable("screen.daisychain.field.max", maxFieldAmount(max)))
                             : fieldAmount(value))
-                    : value == 0 ? FlowGui.styled(Component.translatable("screen.daisychain.off")) : fieldAmount(value);
+                    : value == 0 ? DaisyGui.styled(Component.translatable("screen.daisychain.off")) : fieldAmount(value);
             if (field != editingButton) {
                 field.active = !deny;
             }
@@ -2114,15 +2114,15 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
 
     /** Text cut to fit maxWidth (with "..."), in the GUI font. */
     private Component fitted(Component text, int maxWidth) {
-        Component styled = FlowGui.styled(text);
+        Component styled = DaisyGui.styled(text);
         if (font.width(styled) <= maxWidth) {
             return styled;
         }
         String plainText = text.getString();
-        while (!plainText.isEmpty() && font.width(FlowGui.styled(plainText + "...")) > maxWidth) {
+        while (!plainText.isEmpty() && font.width(DaisyGui.styled(plainText + "...")) > maxWidth) {
             plainText = plainText.substring(0, plainText.length() - 1);
         }
-        return FlowGui.styled(plainText + "...");
+        return DaisyGui.styled(plainText + "...");
     }
 
     /** The parts of the entry drawer that aren't widgets (drawn under them). */
@@ -2140,37 +2140,37 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
             graphics.renderFakeItem(entry, 0, 0);
         }
         graphics.pose().popPose();
-        FlowGui.text(graphics, font, fitted(entry.getHoverName(), DRAWER_RIGHT - 42), dx + 42, y + 8, FlowGui.TEXT);
+        DaisyGui.text(graphics, font, fitted(entry.getHoverName(), DRAWER_RIGHT - 42), dx + 42, y + 8, DaisyGui.TEXT);
 
         if (pickingTag) {
             // Search box frame (the text box sits inside it), "no tags", and the page text left of the arrows.
-            int border = searchFocused() ? FlowGui.FIELD_HOVER : FlowGui.FIELD_BORDER;
+            int border = searchFocused() ? DaisyGui.FIELD_HOVER : DaisyGui.FIELD_BORDER;
             int sx = dx + DRAWER_PAD;
-            FlowGui.round(graphics, sx, y + 84, sx + SEARCH_WIDTH, y + 97, border, 1);
-            graphics.fill(sx + 1, y + 85, sx + SEARCH_WIDTH - 1, y + 96, FlowGui.SLOT);
+            DaisyGui.round(graphics, sx, y + 84, sx + SEARCH_WIDTH, y + 97, border, 1);
+            graphics.fill(sx + 1, y + 85, sx + SEARCH_WIDTH - 1, y + 96, DaisyGui.SLOT);
             if (shownTags.isEmpty()) {
-                FlowGui.text(graphics, font, FlowGui.styled(Component.translatable("screen.daisychain.no_tags")),
-                        sx + 4, y + 45, FlowGui.FAINT);
+                DaisyGui.text(graphics, font, DaisyGui.styled(Component.translatable("screen.daisychain.no_tags")),
+                        sx + 4, y + 45, DaisyGui.FAINT);
             }
-            Component pageText = FlowGui.styled((tagPage + 1) + "/" + tagPages());
-            FlowGui.text(graphics, font, pageText, dx + 113 - FlowGui.inkWidth(font, pageText), y + 87, FlowGui.FAINT);
+            Component pageText = DaisyGui.styled((tagPage + 1) + "/" + tagPages());
+            DaisyGui.text(graphics, font, pageText, dx + 113 - DaisyGui.inkWidth(font, pageText), y + 87, DaisyGui.FAINT);
         } else {
             int lineY = y + 45;
-            for (FormattedCharSequence line : font.split(FlowGui.styled(describeEntry()), DRAWER_RIGHT - DRAWER_PAD)) {
-                graphics.drawString(font, line, dx + DRAWER_PAD, lineY + FlowGui.TEXT_SHIFT, FlowGui.DIM, false);
+            for (FormattedCharSequence line : font.split(DaisyGui.styled(describeEntry()), DRAWER_RIGHT - DRAWER_PAD)) {
+                graphics.drawString(font, line, dx + DRAWER_PAD, lineY + DaisyGui.TEXT_SHIFT, DaisyGui.DIM, false);
                 lineY += 12;
             }
         }
 
         if (!advanced && menu.hasAmounts()) {
             // Simple view: a row saying where the amounts are (the key on its right opens Advanced).
-            FlowGui.hline(graphics, dx + DRAWER_PAD, y + 103, DRAWER_RIGHT - DRAWER_PAD, FlowGui.LINE);
+            DaisyGui.hline(graphics, dx + DRAWER_PAD, y + 103, DRAWER_RIGHT - DRAWER_PAD, DaisyGui.LINE);
             boolean own = entryHasOwnAmounts();
-            FlowGui.text(graphics, font, FlowGui.styled(Component.translatable(own ? "screen.daisychain.entry.amounts_set"
-                    : "screen.daisychain.entry.amounts")), dx + DRAWER_PAD, y + 113, own ? FlowGui.TEXT : FlowGui.DIM);
+            DaisyGui.text(graphics, font, DaisyGui.styled(Component.translatable(own ? "screen.daisychain.entry.amounts_set"
+                    : "screen.daisychain.entry.amounts")), dx + DRAWER_PAD, y + 113, own ? DaisyGui.TEXT : DaisyGui.DIM);
         }
         if (entryAmounts()) {
-            FlowGui.hline(graphics, dx + DRAWER_PAD, y + 103, DRAWER_RIGHT - DRAWER_PAD, FlowGui.LINE);
+            DaisyGui.hline(graphics, dx + DRAWER_PAD, y + 103, DRAWER_RIGHT - DRAWER_PAD, DaisyGui.LINE);
             if (insert) {
                 drawerLabel(graphics, "screen.daisychain.drawer.max_stock", dx + DRAWER_PAD, y + 110);
             } else {
@@ -2181,10 +2181,10 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         }
         // Bottom left, beside Done: a short message after a refused change, or why the amounts are faint.
         if (entryStatusTicks > 0) {
-            FlowGui.text(graphics, font, entryStatus, dx + DRAWER_PAD, y + drawerHeight - 17, FlowGui.WARN_TEXT);
+            DaisyGui.text(graphics, font, entryStatus, dx + DRAWER_PAD, y + drawerHeight - 17, DaisyGui.WARN_TEXT);
         } else if (entryAmounts() && sideDenies()) {
-            FlowGui.text(graphics, font, FlowGui.styled(Component.translatable("screen.daisychain.entry.whitelist_only")),
-                    dx + DRAWER_PAD, y + drawerHeight - 17, FlowGui.DIM);
+            DaisyGui.text(graphics, font, DaisyGui.styled(Component.translatable("screen.daisychain.entry.whitelist_only")),
+                    dx + DRAWER_PAD, y + drawerHeight - 17, DaisyGui.DIM);
         }
     }
 
@@ -2225,13 +2225,13 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
             int y = getY();
             boolean chosen = entryMatchMode() == MatchMode.TAG && tag.equals(entryMatchValue());
             if (chosen || isHovered()) {
-                FlowGui.round(graphics, x, y, x + width, y + height, chosen ? FlowGui.KEY : FlowGui.KEY_HOVER, 1);
+                DaisyGui.round(graphics, x, y, x + width, y + height, chosen ? DaisyGui.KEY : DaisyGui.KEY_HOVER, 1);
             }
             if (chosen) {
                 graphics.fill(x, y + 1, x + 1, y + height - 1, sideColor());
             }
-            FlowGui.text(graphics, PullSideScreen.this.font, fitted(Component.literal("#" + tag), width - 10),
-                    x + 5, y + 3, chosen || isHovered() ? FlowGui.TEXT : FlowGui.DIM);
+            DaisyGui.text(graphics, PullSideScreen.this.font, fitted(Component.literal("#" + tag), width - 10),
+                    x + 5, y + 3, chosen || isHovered() ? DaisyGui.TEXT : DaisyGui.DIM);
         }
 
         @Override

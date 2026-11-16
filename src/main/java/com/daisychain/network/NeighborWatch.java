@@ -1,6 +1,6 @@
 package com.daisychain.network;
 
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
@@ -16,7 +16,7 @@ import net.neoforged.neoforge.capabilities.ICapabilityInvalidationListener;
  * <p>
  * One watch per block entity, however many pipes touch it; NetworkManager keeps it alive (NeoForge only holds
  * listeners weakly). When it fires, every pipe of ours next to the block gets a re-check one tick later
- * (FlowPipeBlock.tick); nothing is read or changed while NeoForge is still telling its listeners.
+ * (BasePipeBlock.tick); nothing is read or changed while NeoForge is still telling its listeners.
  */
 public final class NeighborWatch implements ICapabilityInvalidationListener {
     private static final Direction[] DIRECTIONS = Direction.values();
@@ -62,7 +62,7 @@ public final class NeighborWatch implements ICapabilityInvalidationListener {
             BlockPos pipePos = pos.relative(direction);
             // Review R4: never waits for a chunk that is still loading; that chunk's own load scan covers its pipes.
             BlockState state = Loaded.stateIfLoaded(level, pipePos);
-            if (state != null && state.getBlock() instanceof FlowPipeBlock pipe) {
+            if (state != null && state.getBlock() instanceof BasePipeBlock pipe) {
                 level.scheduleTick(pipePos, pipe, 1);
                 count++;
             }

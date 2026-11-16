@@ -14,18 +14,18 @@ import java.util.function.BooleanSupplier;
  * (step 49, universal pipes, 20 tall) a resource: items, fluids, energy. A resource that's switched off on this side
  * gets a dim icon with a red slash.
  */
-final class FlowTab extends AbstractButton {
+final class DaisyTab extends AbstractButton {
     private final String[] icon;
     private final boolean selected;
     private final Runnable action;
     @Nullable
     private final BooleanSupplier off;
 
-    FlowTab(int panelLeft, int y, String[] icon, boolean selected, Component name, Runnable action) {
+    DaisyTab(int panelLeft, int y, String[] icon, boolean selected, Component name, Runnable action) {
         this(panelLeft, y, 24, icon, selected, name, action, null);
     }
 
-    FlowTab(int panelLeft, int y, int height, String[] icon, boolean selected, Component name, Runnable action,
+    DaisyTab(int panelLeft, int y, int height, String[] icon, boolean selected, Component name, Runnable action,
             @Nullable BooleanSupplier off) {
         super(panelLeft - (selected ? 22 : 20), y, selected ? 23 : 20, height, name);
         this.icon = icon;
@@ -46,9 +46,9 @@ final class FlowTab extends AbstractButton {
         int x = getX();
         int y = getY();
         // Step 47c: left corners rounded (the right side joins the panel).
-        FlowGui.roundLeft(graphics, x, y, x + width, y + height, FlowGui.EDGE, 2);
-        int fill = selected ? FlowGui.PANEL : isHovered() ? FlowGui.KEY : FlowGui.TAB_OFF;
-        FlowGui.roundLeft(graphics, x + 1, y + 1, x + width, y + height - 1, fill, 1);
+        DaisyGui.roundLeft(graphics, x, y, x + width, y + height, DaisyGui.EDGE, 2);
+        int fill = selected ? DaisyGui.PANEL : isHovered() ? DaisyGui.KEY : DaisyGui.TAB_OFF;
+        DaisyGui.roundLeft(graphics, x + 1, y + 1, x + width, y + height - 1, fill, 1);
         int iw = icon[0].length();
         // Centered in the space between the tab's left edge and the panel's edge line (21 px selected, 19 otherwise);
         // an even-width icon leans right by half a pixel (step 49b: they looked too far left).
@@ -56,11 +56,11 @@ final class FlowTab extends AbstractButton {
         int ix = x + 1 + (inside - iw + 1) / 2;
         int iy = y + (height - icon.length + 1) / 2;
         boolean isOff = off != null && off.getAsBoolean();
-        FlowGui.icon(graphics, ix, iy, icon, selected && !isOff ? FlowGui.TEXT : FlowGui.FAINT);
+        DaisyGui.icon(graphics, ix, iy, icon, selected && !isOff ? DaisyGui.TEXT : DaisyGui.FAINT);
         if (isOff) {
             // A red slash from the bottom-left to the top-right corner of the icon.
             for (int i = 0; i < 9; i++) {
-                graphics.fill(ix - 1 + i, iy + 7 - i, ix + i, iy + 8 - i, FlowGui.WARN);
+                graphics.fill(ix - 1 + i, iy + 7 - i, ix + i, iy + 8 - i, DaisyGui.WARN);
             }
         }
     }

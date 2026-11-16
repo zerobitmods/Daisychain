@@ -4,7 +4,7 @@ import com.daisychain.Daisychain;
 import com.daisychain.block.CoverShape;
 import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.block.FacadeMassApply;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.config.DaisychainConfig;
 import com.daisychain.item.FacadeItem;
@@ -72,7 +72,7 @@ public final class FacadeTests {
         helper.assertTrue(cover(helper, PIPE) == null, "The cover is still on");
         helper.assertTrue(inHand.is(ModItems.FACADE.get()) && FacadeItem.coverOf(inHand) == OAK && inHand.getCount() == 1,
                 "Hand holds " + inHand + " (should be 1 oak facade)");
-        helper.assertTrue(!helper.getBlockState(PIPE).getValue(FlowPipeBlock.HAS_DATA),
+        helper.assertTrue(!helper.getBlockState(PIPE).getValue(BasePipeBlock.HAS_DATA),
                 "The pipe kept its settings storage with nothing in it");
         helper.assertTrue(itemsOnGround(helper) == 0, "Something dropped");
         helper.succeed();
@@ -231,7 +231,7 @@ public final class FacadeTests {
         helper.assertTrue(swapped, "The tier swap didn't happen");
         helper.assertBlockPresent(ModBlocks.energyPipes()[2], PIPE);
         helper.assertTrue(cover(helper, PIPE) == OAK, "Cover after the swap: " + cover(helper, PIPE));
-        helper.assertTrue(level.getBlockState(at).getValue(FlowPipeBlock.COVER) == CoverShape.SOLID,
+        helper.assertTrue(level.getBlockState(at).getValue(BasePipeBlock.COVER) == CoverShape.SOLID,
                 "Cover state after the swap: " + level.getBlockState(at)); // step 127
         helper.assertTrue(facadesHeld(player, OAK) == 0, "A facade came back on the swap");
         helper.runAfterDelay(2, () -> {
@@ -244,7 +244,7 @@ public final class FacadeTests {
     @GameTest(template = EMPTY)
     public static void facadeComesOffBeforeUpgrade(GameTestHelper helper) {
         pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
-        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(PIPE), 1 << Direction.SOUTH.get3DDataValue());
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(PIPE), 1 << Direction.SOUTH.get3DDataValue());
         data(helper, PIPE).setUpgradeLevel(Direction.SOUTH, 2);
         coverWithSurvivalPlayer(helper, PIPE, OAK);
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
@@ -344,7 +344,7 @@ public final class FacadeTests {
         helper.assertFalse(level.getBlockState(at).isCollisionShapeFullBlock(level, at), "Plain pipe is a full block");
         coverWithSurvivalPlayer(helper, PIPE, STONE);
         BlockState state = level.getBlockState(at);
-        helper.assertTrue(state.getValue(FlowPipeBlock.COVER) == CoverShape.SOLID, "Cover state: " + state);
+        helper.assertTrue(state.getValue(BasePipeBlock.COVER) == CoverShape.SOLID, "Cover state: " + state);
         helper.assertTrue(state.isCollisionShapeFullBlock(level, at), "Covered pipe can be walked into");
         helper.assertTrue(Block.isShapeFullBlock(state.getShape(level, at)), "Outline isn't a full block");
         helper.assertTrue(state.getLightBlock(level, at) == 15, "Light through stone cover: " + state.getLightBlock(level, at));
@@ -355,7 +355,7 @@ public final class FacadeTests {
         clickAt(helper, player, ItemStack.EMPTY, centerHit(helper, PIPE));
         state = level.getBlockState(at);
         helper.assertTrue(cover(helper, PIPE) == null, "Cover didn't come off");
-        helper.assertTrue(state.getValue(FlowPipeBlock.COVER) == CoverShape.NONE, "Cover state after removal: " + state);
+        helper.assertTrue(state.getValue(BasePipeBlock.COVER) == CoverShape.NONE, "Cover state after removal: " + state);
         helper.assertFalse(state.isCollisionShapeFullBlock(level, at), "Still a full block after removal");
         helper.assertTrue(state.getLightBlock(level, at) == 0, "Bare pipe blocks light: " + state.getLightBlock(level, at));
         helper.succeed();
@@ -369,7 +369,7 @@ public final class FacadeTests {
         pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
         coverWithSurvivalPlayer(helper, PIPE, Blocks.GLASS.defaultBlockState());
         BlockState state = level.getBlockState(at);
-        helper.assertTrue(state.getValue(FlowPipeBlock.COVER) == CoverShape.CLEAR, "Cover state: " + state);
+        helper.assertTrue(state.getValue(BasePipeBlock.COVER) == CoverShape.CLEAR, "Cover state: " + state);
         helper.assertTrue(state.isCollisionShapeFullBlock(level, at), "Glass-covered pipe can be walked into");
         helper.assertTrue(state.getLightBlock(level, at) == 0, "Glass cover blocks light: " + state.getLightBlock(level, at));
         helper.assertTrue(state.propagatesSkylightDown(level, at), "Sky light stops at a glass cover");
@@ -387,20 +387,20 @@ public final class FacadeTests {
         ServerLevel level = helper.getLevel();
         BlockPos at = helper.absolutePos(PIPE);
         pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
-        FlowPipeBlock.setPullSidesForTest(level, at, 1 << Direction.EAST.get3DDataValue());
+        BasePipeBlock.setPullSidesForTest(level, at, 1 << Direction.EAST.get3DDataValue());
         Vec3 corner = new Vec3(at.getX() + 1.0, at.getY() + 0.1, at.getZ() + 0.9);
         BlockHitResult hit = new BlockHitResult(corner, Direction.EAST, at, false);
         BlockState bare = level.getBlockState(at);
-        helper.assertTrue(FlowPipeBlock.isCoreHit(bare, at, corner), "Setup: bare pipe corner isn't the core");
-        helper.assertFalse(FlowPipeBlock.isPullCapHit(bare, at, hit), "Setup: bare pipe corner is on the pull cap");
+        helper.assertTrue(BasePipeBlock.isCoreHit(bare, at, corner), "Setup: bare pipe corner isn't the core");
+        helper.assertFalse(BasePipeBlock.isPullCapHit(bare, at, hit), "Setup: bare pipe corner is on the pull cap");
         coverWithSurvivalPlayer(helper, PIPE, STONE);
         BlockState covered = level.getBlockState(at);
-        helper.assertFalse(FlowPipeBlock.isCoreHit(covered, at, corner), "Covered face corner counts as the core");
-        helper.assertTrue(FlowPipeBlock.targetedSide(covered, at, hit) == Direction.EAST,
-                "Covered face corner side: " + FlowPipeBlock.targetedSide(covered, at, hit));
-        helper.assertTrue(FlowPipeBlock.isPullCapHit(covered, at, hit), "Covered pull face isn't the pull side");
+        helper.assertFalse(BasePipeBlock.isCoreHit(covered, at, corner), "Covered face corner counts as the core");
+        helper.assertTrue(BasePipeBlock.targetedSide(covered, at, hit) == Direction.EAST,
+                "Covered face corner side: " + BasePipeBlock.targetedSide(covered, at, hit));
+        helper.assertTrue(BasePipeBlock.isPullCapHit(covered, at, hit), "Covered pull face isn't the pull side");
         Vec3 top = new Vec3(at.getX() + 0.2, at.getY() + 1.0, at.getZ() + 0.2);
-        helper.assertTrue(FlowPipeBlock.targetedSide(covered, at, top, Direction.UP) == Direction.UP, "Top face side");
+        helper.assertTrue(BasePipeBlock.targetedSide(covered, at, top, Direction.UP) == Direction.UP, "Top face side");
         helper.succeed();
     }
 
@@ -414,16 +414,16 @@ public final class FacadeTests {
         BlockPos at = helper.absolutePos(PIPE);
         pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
         coverWithSurvivalPlayer(helper, PIPE, STONE);
-        level.setBlock(at, level.getBlockState(at).setValue(FlowPipeBlock.COVER, CoverShape.NONE), Block.UPDATE_CLIENTS);
+        level.setBlock(at, level.getBlockState(at).setValue(BasePipeBlock.COVER, CoverShape.NONE), Block.UPDATE_CLIENTS);
         helper.assertTrue(cover(helper, PIPE) == STONE, "Setup: the stored cover went away");
         level.scheduleTick(at, level.getBlockState(at).getBlock(), 1); // what the chunk-load scan does
         BlockPos other = new BlockPos(2, 1, 2);
         BlockPos otherAt = helper.absolutePos(other);
-        helper.setBlock(other, ModBlocks.ITEM_PIPE.get().defaultBlockState().setValue(FlowPipeBlock.COVER, CoverShape.SOLID));
+        helper.setBlock(other, ModBlocks.ITEM_PIPE.get().defaultBlockState().setValue(BasePipeBlock.COVER, CoverShape.SOLID));
         helper.succeedWhen(() -> {
-            helper.assertTrue(level.getBlockState(at).getValue(FlowPipeBlock.COVER) == CoverShape.SOLID,
+            helper.assertTrue(level.getBlockState(at).getValue(BasePipeBlock.COVER) == CoverShape.SOLID,
                     "Cover state not repaired: " + level.getBlockState(at));
-            helper.assertTrue(level.getBlockState(otherAt).getValue(FlowPipeBlock.COVER) == CoverShape.NONE,
+            helper.assertTrue(level.getBlockState(otherAt).getValue(BasePipeBlock.COVER) == CoverShape.NONE,
                     "Pasted cover state with nothing stored: " + level.getBlockState(otherAt));
         });
     }
@@ -456,7 +456,7 @@ public final class FacadeTests {
         pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
         coverWithSurvivalPlayer(helper, PIPE, clear);
         BlockState state = level.getBlockState(at);
-        helper.assertTrue(state.getValue(FlowPipeBlock.COVER) == CoverShape.CLEAR, "Cover state: " + state);
+        helper.assertTrue(state.getValue(BasePipeBlock.COVER) == CoverShape.CLEAR, "Cover state: " + state);
         helper.assertTrue(data(helper, PIPE).coverStateMatches(), "Stored cover and block state disagree");
         helper.assertTrue(state.isCollisionShapeFullBlock(level, at), "Transparent-covered pipe isn't a full block to walk on");
         helper.assertTrue(Block.isShapeFullBlock(state.getShape(level, at)), "Outline isn't a full block");
@@ -521,7 +521,7 @@ public final class FacadeTests {
             pipe(helper, new BlockPos(x, 1, 2), ModBlocks.ITEM_PIPE.get());
         }
         for (int x = 2; x <= 6; x++) {
-            FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(new BlockPos(x, 1, 2)));
+            BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(new BlockPos(x, 1, 2)));
         }
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
         ItemStack facades = FacadeItem.of(clear, 8);
@@ -530,7 +530,7 @@ public final class FacadeTests {
         for (int x = 2; x <= 6; x++) {
             BlockPos pos = new BlockPos(x, 1, 2);
             helper.assertTrue(cover(helper, pos) == clear, "Pipe at x " + x + " has " + cover(helper, pos));
-            helper.assertTrue(helper.getBlockState(pos).getValue(FlowPipeBlock.COVER) == CoverShape.CLEAR,
+            helper.assertTrue(helper.getBlockState(pos).getValue(BasePipeBlock.COVER) == CoverShape.CLEAR,
                     "Pipe at x " + x + " isn't a clear full block");
         }
         helper.assertTrue(facades.getCount() == 3, "Facades left: " + facades.getCount() + " (should be 3)");
@@ -556,7 +556,7 @@ public final class FacadeTests {
         helper.assertTrue(transparent.is(ModItems.FACADE.get()) && FacadeItem.coverOf(transparent) == clear,
                 "Transparent cover: picked " + transparent);
         data(helper, PIPE).setCover(null);
-        FlowPipeBlock.syncCoverState(helper.getLevel(), helper.absolutePos(PIPE));
+        BasePipeBlock.syncCoverState(helper.getLevel(), helper.absolutePos(PIPE));
         helper.assertTrue(picked(helper, player).is(ModItems.ITEM_PIPE.get()),
                 "Cover off: picked " + picked(helper, player));
         helper.succeed();
@@ -575,10 +575,10 @@ public final class FacadeTests {
         data(helper, PIPE).setCover(OAK);
         helper.assertTrue(sound(helper) == SoundType.WOOD, "Oak cover sounds like " + sound(helper));
         data(helper, PIPE).setCover(Blocks.GLASS.defaultBlockState());
-        FlowPipeBlock.syncCoverState(helper.getLevel(), helper.absolutePos(PIPE));
+        BasePipeBlock.syncCoverState(helper.getLevel(), helper.absolutePos(PIPE));
         helper.assertTrue(sound(helper) == SoundType.GLASS, "Glass cover sounds like " + sound(helper));
         data(helper, PIPE).setCover(null);
-        FlowPipeBlock.syncCoverState(helper.getLevel(), helper.absolutePos(PIPE));
+        BasePipeBlock.syncCoverState(helper.getLevel(), helper.absolutePos(PIPE));
         helper.assertTrue(sound(helper) == SoundType.METAL, "Cover off: sounds like " + sound(helper));
         helper.succeed();
     }
@@ -604,7 +604,7 @@ public final class FacadeTests {
 
     private static void pipe(GameTestHelper helper, BlockPos pos, Block block) {
         helper.setBlock(pos, block.defaultBlockState());
-        FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(pos));
+        BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(pos));
     }
 
     private static void coverWithSurvivalPlayer(GameTestHelper helper, BlockPos pos, BlockState block) {
@@ -633,13 +633,13 @@ public final class FacadeTests {
     @javax.annotation.Nullable
     private static BlockState cover(GameTestHelper helper, BlockPos pos) {
         BlockPos at = helper.absolutePos(pos);
-        PipeDataBlockEntity data = FlowPipeBlock.getData(helper.getLevel(), at, helper.getLevel().getBlockState(at));
+        PipeDataBlockEntity data = BasePipeBlock.getData(helper.getLevel(), at, helper.getLevel().getBlockState(at));
         return data == null ? null : data.cover();
     }
 
     private static PipeDataBlockEntity data(GameTestHelper helper, BlockPos pos) {
         BlockPos at = helper.absolutePos(pos);
-        PipeDataBlockEntity data = FlowPipeBlock.getData(helper.getLevel(), at, helper.getLevel().getBlockState(at));
+        PipeDataBlockEntity data = BasePipeBlock.getData(helper.getLevel(), at, helper.getLevel().getBlockState(at));
         if (data == null) {
             throw new net.minecraft.gametest.framework.GameTestAssertException("No settings storage at " + pos);
         }

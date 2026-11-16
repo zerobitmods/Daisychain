@@ -15,7 +15,7 @@ import java.util.UUID;
  * <p>
  * Claim mods and spawn protection stop a click on the server, but the player's own game still opens the "Pipe sides"
  * screen, and its packets used to be accepted from anyone within 8 blocks. Now the server remembers the pipe when its
- * own side of the click really ran (FlowPipeBlock.openScreen), and the packets that change a pipe or open its settings
+ * own side of the click really ran (BasePipeBlock.openScreen), and the packets that change a pipe or open its settings
  * are only accepted for that pipe. Server thread only; never saved; forgotten on logout and when the server stops.
  */
 public final class PipeAccess {

@@ -25,7 +25,7 @@ import net.neoforged.neoforge.capabilities.Capabilities;
  * machine moves at the speed of the slowest pipe on the best route to it (network/PipeNetwork.routeTiers). Energy pull
  * sides take no upgrade.
  */
-public final class EnergyPipeBlock extends FlowPipeBlock {
+public final class EnergyPipeBlock extends BasePipeBlock {
     public static final int TIERS = 6;
 
     public static final MapCodec<EnergyPipeBlock> CODEC = RecordCodecBuilder.mapCodec(instance -> instance.group(

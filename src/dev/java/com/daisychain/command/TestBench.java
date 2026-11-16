@@ -1,6 +1,6 @@
 package com.daisychain.command;
 
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.PipeKind;
 import com.daisychain.registry.ModBlocks;
@@ -130,7 +130,7 @@ final class TestBench {
         sign(level, sign, "3 Pull cap", "click / sneak");
         BlockPos pipe = sign.north(3).east(2);
         level.setBlock(pipe, ModBlocks.ITEM_PIPE.get().defaultBlockState(), Block.UPDATE_ALL);
-        FlowPipeBlock.refreshArms(level, pipe);
+        BasePipeBlock.refreshArms(level, pipe);
         pull(level, pipe, Direction.SOUTH);
         chest(level, sign.north(3), new ItemStack(ModBlocks.ITEM_PIPE.get(), 64));
         return new Station("Pull cap", "take item pipes from the chest. Plain right-click the pipe's cap (facing you):"
@@ -163,7 +163,7 @@ final class TestBench {
         sign(level, sign, "5 Swap vs cap", "sneak on cap");
         BlockPos pipe = sign.north(3).east(2);
         level.setBlock(pipe, ModBlocks.energyPipes()[0].defaultBlockState(), Block.UPDATE_ALL);
-        FlowPipeBlock.refreshArms(level, pipe);
+        BasePipeBlock.refreshArms(level, pipe);
         pull(level, pipe, Direction.SOUTH);
         chest(level, sign.north(3), new ItemStack(ModBlocks.energyPipes()[2], 16));
         return new Station("Swap vs pull cap", "with a Gold energy pipe, sneak + right-click the cap facing you: a pipe"
@@ -267,12 +267,12 @@ final class TestBench {
             level.setBlock(first.east(i), pipe.defaultBlockState(), Block.UPDATE_ALL);
         }
         for (int i = 0; i < length; i++) {
-            FlowPipeBlock.refreshArms(level, first.east(i));
+            BasePipeBlock.refreshArms(level, first.east(i));
         }
     }
 
     private static void pull(ServerLevel level, BlockPos pipe, Direction side) {
-        FlowPipeBlock.setPullSidesForTest(level, pipe, 1 << side.get3DDataValue());
+        BasePipeBlock.setPullSidesForTest(level, pipe, 1 << side.get3DDataValue());
     }
 
     private static void chest(ServerLevel level, BlockPos pos, ItemStack... contents) {

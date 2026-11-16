@@ -2,7 +2,7 @@ package com.daisychain.compat.jade;
 
 import com.daisychain.Daisychain;
 import com.daisychain.block.CoverShape;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.item.FacadeItem;
 import net.minecraft.ChatFormatting;
@@ -64,10 +64,10 @@ public enum PipeCoverProvider implements IBlockComponentProvider {
     @Nullable
     private static BlockState coverOf(BlockAccessor accessor) {
         BlockState state = accessor.getBlockState();
-        if (!(state.getBlock() instanceof FlowPipeBlock) || state.getValue(FlowPipeBlock.COVER) == CoverShape.NONE) {
+        if (!(state.getBlock() instanceof BasePipeBlock) || state.getValue(BasePipeBlock.COVER) == CoverShape.NONE) {
             return null;
         }
-        PipeDataBlockEntity data = FlowPipeBlock.getData(accessor.getLevel(), accessor.getPosition(), state);
+        PipeDataBlockEntity data = BasePipeBlock.getData(accessor.getLevel(), accessor.getPosition(), state);
         return data == null ? null : data.cover();
     }
 }

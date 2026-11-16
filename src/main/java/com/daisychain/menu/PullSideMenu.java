@@ -1,6 +1,6 @@
 package com.daisychain.menu;
 
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.PipeKind;
 import com.daisychain.filter.FluidGhost;
@@ -248,15 +248,15 @@ public final class PullSideMenu extends AbstractContainerMenu {
             return;
         }
         BlockState state = level.getBlockState(pos);
-        if (FlowPipeBlock.isPullSide(level, pos, state, side)) {
-            PipeDataBlockEntity data = FlowPipeBlock.getData(level, pos, state);
+        if (BasePipeBlock.isPullSide(level, pos, state, side)) {
+            PipeDataBlockEntity data = BasePipeBlock.getData(level, pos, state);
             if (data != null) {
                 open(player, data, pos, side, false);
             }
-        } else if (FlowPipeBlock.isInsertSide(level, pos, state, side)) {
+        } else if (BasePipeBlock.isInsertSide(level, pos, state, side)) {
             // Insert settings live in the pipe's block entity; create it now (removed again if left unused).
-            FlowPipeBlock.ensureData(level, pos);
-            PipeDataBlockEntity data = FlowPipeBlock.getData(level, pos, level.getBlockState(pos));
+            BasePipeBlock.ensureData(level, pos);
+            PipeDataBlockEntity data = BasePipeBlock.getData(level, pos, level.getBlockState(pos));
             if (data != null) {
                 open(player, data, pos, side, true);
             }
@@ -265,7 +265,7 @@ public final class PullSideMenu extends AbstractContainerMenu {
 
     /** Server: opens the Pull side screen (insert = false) or the Insert side screen (insert = true) for one side. */
     public static void open(ServerPlayer player, PipeDataBlockEntity data, BlockPos pos, Direction side, boolean insert) {
-        PipeKind kind = FlowPipeBlock.kindOf(data.getBlockState());
+        PipeKind kind = BasePipeBlock.kindOf(data.getBlockState());
         int resource = kind.firstResource();
         Component title = Component.translatable(insert ? "screen.daisychain.insert_side" : "screen.daisychain.pull_side",
                 Component.translatable("message.daisychain.direction." + side.getSerializedName()));
@@ -398,8 +398,8 @@ public final class PullSideMenu extends AbstractContainerMenu {
             return false;
         }
         BlockState state = level.getBlockState(pos);
-        boolean rightKind = insert ? FlowPipeBlock.isInsertSide(level, pos, state, side)
-                : FlowPipeBlock.isPullSide(level, pos, state, side);
+        boolean rightKind = insert ? BasePipeBlock.isInsertSide(level, pos, state, side)
+                : BasePipeBlock.isPullSide(level, pos, state, side);
         return rightKind && player.distanceToSqr(Vec3.atCenterOf(pos)) <= MAX_DISTANCE_SQR;
     }
 
@@ -411,7 +411,7 @@ public final class PullSideMenu extends AbstractContainerMenu {
     public void removed(Player player) {
         super.removed(player);
         if (insert && data != null && !data.isRemoved() && data.getLevel() instanceof ServerLevel serverLevel) {
-            FlowPipeBlock.dropDataIfUnused(serverLevel, pos);
+            BasePipeBlock.dropDataIfUnused(serverLevel, pos);
         }
     }
 

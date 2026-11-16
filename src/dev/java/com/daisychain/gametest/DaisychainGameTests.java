@@ -2,7 +2,7 @@ package com.daisychain.gametest;
 
 import com.daisychain.Daisychain;
 import com.daisychain.block.EnergyPipeBlock;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.PipeKind;
 import com.daisychain.block.RedstoneMode;
@@ -143,9 +143,9 @@ public final class DaisychainGameTests {
 
         BlockState after = level.getBlockState(at);
         helper.assertTrue(after.getBlock() == ModBlocks.energyPipes()[2], "Pipe is " + after.getBlock() + ", not Gold");
-        helper.assertTrue(after.getValue(FlowPipeBlock.propertyFor(Direction.WEST)) == SideState.EXTRACT,
+        helper.assertTrue(after.getValue(BasePipeBlock.propertyFor(Direction.WEST)) == SideState.EXTRACT,
                 "The pull side was lost");
-        helper.assertTrue(after.getValue(FlowPipeBlock.propertyFor(Direction.EAST)) != SideState.NONE,
+        helper.assertTrue(after.getValue(BasePipeBlock.propertyFor(Direction.EAST)) != SideState.NONE,
                 "The link to the next pipe was lost");
         PipeDataBlockEntity moved = data(helper, pipe);
         helper.assertTrue(moved.batch(Direction.WEST, PipeKind.ENERGY_RES) == 1234,
@@ -272,7 +272,7 @@ public final class DaisychainGameTests {
             helper.setBlock(A.east(i + 1), ModBlocks.energyPipes()[tiers[i]].defaultBlockState());
         }
         for (int i = 0; i < tiers.length; i++) {
-            FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east(i + 1)));
+            BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east(i + 1)));
         }
         pull(helper, A.east(), Direction.WEST, 0);
         long[] start = new long[1];
@@ -317,8 +317,8 @@ public final class DaisychainGameTests {
         helper.setBlock(sink, Blocks.LECTERN.defaultBlockState());
         helper.setBlock(A.east(1), pipe.defaultBlockState());
         helper.setBlock(A.east(2), pipe.defaultBlockState());
-        FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east(1)));
-        FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east(2)));
+        BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east(1)));
+        BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east(2)));
         pull(helper, A.east(), Direction.WEST, 0);
         BlockPos pipePos = helper.absolutePos(A.east());
         long[] pushed = new long[1];
@@ -366,10 +366,10 @@ public final class DaisychainGameTests {
         helper.setBlock(A, ModBlocks.UNIVERSAL_PIPE.get().defaultBlockState());
         pull(helper, A, Direction.EAST, 0);
         helper.setBlock(A.east(), ModBlocks.energyPipes()[0].defaultBlockState());
-        FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east()));
+        BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east()));
         helper.runAfterDelay(5, () -> {
             BlockState energy = helper.getBlockState(A.east());
-            helper.assertTrue(energy.getValue(FlowPipeBlock.propertyFor(Direction.WEST)) == SideState.NONE,
+            helper.assertTrue(energy.getValue(BasePipeBlock.propertyFor(Direction.WEST)) == SideState.NONE,
                     "Energy pipe connected to the universal pipe: " + energy);
             helper.succeed();
         });
@@ -431,7 +431,7 @@ public final class DaisychainGameTests {
 
     private static void assertEastSide(GameTestHelper helper, SideState expected, String when) {
         BlockState pipe = helper.getBlockState(A);
-        helper.assertTrue(pipe.getValue(FlowPipeBlock.propertyFor(Direction.EAST)) == expected,
+        helper.assertTrue(pipe.getValue(BasePipeBlock.propertyFor(Direction.EAST)) == expected,
                 "Pipe side toward the table should be " + expected + " (" + when + "): " + pipe);
     }
 
@@ -448,21 +448,21 @@ public final class DaisychainGameTests {
         chest(helper, B);
         Block pipe = ModBlocks.ITEM_PIPE.get();
         BlockState pull = pipe.defaultBlockState()
-                .setValue(FlowPipeBlock.propertyFor(Direction.WEST), SideState.EXTRACT)
-                .setValue(FlowPipeBlock.propertyFor(Direction.EAST), SideState.CONNECTED);
+                .setValue(BasePipeBlock.propertyFor(Direction.WEST), SideState.EXTRACT)
+                .setValue(BasePipeBlock.propertyFor(Direction.EAST), SideState.CONNECTED);
         BlockState middle = pipe.defaultBlockState()
-                .setValue(FlowPipeBlock.propertyFor(Direction.WEST), SideState.CONNECTED)
-                .setValue(FlowPipeBlock.propertyFor(Direction.EAST), SideState.CONNECTED)
-                .setValue(FlowPipeBlock.HAS_DATA, true);
+                .setValue(BasePipeBlock.propertyFor(Direction.WEST), SideState.CONNECTED)
+                .setValue(BasePipeBlock.propertyFor(Direction.EAST), SideState.CONNECTED)
+                .setValue(BasePipeBlock.HAS_DATA, true);
         helper.setBlock(A.east(), pull);
         helper.setBlock(A.east(2), middle);
-        helper.setBlock(A.east(3), pull.setValue(FlowPipeBlock.HAS_DATA, true));
+        helper.setBlock(A.east(3), pull.setValue(BasePipeBlock.HAS_DATA, true));
         helper.runAfterDelay(20, () -> helper.assertTrue(helper.getLevel().getBlockState(helper.absolutePos(A.east()))
-                .getValue(FlowPipeBlock.propertyFor(Direction.WEST)) != SideState.EXTRACT,
+                .getValue(BasePipeBlock.propertyFor(Direction.WEST)) != SideState.EXTRACT,
                 "A pasted pull side with no settings was not cleaned up (step 101)"));
         helper.runAfterDelay(40, () -> {
             for (int i = 1; i <= 3; i++) {
-                FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east(i)));
+                BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east(i)));
             }
         });
         helper.runAfterDelay(100, () -> {
@@ -628,7 +628,7 @@ public final class DaisychainGameTests {
     public static void upgradeDropsWithoutTileDrops(GameTestHelper helper) {
         chest(helper, A);
         helper.setBlock(A.east(), ModBlocks.ITEM_PIPE.get().defaultBlockState());
-        FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east()));
+        BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east()));
         pull(helper, A.east(), Direction.WEST, 2);
         helper.runAfterDelay(2, () -> helper.setBlock(A.east(), Blocks.AIR.defaultBlockState()));
         helper.runAfterDelay(6, () -> {
@@ -685,12 +685,12 @@ public final class DaisychainGameTests {
             helper.setBlock(first.east(i), pipe.defaultBlockState());
         }
         for (int i = 0; i < length; i++) {
-            FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(first.east(i)));
+            BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(first.east(i)));
         }
     }
 
     private static void pull(GameTestHelper helper, BlockPos pipe, Direction side, int upgrade) {
-        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(pipe), 1 << side.get3DDataValue());
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(pipe), 1 << side.get3DDataValue());
         if (upgrade > 0) {
             data(helper, pipe).setUpgradeLevel(side, upgrade);
         }

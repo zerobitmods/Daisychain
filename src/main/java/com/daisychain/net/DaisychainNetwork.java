@@ -1,6 +1,6 @@
 package com.daisychain.net;
 
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.menu.PullSideMenu;
 import net.minecraft.core.BlockPos;
@@ -137,7 +137,7 @@ public final class DaisychainNetwork {
         if (!(context.player() instanceof ServerPlayer player) || player.isSpectator() || !player.mayBuild()) {
             return;
         }
-        if (payload.side() < 0 || payload.side() >= 6 || payload.mode() < 0 || payload.mode() > FlowPipeBlock.MODE_DISCONNECTED) {
+        if (payload.side() < 0 || payload.side() >= 6 || payload.mode() < 0 || payload.mode() > BasePipeBlock.MODE_DISCONNECTED) {
             return;
         }
         ServerLevel level = player.serverLevel();
@@ -149,7 +149,7 @@ public final class DaisychainNetwork {
             return; // review R3: not the pipe this player last clicked with the server's consent
         }
         BlockState state = level.getBlockState(pos);
-        if (state.getBlock() instanceof FlowPipeBlock pipe) {
+        if (state.getBlock() instanceof BasePipeBlock pipe) {
             pipe.setSideModeFromScreen(level, pos, Direction.from3DDataValue(payload.side()), player, payload.mode());
         }
     }
@@ -177,8 +177,8 @@ public final class DaisychainNetwork {
         BlockState state = level.getBlockState(pos);
         // Pull settings only on pull sides, insert settings only on insert sides.
         boolean allowed = PipeDataBlockEntity.isInsertSetting(payload.setting())
-                ? FlowPipeBlock.isInsertSide(level, pos, state, side)
-                : FlowPipeBlock.isPullSide(level, pos, state, side);
+                ? BasePipeBlock.isInsertSide(level, pos, state, side)
+                : BasePipeBlock.isPullSide(level, pos, state, side);
         if (!allowed) {
             return;
         }

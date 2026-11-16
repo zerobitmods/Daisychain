@@ -2,7 +2,7 @@ package com.daisychain.network;
 
 import com.daisychain.Daisychain;
 import com.daisychain.block.Distribution;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeKind;
 import com.daisychain.filter.ItemFilter;
 import net.minecraft.core.BlockPos;
@@ -617,7 +617,7 @@ final class ItemTransfer {
             rest = ItemHandlerHelper.insertItem(source, rest, false);
         }
         if (!rest.isEmpty()) {
-            FlowPipeBlock.dropAt(level, pipePos, rest); // review R2: not popResource (doTileDrops)
+            BasePipeBlock.dropAt(level, pipePos, rest); // review R2: not popResource (doTileDrops)
             if (!warnedAboutDrop) {
                 warnedAboutDrop = true;
                 Daisychain.LOGGER.warn("An inventory near {} refused items it had accepted in simulation; "

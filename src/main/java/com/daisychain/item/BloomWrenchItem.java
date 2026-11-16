@@ -7,7 +7,7 @@ import net.minecraft.world.InteractionResultHolder;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.InteractionHand;
 import com.daisychain.config.DaisychainClientConfig;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.Item;
@@ -40,7 +40,7 @@ public class BloomWrenchItem extends Item {
     public InteractionResult useOn(UseOnContext context) {
         Player player = context.getPlayer();
         if (player == null || !player.isSecondaryUseActive()
-                || context.getLevel().getBlockState(context.getClickedPos()).getBlock() instanceof FlowPipeBlock) {
+                || context.getLevel().getBlockState(context.getClickedPos()).getBlock() instanceof BasePipeBlock) {
             return InteractionResult.PASS;
         }
         toggleHolograms(context.getLevel(), player);

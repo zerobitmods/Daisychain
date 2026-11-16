@@ -7,7 +7,7 @@ import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.capabilities.Capabilities;
 
 /** Item pipe: connects to other item pipes and to any block that exposes an item handler. */
-public final class ItemPipeBlock extends FlowPipeBlock {
+public final class ItemPipeBlock extends BasePipeBlock {
 
     public static final MapCodec<ItemPipeBlock> CODEC = simpleCodec(ItemPipeBlock::new);
 

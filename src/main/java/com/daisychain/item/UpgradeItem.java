@@ -1,6 +1,6 @@
 package com.daisychain.item;
 
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.config.UpgradeSpeeds;
 import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
@@ -34,11 +34,11 @@ public final class UpgradeItem extends Item {
     @Override
     public InteractionResult useOn(UseOnContext context) {
         Level level = context.getLevel();
-        if (!(level.getBlockState(context.getClickedPos()).getBlock() instanceof FlowPipeBlock)) {
+        if (!(level.getBlockState(context.getClickedPos()).getBlock() instanceof BasePipeBlock)) {
             return InteractionResult.PASS;
         }
         if (level instanceof ServerLevel serverLevel && context.getPlayer() != null) {
-            FlowPipeBlock.installOnNetwork(serverLevel, context.getClickedPos(), context.getPlayer(),
+            BasePipeBlock.installOnNetwork(serverLevel, context.getClickedPos(), context.getPlayer(),
                     context.getItemInHand(), this);
         }
         return InteractionResult.sidedSuccess(level.isClientSide());

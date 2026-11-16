@@ -2,7 +2,7 @@ package com.daisychain.gametest;
 
 import com.daisychain.Daisychain;
 import com.daisychain.block.Distribution;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.PipeKind;
 import com.daisychain.block.SideState;
@@ -71,11 +71,11 @@ public final class ReviewLeftoverTests {
             helper.setBlock(A.east(i), ModBlocks.ITEM_PIPE.get().defaultBlockState());
         }
         for (int i = 1; i <= 3; i++) {
-            FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east(i)));
+            BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east(i)));
         }
-        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(A.east()), 1 << Direction.WEST.get3DDataValue());
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(A.east()), 1 << Direction.WEST.get3DDataValue());
         data(helper, A.east()).setUpgradeLevel(Direction.WEST, 1); // iron: 16 every 10 ticks
-        FlowPipeBlock.ensureData(helper.getLevel(), helper.absolutePos(last)); // B's insert side gets settings storage
+        BasePipeBlock.ensureData(helper.getLevel(), helper.absolutePos(last)); // B's insert side gets settings storage
         PipeNetwork[] before = new PipeNetwork[1];
         int[] cBefore = new int[1];
         helper.runAfterDelay(40, () -> {
@@ -121,7 +121,7 @@ public final class ReviewLeftoverTests {
         BlockPos pipe = new BlockPos(2, 1, 2);
         BlockPos spot = pipe.east();
         helper.setBlock(pipe, ModBlocks.ITEM_PIPE.get().defaultBlockState());
-        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(pipe), 1 << Direction.EAST.get3DDataValue());
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(pipe), 1 << Direction.EAST.get3DDataValue());
         data(helper, pipe).setUpgradeLevel(Direction.EAST, 2);
         helper.assertTrue(pullsEast(helper, pipe), "Setup: the pipe doesn't pull east");
         setBlockLikeCommand(helper, spot);
@@ -144,14 +144,14 @@ public final class ReviewLeftoverTests {
         BlockPos spot = pipe.east();
         int east = 1 << Direction.EAST.get3DDataValue();
         helper.setBlock(pipe, ModBlocks.ITEM_PIPE.get().defaultBlockState());
-        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(pipe), east); // creates the block entity
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(pipe), east); // creates the block entity
         data(helper, pipe).setMasks(0, east);
-        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(pipe), 0); // recompute arms: east is Off
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(pipe), 0); // recompute arms: east is Off
         setBlockLikeCommand(helper, spot);
         helper.runAfterDelay(2, () -> {
             boolean off = helper.getLevel().getBlockEntity(helper.absolutePos(pipe)) instanceof PipeDataBlockEntity d
                     && d.isDisconnected(Direction.EAST);
-            SideState side = helper.getBlockState(pipe).getValue(FlowPipeBlock.propertyFor(Direction.EAST));
+            SideState side = helper.getBlockState(pipe).getValue(BasePipeBlock.propertyFor(Direction.EAST));
             helper.assertTrue(off, "The /setblock pipe cleared the neighbor's Off mark");
             helper.assertTrue(side != SideState.CONNECTED, "The Off side connected to the /setblock pipe");
             helper.assertTrue(itemsOnGround(helper) == 0, "Something dropped");
@@ -185,7 +185,7 @@ public final class ReviewLeftoverTests {
         BlockPos spot = pipe.east();
         helper.setBlock(spot.below(), Blocks.STONE.defaultBlockState());
         helper.setBlock(pipe, ModBlocks.ITEM_PIPE.get().defaultBlockState());
-        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(pipe), 1 << Direction.EAST.get3DDataValue());
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(pipe), 1 << Direction.EAST.get3DDataValue());
         data(helper, pipe).setUpgradeLevel(Direction.EAST, 2);
         helper.assertTrue(pullsEast(helper, pipe), "Setup: the pipe doesn't pull east");
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
@@ -223,7 +223,7 @@ public final class ReviewLeftoverTests {
     }
 
     private static boolean pullsEast(GameTestHelper helper, BlockPos pipe) {
-        return helper.getBlockState(pipe).getValue(FlowPipeBlock.propertyFor(Direction.EAST)) == SideState.EXTRACT;
+        return helper.getBlockState(pipe).getValue(BasePipeBlock.propertyFor(Direction.EAST)) == SideState.EXTRACT;
     }
 
     static int itemsOnGround(GameTestHelper helper) {
@@ -246,7 +246,7 @@ public final class ReviewLeftoverTests {
             helper.setBlock(pipe.above(), Blocks.BARREL.defaultBlockState());
         }
         for (int x = 1; x <= 7; x++) {
-            FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(new BlockPos(x, 1, 2)));
+            BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(new BlockPos(x, 1, 2)));
         }
         return new BlockPos(1, 1, 2);
     }
@@ -409,10 +409,10 @@ public final class ReviewLeftoverTests {
             helper.setBlock(machine, Blocks.BELL.defaultBlockState());
         }
         for (int x = 2; x <= 8; x++) {
-            FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(new BlockPos(x, 1, 2)));
+            BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(new BlockPos(x, 1, 2)));
         }
         BlockPos first = new BlockPos(2, 1, 2);
-        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(first), 1 << Direction.WEST.get3DDataValue());
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(first), 1 << Direction.WEST.get3DDataValue());
         data(helper, first).applySetting(Direction.WEST, PipeDataBlockEntity.SETTING_DISTRIBUTION, distribution.ordinal(),
                 PipeKind.ENERGY_RES);
         BlockPos pipePos = helper.absolutePos(first);
@@ -494,8 +494,8 @@ public final class ReviewLeftoverTests {
         chest(helper, A, stacks);
         chest(helper, b);
         helper.setBlock(A.east(), ModBlocks.ITEM_PIPE.get().defaultBlockState());
-        FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east()));
-        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(A.east()), 1 << Direction.WEST.get3DDataValue());
+        BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east()));
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(A.east()), 1 << Direction.WEST.get3DDataValue());
         PipeDataBlockEntity data = data(helper, A.east());
         data.setUpgradeLevel(Direction.WEST, 3); // diamond
         data.applySetting(Direction.WEST, PipeDataBlockEntity.SETTING_INTERVAL, 40, PipeKind.ITEMS);
@@ -515,8 +515,8 @@ public final class ReviewLeftoverTests {
         chest(helper, A, new ItemStack(Items.COBBLESTONE, 64), new ItemStack(Items.COBBLESTONE, 64));
         chest(helper, b);
         helper.setBlock(A.east(), ModBlocks.ITEM_PIPE.get().defaultBlockState());
-        FlowPipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east()));
-        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(A.east()), 1 << Direction.WEST.get3DDataValue());
+        BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east()));
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(A.east()), 1 << Direction.WEST.get3DDataValue());
         PipeDataBlockEntity data = data(helper, A.east());
         data.setUpgradeLevel(Direction.WEST, 1); // iron
         data.applySetting(Direction.WEST, PipeDataBlockEntity.SETTING_INTERVAL, 2, PipeKind.ITEMS);
@@ -534,8 +534,8 @@ public final class ReviewLeftoverTests {
         BlockPos two = new BlockPos(5, 1, 2);
         helper.setBlock(one, ModBlocks.ITEM_PIPE.get().defaultBlockState());
         helper.setBlock(two, ModBlocks.ITEM_PIPE.get().defaultBlockState());
-        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(one), 1 << Direction.WEST.get3DDataValue());
-        FlowPipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(two), 1 << Direction.WEST.get3DDataValue());
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(one), 1 << Direction.WEST.get3DDataValue());
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(two), 1 << Direction.WEST.get3DDataValue());
         var registries = helper.getLevel().registryAccess();
         data(helper, one).applySetting(Direction.WEST, PipeDataBlockEntity.SETTING_INTERVAL, 1234, PipeKind.ITEMS);
         var tag = data(helper, one).copySide(Direction.WEST, false, registries);

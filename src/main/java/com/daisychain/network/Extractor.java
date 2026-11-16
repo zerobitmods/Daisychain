@@ -51,7 +51,7 @@ final class Extractor {
     int pendingPulse;
     /**
      * One bit per pull side asleep because the block next to it offers nothing to pull (step 34): no work at all until
-     * a neighbor changes (FlowPipeBlock.neighborChanged) or a neighbor's capability changes (the caches' listener).
+     * a neighbor changes (BasePipeBlock.neighborChanged) or a neighbor's capability changes (the caches' listener).
      */
     int idleMask;
     /** Universal pipes: tick each resource of each side last ran (index = resource * 6 + side). */
@@ -116,7 +116,7 @@ final class Extractor {
 
     /**
      * The pipe's block state as of its last run (step 36), or null to read it again. Cleared whenever the pipe's
-     * state changes (NetworkManager.onPipeChanged, called from FlowPipeBlock.onPlace) or the extractor is set up.
+     * state changes (NetworkManager.onPipeChanged, called from BasePipeBlock.onPlace) or the extractor is set up.
      */
     @Nullable
     BlockState cachedState;

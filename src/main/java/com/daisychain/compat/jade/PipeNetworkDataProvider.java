@@ -2,7 +2,7 @@ package com.daisychain.compat.jade;
 
 import com.daisychain.Daisychain;
 import com.daisychain.block.EnergyPipeBlock;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.network.NetworkManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -35,22 +35,22 @@ public enum PipeNetworkDataProvider implements IServerDataProvider<BlockAccessor
     @Override
     public boolean shouldRequestData(BlockAccessor accessor) {
         BlockState state = accessor.getBlockState();
-        if (!(state.getBlock() instanceof FlowPipeBlock)) {
+        if (!(state.getBlock() instanceof BasePipeBlock)) {
             return false;
         }
-        Direction looked = FlowPipeBlock.targetedSide(state, accessor.getPosition(), accessor.getHitResult());
-        return FlowPipeBlock.isPullSide(accessor.getLevel(), accessor.getPosition(), state, looked);
+        Direction looked = BasePipeBlock.targetedSide(state, accessor.getPosition(), accessor.getHitResult());
+        return BasePipeBlock.isPullSide(accessor.getLevel(), accessor.getPosition(), state, looked);
     }
 
     @Override
     public void appendServerData(CompoundTag data, BlockAccessor accessor) {
         BlockState state = accessor.getBlockState();
-        if (!(accessor.getLevel() instanceof ServerLevel level) || !(state.getBlock() instanceof FlowPipeBlock)) {
+        if (!(accessor.getLevel() instanceof ServerLevel level) || !(state.getBlock() instanceof BasePipeBlock)) {
             return;
         }
         BlockPos pos = accessor.getPosition();
-        Direction looked = FlowPipeBlock.targetedSide(state, pos, accessor.getHitResult());
-        if (!FlowPipeBlock.isPullSide(level, pos, state, looked)) {
+        Direction looked = BasePipeBlock.targetedSide(state, pos, accessor.getHitResult());
+        if (!BasePipeBlock.isPullSide(level, pos, state, looked)) {
             return;
         }
         NetworkManager manager = NetworkManager.get(level);

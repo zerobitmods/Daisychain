@@ -1,7 +1,7 @@
 package com.daisychain.client;
 
 import com.daisychain.Daisychain;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -71,7 +71,7 @@ public final class WrenchSeeThrough {
     public static void onClientTick(ClientTickEvent.Post event) {
         Minecraft minecraft = Minecraft.getInstance();
         ClientLevel level = minecraft.level;
-        boolean holding = level != null && minecraft.player != null && FlowPipeBlock.isHoldingWrench(minecraft.player);
+        boolean holding = level != null && minecraft.player != null && BasePipeBlock.isHoldingWrench(minecraft.player);
         if (holding == active) {
             if (active) {
                 WrenchCoverOverlay.tick(minecraft, level); // step 129c

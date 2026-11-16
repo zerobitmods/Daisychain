@@ -7,7 +7,7 @@ import net.minecraft.world.level.Level;
 import net.neoforged.neoforge.capabilities.Capabilities;
 
 /** Fluid pipe: connects to other fluid pipes and to any block that exposes a fluid handler. */
-public final class FluidPipeBlock extends FlowPipeBlock {
+public final class FluidPipeBlock extends BasePipeBlock {
 
     public static final MapCodec<FluidPipeBlock> CODEC = simpleCodec(FluidPipeBlock::new);
 

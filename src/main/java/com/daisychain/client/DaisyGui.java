@@ -14,7 +14,7 @@ import net.minecraft.network.chat.MutableComponent;
  * tint of the side color with light text instead of a solid fill with dark text, and pixel-rounded corners (1 px on
  * keys, fields and slots, 3 px on panels).
  */
-final class FlowGui {
+final class DaisyGui {
     /**
      * Where the font draws its capitals relative to the y given to drawString. The spec asks for a one-time check in
      * game: change this until a capital drawn at y starts exactly at y. (Positive = draw lower.)
@@ -94,7 +94,7 @@ final class FlowGui {
     static final String[] POWER = {"...##...", ".#.##.#.", "#..##..#", "#..##..#", "#......#", "#......#", ".#....#.", "..####.."};
     static final String[] RING ={".######.", "#......#", "#.####.#", "#.#..#.#", "#.#..#.#", "#.####.#", "#......#", ".######."};
 
-    private FlowGui() {
+    private DaisyGui() {
     }
 
     /** The text as the GUI draws it. Since step 47c that's Minecraft's own font, so this is a plain copy. */

@@ -2,7 +2,7 @@ package com.daisychain.client;
 
 import com.daisychain.Daisychain;
 import com.daisychain.block.EnergyPipeBlock;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.item.EnergyPipeItem;
 import com.daisychain.registry.ModBlocks;
@@ -86,7 +86,7 @@ public final class PipeColors {
         if (EnergyPipeBlock.tierOf(state.getBlock()) > 0) {
             return TIER_GROOVE; // step 86: tiered energy pipes are grey
         }
-        int kind = FlowPipeBlock.kindOf(state).ordinal();
+        int kind = BasePipeBlock.kindOf(state).ordinal();
         return kind < GROOVE_COLORS.length ? GROOVE_COLORS[kind] : GROOVE_COLORS[0];
     }
 
@@ -131,7 +131,7 @@ public final class PipeColors {
             // Step 126: a covered pipe draws its cover's quads, so their tints are the cover's (grass, leaves, water...).
             // Step 129: those quads carry COVER_TINT_OFFSET (PipeBakedModel), so with a wrench in hand, when the pipe
             // is drawn too, lower tint indexes are the pipe's own and get the pipe colors below.
-            PipeDataBlockEntity covered = level == null || pos == null ? null : FlowPipeBlock.getData(level, pos, state);
+            PipeDataBlockEntity covered = level == null || pos == null ? null : BasePipeBlock.getData(level, pos, state);
             BlockState cover = covered == null ? null : covered.cover();
             return cover == null ? -1 : Minecraft.getInstance().getBlockColors()
                     .getColor(cover, level, pos, tintIndex - PipeBakedModel.COVER_TINT_OFFSET);
@@ -156,7 +156,7 @@ public final class PipeColors {
         }
         int tier = 0;
         if (level != null && pos != null) {
-            PipeDataBlockEntity data = FlowPipeBlock.getData(level, pos, state);
+            PipeDataBlockEntity data = BasePipeBlock.getData(level, pos, state);
             tier = data == null ? 0 : data.upgradeLevel(Direction.from3DDataValue(tintIndex % 6));
         }
         return groove ? grooveColor(state, tier) : tierColor(tier);

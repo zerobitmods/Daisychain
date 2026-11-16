@@ -1,7 +1,7 @@
 package com.daisychain.gametest;
 
 import com.daisychain.Daisychain;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.network.Loaded;
 import com.daisychain.network.NetworkManager;
@@ -229,9 +229,9 @@ public final class ChunkTicketTests {
                 level.setBlock(firstPipe.east(i), ModBlocks.ITEM_PIPE.get().defaultBlockState(), 3);
             }
             for (int i = 0; i < PIPES; i++) {
-                FlowPipeBlock.refreshArms(level, firstPipe.east(i));
+                BasePipeBlock.refreshArms(level, firstPipe.east(i));
             }
-            FlowPipeBlock.setPullSidesForTest(level, firstPipe, 1 << Direction.WEST.get3DDataValue());
+            BasePipeBlock.setPullSidesForTest(level, firstPipe, 1 << Direction.WEST.get3DDataValue());
             if (level.getBlockEntity(firstPipe) instanceof PipeDataBlockEntity data) {
                 data.setUpgradeLevel(Direction.WEST, 1); // Iron: 16 items every 10 ticks
             }

@@ -1,6 +1,6 @@
 package com.daisychain.command;
 
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.registry.ModBlocks;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
@@ -95,10 +95,10 @@ final class StressTest {
         int count = 0;
         for (BlockPos pos : BlockPos.betweenClosed(center.offset(-radius, -radius, -radius),
                 center.offset(radius, radius, radius))) {
-            if (!level.isLoaded(pos) || !(level.getBlockState(pos).getBlock() instanceof FlowPipeBlock)) {
+            if (!level.isLoaded(pos) || !(level.getBlockState(pos).getBlock() instanceof BasePipeBlock)) {
                 continue;
             }
-            FlowPipeBlock.ensureData(level, pos);
+            BasePipeBlock.ensureData(level, pos);
             if (level.getBlockEntity(pos) instanceof PipeDataBlockEntity data) {
                 data.setCover(covers[count % covers.length]);
                 count++;
@@ -224,7 +224,7 @@ final class StressTest {
             level.setBlock(pos, pipeState, Block.UPDATE_ALL);
         }
         for (BlockPos pos : pipes) {
-            FlowPipeBlock.refreshArms(level, pos); // work out each pipe's arms now that everything is placed
+            BasePipeBlock.refreshArms(level, pos); // work out each pipe's arms now that everything is placed
         }
         pull(level, a.east(1), bit(Direction.WEST), upgrade);
         pull(level, a.east(length), bit(Direction.EAST), upgrade);
@@ -247,9 +247,9 @@ final class StressTest {
             level.setBlock(a.east(i), pipeState, Block.UPDATE_ALL);
         }
         for (int i = 1; i <= length; i++) {
-            FlowPipeBlock.refreshArms(level, a.east(i));
+            BasePipeBlock.refreshArms(level, a.east(i));
         }
-        FlowPipeBlock.setPullSidesForTest(level, a.east(1), bit(Direction.WEST));
+        BasePipeBlock.setPullSidesForTest(level, a.east(1), bit(Direction.WEST));
     }
 
     /**
@@ -310,7 +310,7 @@ final class StressTest {
             level.setBlock(pos, pipeState, Block.UPDATE_ALL);
         }
         for (BlockPos pos : pipes) {
-            FlowPipeBlock.refreshArms(level, pos);
+            BasePipeBlock.refreshArms(level, pos);
         }
         for (BlockPos pos : pulls) {
             pull(level, pos, bit(Direction.DOWN), upgrade);
@@ -336,7 +336,7 @@ final class StressTest {
     }
 
     private static void pull(ServerLevel level, BlockPos pos, int sides, int upgrade) {
-        FlowPipeBlock.setPullSidesForTest(level, pos, sides);
+        BasePipeBlock.setPullSidesForTest(level, pos, sides);
         if (upgrade > 0 && level.getBlockEntity(pos) instanceof PipeDataBlockEntity data) {
             for (Direction side : Direction.values()) {
                 if ((sides & bit(side)) != 0) {

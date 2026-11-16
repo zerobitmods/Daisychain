@@ -10,7 +10,7 @@ import net.neoforged.neoforge.capabilities.Capabilities;
  * Universal pipe (step 33): carries items, fluids and energy at once. Connects to other universal pipes and to any
  * block that exposes an item handler, a fluid handler or an energy storage.
  */
-public final class UniversalPipeBlock extends FlowPipeBlock {
+public final class UniversalPipeBlock extends BasePipeBlock {
 
     public static final MapCodec<UniversalPipeBlock> CODEC = simpleCodec(UniversalPipeBlock::new);
 

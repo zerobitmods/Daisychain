@@ -1,7 +1,7 @@
 package com.daisychain.gametest;
 
 import com.daisychain.Daisychain;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.registry.ModBlocks;
 import com.daisychain.registry.ModDataComponents;
@@ -45,13 +45,13 @@ public final class CopierClaimTests {
             helper.setBlock(pipe(x), ModBlocks.ITEM_PIPE.get().defaultBlockState());
         }
         for (int x = 1; x <= 3; x++) {
-            FlowPipeBlock.refreshArms(level, helper.absolutePos(pipe(x)));
+            BasePipeBlock.refreshArms(level, helper.absolutePos(pipe(x)));
         }
         for (int x = 1; x <= 3; x++) {
-            FlowPipeBlock.setPullSidesForTest(level, helper.absolutePos(pipe(x)), 1 << Direction.NORTH.get3DDataValue());
+            BasePipeBlock.setPullSidesForTest(level, helper.absolutePos(pipe(x)), 1 << Direction.NORTH.get3DDataValue());
         }
         // Pipe 1's pull side gets a diamond in its filter, so a paste shows.
-        FlowPipeBlock.ensureData(level, helper.absolutePos(pipe(1)));
+        BasePipeBlock.ensureData(level, helper.absolutePos(pipe(1)));
         data(helper, 1).setFilterEntry(Direction.NORTH, 0, new ItemStack(Items.DIAMOND), false, 0);
         CompoundTag wanted = side(helper, 1);
 
@@ -93,7 +93,7 @@ public final class CopierClaimTests {
     private static CompoundTag side(GameTestHelper helper, int x) {
         BlockPos abs = helper.absolutePos(pipe(x));
         ServerLevel level = helper.getLevel();
-        PipeDataBlockEntity data = FlowPipeBlock.getData(level, abs, level.getBlockState(abs));
+        PipeDataBlockEntity data = BasePipeBlock.getData(level, abs, level.getBlockState(abs));
         return data == null ? new CompoundTag() // no settings storage: all defaults
                 : data.copySide(Direction.NORTH, false, level.registryAccess());
     }
@@ -101,7 +101,7 @@ public final class CopierClaimTests {
     private static PipeDataBlockEntity data(GameTestHelper helper, int x) {
         BlockPos abs = helper.absolutePos(pipe(x));
         ServerLevel level = helper.getLevel();
-        PipeDataBlockEntity data = FlowPipeBlock.getData(level, abs, level.getBlockState(abs));
+        PipeDataBlockEntity data = BasePipeBlock.getData(level, abs, level.getBlockState(abs));
         if (data == null) {
             throw new GameTestAssertException("No settings storage at pipe " + x);
         }

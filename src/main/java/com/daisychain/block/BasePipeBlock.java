@@ -57,7 +57,7 @@ import javax.annotation.Nullable;
  * Base class for every Daisychain pipe. A pipe segment is a plain block with a SideState per side.
  * Only pipes with player-changed settings get a (non-ticking) block entity.
  */
-public abstract class FlowPipeBlock extends Block implements EntityBlock {
+public abstract class BasePipeBlock extends Block implements EntityBlock {
 
     public static final EnumProperty<SideState> DOWN = EnumProperty.create("down", SideState.class);
     public static final EnumProperty<SideState> UP = EnumProperty.create("up", SideState.class);
@@ -107,7 +107,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
     };
     private static final AABB CORE_BOUNDS = CORE.bounds();
 
-    protected FlowPipeBlock(Properties properties) {
+    protected BasePipeBlock(Properties properties) {
         super(properties);
         BlockState state = stateDefinition.any().setValue(HAS_DATA, false).setValue(COVER, CoverShape.NONE);
         for (EnumProperty<SideState> property : PROPERTY_BY_DIRECTION) {
@@ -117,7 +117,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
     }
 
     @Override
-    public abstract MapCodec<? extends FlowPipeBlock> codec();
+    public abstract MapCodec<? extends BasePipeBlock> codec();
 
     /** What this pipe type carries (items, fluids, ...). */
     public abstract PipeKind kind();
@@ -137,7 +137,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
 
     /** The kind of the pipe at this state, or ITEM if it isn't a Daisychain pipe. */
     public static PipeKind kindOf(BlockState state) {
-        return state.getBlock() instanceof FlowPipeBlock pipe ? pipe.kind() : PipeKind.ITEM;
+        return state.getBlock() instanceof BasePipeBlock pipe ? pipe.kind() : PipeKind.ITEM;
     }
 
     /**
@@ -151,7 +151,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
      * other types don't connect, even now that pull sides of energy and universal pipes take pushed energy (step 109).
      */
     private boolean connectsToBlock(Level level, BlockPos neighborPos, BlockState neighborState, Direction side) {
-        return !neighborState.isAir() && !(neighborState.getBlock() instanceof FlowPipeBlock)
+        return !neighborState.isAir() && !(neighborState.getBlock() instanceof BasePipeBlock)
                 && canConnectToBlock(level, neighborPos, side.getOpposite());
     }
 
@@ -194,7 +194,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
      * it), or marked to pull while its neighbor's chunk wasn't loaded when the arms were last worked out. Its settings, upgrade and filter can be opened either way; only a real inventory gets pulled from.
      */
     public static boolean isPullSide(BlockGetter level, BlockPos pos, BlockState state, Direction side) {
-        if (!(state.getBlock() instanceof FlowPipeBlock)) {
+        if (!(state.getBlock() instanceof BasePipeBlock)) {
             return false;
         }
         SideState sideState = state.getValue(propertyFor(side));
@@ -234,17 +234,17 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
      * items can be sent into. Never loads the neighbor's chunk.
      */
     public static boolean isInsertSide(Level level, BlockPos pos, BlockState state, Direction side) {
-        if (!(state.getBlock() instanceof FlowPipeBlock) || state.getValue(propertyFor(side)) != SideState.CONNECTED) {
+        if (!(state.getBlock() instanceof BasePipeBlock) || state.getValue(propertyFor(side)) != SideState.CONNECTED) {
             return false;
         }
         BlockPos neighborPos = pos.relative(side);
-        return level.isLoaded(neighborPos) && !(level.getBlockState(neighborPos).getBlock() instanceof FlowPipeBlock);
+        return level.isLoaded(neighborPos) && !(level.getBlockState(neighborPos).getBlock() instanceof BasePipeBlock);
     }
 
     /** Server: gives the pipe its block entity if it has none yet (to hold insert settings). Arms don't change. */
     public static void ensureData(ServerLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
-        if (state.getBlock() instanceof FlowPipeBlock && !state.getValue(HAS_DATA)) {
+        if (state.getBlock() instanceof BasePipeBlock && !state.getValue(HAS_DATA)) {
             level.setBlock(pos, state.setValue(HAS_DATA, true), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
         }
     }
@@ -252,7 +252,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
     /** Server: removes the block entity again if nothing on the pipe needs it (e.g. an insert screen closed unused). */
     public static void dropDataIfUnused(ServerLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
-        if (state.getBlock() instanceof FlowPipeBlock && state.getValue(HAS_DATA)
+        if (state.getBlock() instanceof BasePipeBlock && state.getValue(HAS_DATA)
                 && (extractMask(level, pos, state) | disconnectMask(level, pos, state)) == 0
                 && !hasStoredSettings(level, pos, state)) {
             refreshArms(level, pos);
@@ -305,7 +305,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         // side config arriving just after it was placed). The first time a pipe meets one, a re-check one tick later
         // starts listening to it (see tick).
         if (realLevel instanceof ServerLevel serverLevel && neighborState.hasBlockEntity()
-                && !(neighborState.getBlock() instanceof FlowPipeBlock)
+                && !(neighborState.getBlock() instanceof BasePipeBlock)
                 && !NetworkManager.get(serverLevel).isWatched(neighborPos)) {
             serverLevel.scheduleTick(neighborPos.relative(direction.getOpposite()), this, 1);
         }
@@ -432,7 +432,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         // Pipes are placed against pipes as normal, so building lines stays quick.
         // (Sneak + right-click always skips this method in vanilla, so sneaking places any block.)
         if (hand != InteractionHand.MAIN_HAND
-                || (stack.getItem() instanceof BlockItem blockItem && blockItem.getBlock() instanceof FlowPipeBlock)) {
+                || (stack.getItem() instanceof BlockItem blockItem && blockItem.getBlock() instanceof BasePipeBlock)) {
             return ItemInteractionResult.PASS_TO_DEFAULT_BLOCK_INTERACTION;
         }
         // Empty hand or any other item (including other blocks): open the settings.
@@ -486,7 +486,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
      * the block, or on an arm's end, which is the same side as the face.
      */
     private static boolean onCoverSurface(BlockState state, Vec3 local) {
-        if (!(state.getBlock() instanceof FlowPipeBlock) || state.getValue(COVER) == CoverShape.NONE) {
+        if (!(state.getBlock() instanceof BasePipeBlock) || state.getValue(COVER) == CoverShape.NONE) {
             return false;
         }
         double eps = 1.0E-4;
@@ -502,7 +502,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         // other mods too). Its block state may be the same, so updateShape never runs: re-check the arms next tick.
         if (level instanceof ServerLevel serverLevel && pos.distManhattan(neighborPos) == 1) {
             BlockState neighborState = level.getBlockState(neighborPos);
-            if (neighborState.hasBlockEntity() && !(neighborState.getBlock() instanceof FlowPipeBlock)) {
+            if (neighborState.hasBlockEntity() && !(neighborState.getBlock() instanceof BasePipeBlock)) {
                 serverLevel.scheduleTick(pos, this, 1);
             }
         }
@@ -541,7 +541,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         double x = local.x * 16.0;
         double y = local.y * 16.0;
         double z = local.z * 16.0;
-        int pulls = state.getBlock() instanceof FlowPipeBlock ? pullMask(state) : 0;
+        int pulls = state.getBlock() instanceof BasePipeBlock ? pullMask(state) : 0;
         double inner = 5.0;
         double eps = 1.0E-3;
         for (Direction direction : Direction.values()) {
@@ -744,7 +744,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
     /** Saves the masks into the block entity, creating it first if needed. Does not recompute the arms. */
     private void storeMasks(ServerLevel level, BlockPos pos, int extract, int disconnect) {
         BlockState state = level.getBlockState(pos);
-        if (!(state.getBlock() instanceof FlowPipeBlock)) {
+        if (!(state.getBlock() instanceof BasePipeBlock)) {
             return;
         }
         boolean needsData = (extract | disconnect) != 0 || hasStoredSettings(level, pos, state);
@@ -763,7 +763,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
      */
     public static void refreshArms(ServerLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
-        if (state.getBlock() instanceof FlowPipeBlock pipe) {
+        if (state.getBlock() instanceof BasePipeBlock pipe) {
             pipe.applyConfig(level, pos, extractMask(level, pos, state), disconnectMask(level, pos, state));
         }
     }
@@ -772,7 +772,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
     private void applyConfig(ServerLevel level, BlockPos pos, int extract, int disconnect) {
         storeMasks(level, pos, extract, disconnect);
         BlockState state = level.getBlockState(pos);
-        if (!(state.getBlock() instanceof FlowPipeBlock)) {
+        if (!(state.getBlock() instanceof BasePipeBlock)) {
             return;
         }
         // Installed upgrades and insert settings also keep the block entity alive, so they're never lost.
@@ -808,7 +808,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
             manager.onPipeChanged(pos);
             if (manager.takePlacement(pos)) {
                 claimSpotFromNeighbors(serverLevel, pos, true); // step 118: the place event has passed
-            } else if (!(oldState.getBlock() instanceof FlowPipeBlock) && !swappingTier) {
+            } else if (!(oldState.getBlock() instanceof BasePipeBlock) && !swappingTier) {
                 // Step 124: a new pipe put here without a player (/setblock, /fill, a building tool or schematic). No
                 // place event can undo it, so neighbors that pulled from this spot stop and their upgrades pop out,
                 // as for a player's placement. Their "Off" marks toward it stay: a pasted build keeps its Off links.
@@ -851,7 +851,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
     protected void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
         if (syncCoverState(level, pos)) { // step 127: also scheduled when a chunk loads with a cover state out of date
             state = level.getBlockState(pos);
-            if (!(state.getBlock() instanceof FlowPipeBlock)) {
+            if (!(state.getBlock() instanceof BasePipeBlock)) {
                 return;
             }
         }
@@ -861,7 +861,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
             // Review R4: never waits for a neighbor chunk that is still loading (see network/Loaded).
             BlockState neighborState = Loaded.stateIfLoaded(level, neighborPos);
             if (neighborState != null && neighborState.hasBlockEntity()
-                    && !(neighborState.getBlock() instanceof FlowPipeBlock)) {
+                    && !(neighborState.getBlock() instanceof BasePipeBlock)) {
                 manager.watch(neighborPos);
             }
         }
@@ -1001,7 +1001,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
      * so client and server always agree.
      */
     public static boolean isPullCapHit(BlockState state, BlockPos pos, BlockHitResult hit) {
-        if (!(state.getBlock() instanceof FlowPipeBlock) || isCoreHit(state, pos, hit.getLocation())) {
+        if (!(state.getBlock() instanceof BasePipeBlock) || isCoreHit(state, pos, hit.getLocation())) {
             return false;
         }
         return state.getValue(propertyFor(targetedSide(state, pos, hit))) == SideState.EXTRACT;
@@ -1265,7 +1265,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
 
     /** True for a pipe with an opaque cover: it blocks light, conducts redstone and takes spawns like stone. */
     public static boolean isSolidCover(BlockState state) {
-        return state.getBlock() instanceof FlowPipeBlock && state.getValue(COVER) == CoverShape.SOLID;
+        return state.getBlock() instanceof BasePipeBlock && state.getValue(COVER) == CoverShape.SOLID;
     }
 
     /**
@@ -1274,7 +1274,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
      */
     public static boolean syncCoverState(ServerLevel level, BlockPos pos) {
         BlockState state = level.getBlockState(pos);
-        if (!(state.getBlock() instanceof FlowPipeBlock)) {
+        if (!(state.getBlock() instanceof BasePipeBlock)) {
             return false;
         }
         PipeDataBlockEntity data = getData(level, pos, state);
@@ -1373,7 +1373,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
      * neighbor, so it can't load chunks.
      */
     public static int ghostArmMask(BlockGetter level, BlockPos pos, BlockState state) {
-        if (!(state.getBlock() instanceof FlowPipeBlock)) {
+        if (!(state.getBlock() instanceof BasePipeBlock)) {
             return 0;
         }
         // Step 34a (zerobit): every side without an arm gets a ghost arm, so any side can be clicked with the wrench.
@@ -1386,7 +1386,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
      */
     public static void setPullSidesForTest(ServerLevel level, BlockPos pos, int pullMask) {
         BlockState state = level.getBlockState(pos);
-        if (state.getBlock() instanceof FlowPipeBlock pipe) {
+        if (state.getBlock() instanceof BasePipeBlock pipe) {
             pipe.applyConfig(level, pos, pullMask & 0b111111, disconnectMask(level, pos, state));
         }
     }
@@ -1396,7 +1396,7 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
      * Cached, never allocates after the first use.
      */
     public static VoxelShape shapeFor(BlockState state, int ghostMask) {
-        if (!(state.getBlock() instanceof FlowPipeBlock)) {
+        if (!(state.getBlock() instanceof BasePipeBlock)) {
             return Shapes.block();
         }
         int ghost = ghostMask == 0 ? GHOST_NONE : Integer.numberOfTrailingZeros(ghostMask) & 7;
@@ -1405,12 +1405,12 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
 
     /** The arms this pipe really has (connected or pulling sides), as side bits. */
     public static int armMask(BlockState state) {
-        return state.getBlock() instanceof FlowPipeBlock ? connectionMask(state) : 0;
+        return state.getBlock() instanceof BasePipeBlock ? connectionMask(state) : 0;
     }
 
     /** Sides set to disconnected (Off): their ghost arms are drawn red instead of blue. Client and server. */
     public static int offMask(BlockGetter level, BlockPos pos, BlockState state) {
-        return state.getBlock() instanceof FlowPipeBlock ? disconnectMask(level, pos, state) & 0b111111 : 0;
+        return state.getBlock() instanceof BasePipeBlock ? disconnectMask(level, pos, state) & 0b111111 : 0;
     }
 
     /** The box of one arm, in block coordinates (0 to 1). Index = Direction.get3DDataValue(). */

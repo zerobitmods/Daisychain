@@ -1,7 +1,7 @@
 package com.daisychain.client;
 
 import com.daisychain.Daisychain;
-import com.daisychain.block.FlowPipeBlock;
+import com.daisychain.block.BasePipeBlock;
 import com.daisychain.net.PasteHighlightPayload;
 import com.daisychain.registry.ModItems;
 import com.mojang.blaze3d.systems.RenderSystem;
@@ -77,7 +77,7 @@ public final class PasteHighlights {
     static {
         for (Direction side : Direction.values()) {
             int i = side.get3DDataValue();
-            ARM_BOXES[i] = FlowPipeBlock.armBounds(i).inflate(0.03);
+            ARM_BOXES[i] = BasePipeBlock.armBounds(i).inflate(0.03);
             // A flat square just outside the pipe's block, on the face of the neighbor it touches.
             double inset = 0.06;
             double x0 = inset;
