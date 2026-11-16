@@ -2,17 +2,19 @@
 
 Fast, lag-friendly pipes for items, fluids and energy, built for big modpacks and busy servers.
 
-Minecraft 1.21.1 · NeoForge 21.1.49+ · MIT license · version 1.1.2
+Minecraft 1.21.1 · NeoForge 21.1.49+ · MIT license · version 1.4.0
 
 ## What it adds
 
 - **Item, Fluid, Energy and Universal pipes.** The Universal pipe carries all three at once, each at its own speed.
 - **Pull and insert sides.** Sneak and right-click a side with the Bloom Wrench (or any other wrench) to make it pull. Everything else on the network is a destination.
-- **Send to** Nearest, Farthest or Round robin, with a priority on every destination.
+- **Send to** Near, Far or Robin (an even split), with a priority on every destination. Energy always splits evenly.
+- **Send every:** a pull side can send less often than its upgrade allows, down to once every 2 minutes.
 - **Filters:** 54 slots per side, matching by item, item + data, tag or mod, as a whitelist or blacklist. JEI drag-and-drop is supported.
 - **Stock control:** Batch size, Keep in source, Fill destination to and Max stock, per side or per filter entry.
 - **Redstone control** on pull and insert sides.
-- **Five upgrades** (iron to nether star) and a **Settings Copier**.
+- **Five upgrades** (iron to nether star) and a **Settings Copier** that pastes onto one side or a whole network, with undo.
+- **Facades:** one block + one item pipe makes 8. A covered pipe looks like its block and works as before; hold the wrench to see the pipes inside. Glass pane + item pipe makes transparent facades.
 - **In-game guide** (with [GuideME](https://modrinth.com/mod/guideme) installed): hold G over any Daisychain item to open its page.
 
 ## Built to stay light
@@ -47,7 +49,7 @@ You need Java 21.
 
 ## Commands
 
-Operators (permission level 2) can use `/daisychain stats` to see how much work pipes are doing, `/daisychain network <x y z>` to inspect a network and `/daisychain version` to check the version.
+Operators (permission level 2) can use `/daisychain stats` to see how much work pipes are doing, `/daisychain lag [seconds]` to find the networks that cost the most, `/daisychain network <x y z>` to inspect a network and `/daisychain version` to check the version. Every player can use `/daisychain undo` and `/daisychain redo` for the Settings Copier.
 
 ## License and credits
 
