@@ -82,10 +82,10 @@ public final class ModBlocks {
                 .noOcclusion()
                 // Step 127 / F55 (facades step 3): an opaque cover makes the pipe act like stone for redstone, suffocation and
                 // mob spawning; see-through covers and bare pipes like glass (none of those).
-                .isRedstoneConductor((state, level, pos) -> BasePipeBlock.isSolidCover(state))
-                .isSuffocating((state, level, pos) -> BasePipeBlock.isSolidCover(state))
-                .isViewBlocking((state, level, pos) -> BasePipeBlock.isSolidCover(state))
-                .isValidSpawn((state, level, pos, type) -> BasePipeBlock.isSolidCover(state)
+                .isRedstoneConductor((state, level, pos) -> BasePipeBlock.isSolidCover(state, level, pos))
+                .isSuffocating((state, level, pos) -> BasePipeBlock.isSolidCover(state, level, pos))
+                .isViewBlocking((state, level, pos) -> BasePipeBlock.isSolidCover(state, level, pos))
+                .isValidSpawn((state, level, pos, type) -> BasePipeBlock.isSolidCover(state, level, pos)
                         && state.isFaceSturdy(level, pos, net.minecraft.core.Direction.UP))
                 // Count as solid so flowing water and lava can't wash pipes away (thin blocks aren't solid by default).
                 .forceSolidOn()

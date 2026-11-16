@@ -1240,6 +1240,16 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
     }
 
     /**
+     * Step 138: the same answer for the block-property checks (redstone conductor, suffocation, view blocking, spawns).
+     * Vanilla asks these of every block next to a container whose contents change (comparator updates), hundreds of
+     * thousands of times a second on a busy server. A bare pipe answers from the cached collision shape (not a full
+     * block), as before step 127; only a covered pipe (full block) reads its cover value.
+     */
+    public static boolean isSolidCover(BlockState state, BlockGetter level, BlockPos pos) {
+        return state.isCollisionShapeFullBlock(level, pos) && isSolidCover(state);
+    }
+
+    /**
      * Server: sets the block state's cover value from the stored cover (none without one). Returns true if it changed.
      * Called when a cover goes on or off, and from tick() for pasted pipes and chunks saved before step 127.
      */
