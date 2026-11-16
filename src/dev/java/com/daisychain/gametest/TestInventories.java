@@ -180,4 +180,47 @@ final class TestInventories {
             return false;
         }
     }
+
+    /**
+     * Step F65 (port of 139): a plain inventory (like a chest: one item kind per slot, at most a stack each) that counts every call
+     * made into it, so a test can see how many slots a transfer asked.
+     */
+    static final class Counting extends ItemStackHandler {
+        int calls;
+
+        Counting(int slots) {
+            super(slots);
+        }
+
+        @Override
+        public ItemStack getStackInSlot(int slot) {
+            calls++;
+            return super.getStackInSlot(slot);
+        }
+
+        @Override
+        public ItemStack insertItem(int slot, ItemStack stack, boolean simulate) {
+            calls++;
+            return super.insertItem(slot, stack, simulate);
+        }
+
+        @Override
+        public ItemStack extractItem(int slot, int amount, boolean simulate) {
+            calls++;
+            return super.extractItem(slot, amount, simulate);
+        }
+
+        int total() {
+            int total = 0;
+            for (int i = 0; i < getSlots(); i++) {
+                total += super.getStackInSlot(i).getCount();
+            }
+            return total;
+        }
+
+        /** The stack in a slot, without counting a call. */
+        ItemStack peek(int slot) {
+            return super.getStackInSlot(slot);
+        }
+    }
 }
