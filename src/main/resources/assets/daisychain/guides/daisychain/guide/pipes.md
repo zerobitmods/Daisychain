@@ -39,6 +39,8 @@ Pipes break in a blink with anything, even your bare hands, so rearranging is pa
 budge for pistons, and are as blast resistant as stone. And the <ItemLink id="daisychain:energy_pipe" /> never hangs on to energy
 itself: it goes straight from the source to the machine.
 
+Pipe clashing with your build? Give it a [facade](facades.md) and it can dress up as almost any block.
+
 <RecipeFor id="daisychain:item_pipe" />
 
 <RecipeFor id="daisychain:fluid_pipe" />

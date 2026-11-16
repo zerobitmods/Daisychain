@@ -22,5 +22,8 @@ public final class DaisychainJadePlugin implements IWailaPlugin {
     @Override
     public void registerClient(IWailaClientRegistration registration) {
         registration.registerBlockComponent(PipeInfoProvider.INSTANCE, FlowPipeBlock.class);
+        // Step F62 (port of 136): "Cover: ..." line, and the pipe keeps its own icon when covered.
+        registration.registerBlockComponent(PipeCoverProvider.INSTANCE, FlowPipeBlock.class);
+        registration.registerBlockIcon(PipeCoverProvider.INSTANCE, FlowPipeBlock.class);
     }
 }

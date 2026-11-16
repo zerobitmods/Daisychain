@@ -393,5 +393,9 @@
   "hud.daisychain.facade_mass.swap_one": "Swap the cover on 1 pipe · 1 facade",
   "hud.daisychain.facade_mass.swap_short": "Swap the cover on %s of %s pipes · not enough facades",
   "hud.daisychain.facade_mass.swap_creative": "Swap the cover on %s pipes",
-  "hud.daisychain.facade_mass.swap_creative_one": "Swap the cover on 1 pipe"
+  "hud.daisychain.facade_mass.swap_creative_one": "Swap the cover on 1 pipe",
+  "jade.daisychain.cover": "Cover: %s",
+  "jade.daisychain.cover.transparent": "Transparent (wrench to see)",
+  "config.jade.plugin_daisychain.pipe_cover": "Daisychain facade cover",
+  "jei.daisychain.facade.info": "Any full block without a block entity works. Pack makers can ban more with the daisychain:not_facades tag."
 }

@@ -23,6 +23,7 @@ If you're brand new, [Getting started](getting-started.md) is a quick, friendly 
 - [Getting started](getting-started.md): your very first pipe line
 - [The pipes](pipes.md): meet the family
 - [The Bloom Wrench](bloom-wrench.md): your new best friend
+- [Facades](facades.md): pipes in disguise
 - [Side settings](side-settings.md): filters, amounts, redstone and priority
 - [Upgrades](upgrades.md): for when "fast" isn't fast enough
 - [Settings Copier](settings-copier.md): set it up once, paste it everywhere

@@ -28,6 +28,7 @@ import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
@@ -549,6 +550,63 @@ public final class FacadeTests {
         }
         helper.assertTrue(facades.getCount() == 3, "Facades left: " + facades.getCount() + " (should be 3)");
         helper.succeed();
+    }
+
+    /**
+     * Step F62 (port of 136): pick block (middle click) on a covered pipe gives a facade of its cover, transparent ones included;
+     * on a bare pipe (also once the cover is off) it gives the pipe as before.
+     */
+    @GameTest(template = EMPTY)
+    public static void facadePickBlockGivesFacade(GameTestHelper helper) {
+        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
+        Player player = helper.makeMockPlayer();
+        helper.assertTrue(picked(helper, player).is(ModItems.ITEM_PIPE.get()), "Bare pipe: picked " + picked(helper, player));
+        coverWithSurvivalPlayer(helper, PIPE, OAK);
+        ItemStack oak = picked(helper, player);
+        helper.assertTrue(oak.is(ModItems.FACADE.get()) && FacadeItem.coverOf(oak) == OAK && oak.getCount() == 1,
+                "Oak cover: picked " + oak + " holding " + FacadeItem.coverOf(oak));
+        BlockState clear = FacadeItem.transparentCover();
+        data(helper, PIPE).setCover(clear);
+        ItemStack transparent = picked(helper, player);
+        helper.assertTrue(transparent.is(ModItems.FACADE.get()) && FacadeItem.coverOf(transparent) == clear,
+                "Transparent cover: picked " + transparent);
+        data(helper, PIPE).setCover(null);
+        FlowPipeBlock.syncCoverState(helper.getLevel(), helper.absolutePos(PIPE));
+        helper.assertTrue(picked(helper, player).is(ModItems.ITEM_PIPE.get()),
+                "Cover off: picked " + picked(helper, player));
+        helper.succeed();
+    }
+
+    /**
+     * Step F62 (port of 136): footsteps, hitting and breaking a covered pipe use the cover's sounds (all of them ask the block state
+     * for its sound type at that spot); a bare pipe keeps its metal sounds, also once the cover is off.
+     */
+    @GameTest(template = EMPTY)
+    public static void facadeUsesCoverSounds(GameTestHelper helper) {
+        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
+        helper.assertTrue(sound(helper) == SoundType.METAL, "Bare pipe sounds like " + sound(helper));
+        coverWithSurvivalPlayer(helper, PIPE, STONE);
+        helper.assertTrue(sound(helper) == SoundType.STONE, "Stone cover sounds like " + sound(helper));
+        data(helper, PIPE).setCover(OAK);
+        helper.assertTrue(sound(helper) == SoundType.WOOD, "Oak cover sounds like " + sound(helper));
+        data(helper, PIPE).setCover(Blocks.GLASS.defaultBlockState());
+        FlowPipeBlock.syncCoverState(helper.getLevel(), helper.absolutePos(PIPE));
+        helper.assertTrue(sound(helper) == SoundType.GLASS, "Glass cover sounds like " + sound(helper));
+        data(helper, PIPE).setCover(null);
+        FlowPipeBlock.syncCoverState(helper.getLevel(), helper.absolutePos(PIPE));
+        helper.assertTrue(sound(helper) == SoundType.METAL, "Cover off: sounds like " + sound(helper));
+        helper.succeed();
+    }
+
+    private static ItemStack picked(GameTestHelper helper, Player player) {
+        BlockPos at = helper.absolutePos(PIPE);
+        BlockState state = helper.getLevel().getBlockState(at);
+        return state.getCloneItemStack(centerHit(helper, PIPE), helper.getLevel(), at, player);
+    }
+
+    private static SoundType sound(GameTestHelper helper) {
+        BlockPos at = helper.absolutePos(PIPE);
+        return helper.getLevel().getBlockState(at).getSoundType(helper.getLevel(), at, null);
     }
 
     private static ItemStack craft(GameTestHelper helper, ItemStack a, ItemStack b) {
