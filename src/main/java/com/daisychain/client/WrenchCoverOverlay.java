@@ -10,6 +10,7 @@ import com.mojang.blaze3d.vertex.BufferBuilder;
 import com.mojang.blaze3d.vertex.DefaultVertexFormat;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexBuffer;
+import com.mojang.blaze3d.vertex.VertexConsumer;
 import com.mojang.blaze3d.vertex.VertexFormat;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -36,6 +37,7 @@ import net.minecraftforge.eventbus.api.SubscribeEvent;
 import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.client.event.CustomizeGuiOverlayEvent;
 import net.minecraftforge.client.event.RenderLevelStageEvent;
+import net.minecraftforge.client.model.pipeline.VertexConsumerWrapper;
 import net.minecraftforge.client.model.data.ModelData;
 import org.joml.Matrix4f;
 
@@ -75,6 +77,8 @@ public final class WrenchCoverOverlay {
     private static VertexBuffer buffer;
     /** Step F57: 1.20.1's BufferBuilder owns native memory with no way to free it, so one is kept and reused. */
     private static BufferBuilder builder;
+    /** Step F66: builder seen through {@link KeepVertexAlpha}; the pipes' faded covers are written through this. */
+    private static VertexConsumer coverWriter;
     /** Where the buffer's vertices are measured from (the player's block when it was built), for float precision. */
     private static final BlockPos.MutableBlockPos ORIGIN = new BlockPos.MutableBlockPos();
     private static ClientLevel builtLevel;
@@ -170,6 +174,7 @@ public final class WrenchCoverOverlay {
         }
         if (builder == null) {
             builder = new BufferBuilder(translucent.bufferSize());
+            coverWriter = new KeepVertexAlpha(builder);
         }
         builder.begin(VertexFormat.Mode.QUADS, DefaultVertexFormat.BLOCK);
         // Step 129d: neighbor faces first, so the faded covers are drawn over them.
@@ -177,7 +182,7 @@ public final class WrenchCoverOverlay {
             addNeighborFaces(minecraft, level, dispatcher, builder, covered.get(i).getBlockPos());
         }
         for (int i = 0; i < covered.size(); i++) {
-            if (addPipe(level, dispatcher, renderer, builder, covered.get(i), translucent)) {
+            if (addPipe(level, dispatcher, renderer, covered.get(i), translucent)) {
                 pipes++;
             }
         }
@@ -201,7 +206,7 @@ public final class WrenchCoverOverlay {
 
     /** Adds one covered pipe's faded cover, lit and culled like a chunk mesh would. False if it was skipped. */
     private static boolean addPipe(ClientLevel level, BlockRenderDispatcher dispatcher, ModelBlockRenderer renderer,
-                                   BufferBuilder builder, PipeDataBlockEntity data, RenderType translucent) {
+                                   PipeDataBlockEntity data, RenderType translucent) {
         BlockPos pos = data.getBlockPos();
         BlockState state = level.getBlockState(pos);
         if (!(state.getBlock() instanceof BasePipeBlock)) {
@@ -220,10 +225,10 @@ public final class WrenchCoverOverlay {
                 // Step F61 (135): the hologram glows evenly: flat light, so its baked full-bright wins on every face.
                 // (NeoForge says this through the model's AO hook; Forge 1.20.1's hook gets no model data.) Belt and
                 // braces: Forge's AO path already lights quads without AO flat, and glowingQuad turns AO off.
-                renderer.tesselateWithoutAO(level, model, state, pos, POSE, builder, true, RANDOM, state.getSeed(pos),
+                renderer.tesselateWithoutAO(level, model, state, pos, POSE, coverWriter, true, RANDOM, state.getSeed(pos),
                         OverlayTexture.NO_OVERLAY, modelData, translucent);
             } else {
-                renderer.tesselateBlock(level, model, state, pos, POSE, builder, true, RANDOM, state.getSeed(pos),
+                renderer.tesselateBlock(level, model, state, pos, POSE, coverWriter, true, RANDOM, state.getSeed(pos),
                         OverlayTexture.NO_OVERLAY, modelData, translucent);
             }
             return true;
@@ -367,6 +372,26 @@ public final class WrenchCoverOverlay {
         if (WrenchSeeThrough.isActive() && Minecraft.getInstance().options.renderDebug) {
             event.getRight().add("Daisychain see-through: " + lastPipes + " covers, built in "
                     + String.format("%.2f", lastBuildMicros / 1000.0) + " ms");
+        }
+    }
+
+    /**
+     * Step F66: Embeddium-based renderers (Embeddium, Xenon) replace BufferBuilder's 9-argument putBulkData,
+     * the one vanilla's block renderer calls for every quad, with a fast version that keeps each vertex's color but
+     * not its alpha. The faded covers keep their fade in the vertex alpha (PipeBakedModel.fadedQuad), so with those
+     * mods they came out opaque (and dark). This passes each quad on through Forge's 10-argument putBulkData instead,
+     * which those mods leave alone: it multiplies the given alpha (1) by the vertex alpha and merges baked light, exactly
+     * what the 9-argument one does without them. Nothing changes without such a mod.
+     */
+    private static final class KeepVertexAlpha extends VertexConsumerWrapper {
+        KeepVertexAlpha(VertexConsumer parent) {
+            super(parent);
+        }
+
+        @Override
+        public void putBulkData(PoseStack.Pose pose, BakedQuad quad, float[] brightness, float red, float green,
+                                float blue, int[] lightmap, int overlay, boolean readExistingColor) {
+            parent.putBulkData(pose, quad, brightness, red, green, blue, 1.0F, lightmap, overlay, readExistingColor);
         }
     }
 }

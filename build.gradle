@@ -59,6 +59,26 @@ repositories {
     }
 }
 
+// Step F66: ./gradlew runClient -Pxenon_jar=<path to a xenon-...jar> also puts Xenon (an Embeddium fork: it replaces
+// how chunks are drawn, like Sodium) in the dev game, to check facades and the wrench see-through view with it. Never a
+// dependency of Daisychain. The jar's path is given on the command line, so no local path is written in this file.
+def xenonJar = project.findProperty('xenon_jar')
+if (xenonJar) {
+    repositories {
+        exclusiveContent {
+            forRepository {
+                flatDir {
+                    name = "XenonLocal"
+                    dirs file(xenonJar).parentFile
+                }
+            }
+            filter {
+                includeGroup "local.xenon"
+            }
+        }
+    }
+}
+
 base {
     archivesName = mod_id
 }
@@ -88,6 +108,14 @@ legacyForge {
         client {
             client()
             programArguments.addAll '--width', '1920', '--height', '1080'
+            // Step F66: -Pquick_play=<world folder in run/saves> opens that world straight away; -Pdev_shot=<name>
+            // turns on the dev-only screenshot run (src/dev devclient/DevShot).
+            if (project.hasProperty('quick_play')) {
+                programArguments.addAll '--quickPlaySingleplayer', project.property('quick_play').toString()
+            }
+            if (project.hasProperty('dev_shot')) {
+                systemProperty 'daisychain.devShot', project.property('dev_shot').toString()
+            }
         }
         server {
             server()
@@ -154,6 +182,10 @@ dependencies {
     if (withFtbChunks) {
         modRuntimeOnly("dev.ftb.mods:ftb-chunks-forge:${ftbchunks_version}") { transitive = false }
         modRuntimeOnly("dev.ftb.mods:ftb-teams-forge:${ftbteams_version}") { transitive = false }
+    }
+    // Step F66: Xenon in the dev game, only with -Pxenon_jar (see the repositories above).
+    if (xenonJar) {
+        modRuntimeOnly("local.xenon:${file(xenonJar).name - '.jar'}") { transitive = false }
     }
 }
 
