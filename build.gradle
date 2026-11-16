@@ -117,6 +117,14 @@ neoForge {
             programArguments.addAll '--width', '1920', '--height', '1080'
             // Comma-separated list of namespaces to load gametests from. Empty = all namespaces.
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            // Step 140: -Pquick_play=<world folder in run/saves> opens that world straight away; -Pdev_shot=<name>
+            // turns on the dev-only screenshot run (src/dev devclient/DevShot).
+            if (project.hasProperty('quick_play')) {
+                programArguments.addAll '--quickPlaySingleplayer', project.property('quick_play').toString()
+            }
+            if (project.hasProperty('dev_shot')) {
+                systemProperty 'daisychain.devShot', project.property('dev_shot').toString()
+            }
         }
 
         server {
