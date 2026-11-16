@@ -32,6 +32,7 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraftforge.common.ForgeConfigSpec;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
 
@@ -487,8 +488,7 @@ public final class FacadeTests {
         coverWithSurvivalPlayer(helper, PIPE, clear); // put on while allowed
         BlockPos other = PIPE.east(2);
         pipe(helper, other, ModBlocks.ITEM_PIPE.get());
-        boolean before = DaisychainConfig.ALLOW_TRANSPARENT_FACADES.get();
-        DaisychainConfig.ALLOW_TRANSPARENT_FACADES.set(false);
+        setInMemory(DaisychainConfig.ALLOW_TRANSPARENT_FACADES, false);
         try {
             helper.assertTrue(!craft(helper, new ItemStack(Items.GLASS_PANE), new ItemStack(ModItems.ITEM_PIPE.get()))
                     .is(ModItems.FACADE.get()), "Crafted a transparent facade while they're off");
@@ -506,9 +506,25 @@ public final class FacadeTests {
             helper.assertTrue(FacadeItem.isTransparent(FacadeItem.coverOf(remover.getMainHandItem())),
                     "Taking it off gave " + remover.getMainHandItem());
         } finally {
-            DaisychainConfig.ALLOW_TRANSPARENT_FACADES.set(before);
+            DaisychainConfig.ALLOW_TRANSPARENT_FACADES.clearCache(); // back to the value in the config file
         }
         helper.succeed();
+    }
+
+    /**
+     * Sets a server config value for this test only, without touching the config file. ConfigValue.set() saves the file
+     * (Forge opens it with autosave), and Forge's file watcher then reloads it on another thread; on Linux that reload
+     * can land mid-write, "correct" the half-written file back to the defaults and undo the test's value (CI, F61).
+     * get() returns the cached value first, so setting only the cache changes what the mod sees and nothing else.
+     */
+    private static <T> void setInMemory(ForgeConfigSpec.ConfigValue<T> value, T newValue) {
+        try {
+            java.lang.reflect.Field cached = ForgeConfigSpec.ConfigValue.class.getDeclaredField("cachedValue");
+            cached.setAccessible(true);
+            cached.set(value, newValue);
+        } catch (ReflectiveOperationException e) {
+            throw new IllegalStateException("Can't set config value in memory", e);
+        }
     }
 
     /** Sneak + right-click with transparent facades covers the linked pipes too (mass apply treats it like any cover). */
