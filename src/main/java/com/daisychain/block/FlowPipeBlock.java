@@ -22,6 +22,7 @@ import net.minecraft.world.Containers;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.InteractionResult;
 import net.minecraft.world.ItemInteractionResult;
+import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.LivingEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.BlockItem;
@@ -33,6 +34,7 @@ import net.minecraft.world.level.Level;
 import net.minecraft.world.level.LevelAccessor;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.EntityBlock;
+import net.minecraft.world.level.LevelReader;
 import net.minecraft.world.level.block.SoundType;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraft.world.level.block.state.BlockState;
@@ -40,6 +42,7 @@ import net.minecraft.world.level.block.state.StateDefinition;
 import net.minecraft.world.level.block.state.properties.BooleanProperty;
 import net.minecraft.world.level.block.state.properties.EnumProperty;
 import net.minecraft.world.phys.BlockHitResult;
+import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.shapes.CollisionContext;
@@ -1281,6 +1284,35 @@ public abstract class FlowPipeBlock extends Block implements EntityBlock {
         }
         // UPDATE_ALL: neighbors hear about it (a torch on a cover that comes off drops) and light is checked again.
         return level.setBlock(pos, state.setValue(COVER, wanted), Block.UPDATE_ALL);
+    }
+
+    /** Step 136: the cover on a covered pipe, or null. Reads the block entity only when the state says it's covered. */
+    @Nullable
+    private static BlockState coverAt(BlockState state, BlockGetter level, BlockPos pos) {
+        if (state.getValue(COVER) == CoverShape.NONE) {
+            return null;
+        }
+        PipeDataBlockEntity data = getData(level, pos, state);
+        return data == null ? null : data.cover();
+    }
+
+    /** Step 136 (facades step 5): pick block on a covered pipe gives a facade of its cover; bare pipes as before. */
+    @Override
+    public ItemStack getCloneItemStack(BlockState state, HitResult target, LevelReader level, BlockPos pos,
+                                       Player player) {
+        BlockState cover = coverAt(state, level, pos);
+        return cover != null ? FacadeItem.of(cover, 1) : super.getCloneItemStack(state, target, level, pos, player);
+    }
+
+    /**
+     * Step 136: footsteps, hitting, breaking and landing on a covered pipe sound like the cover. Uses the cover's
+     * plain sound type, not the position-aware one: at this spot there is a pipe, not the cover block, so a modded
+     * cover that looks at the world here would see the wrong block.
+     */
+    @Override
+    public SoundType getSoundType(BlockState state, LevelReader level, BlockPos pos, @Nullable Entity entity) {
+        BlockState cover = coverAt(state, level, pos);
+        return cover != null ? cover.getSoundType() : super.getSoundType(state, level, pos, entity);
     }
 
     /** Opaque covers block light like stone; see-through ones let it through like glass. Uncovered: as before. */

@@ -35,6 +35,8 @@ You can even make a pull side that faces nothing at all. It'll wait there patien
 Switching a pipe-to-pipe connection off splits the two pipes apart, which is a handy way to turn one long line into two separate
 networks.
 
+Holding the wrench also turns nearby [covered pipes](facades.md) see-through, so you can find and fix them.
+
 ## Already got a favorite wrench?
 
 Bring it along! Wrenches from most other mods work too, as long as the mod marks them as a wrench.

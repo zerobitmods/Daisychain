@@ -6,7 +6,11 @@ import com.daisychain.registry.ModItems;
 import mezz.jei.api.IModPlugin;
 import mezz.jei.api.JeiPlugin;
 import mezz.jei.api.constants.VanillaTypes;
+import com.daisychain.item.FacadeRecipe;
 import mezz.jei.api.registration.IGuiHandlerRegistration;
+import mezz.jei.api.registration.IRecipeRegistration;
+import mezz.jei.api.registration.ISubtypeRegistration;
+import mezz.jei.api.registration.IVanillaCategoryExtensionRegistration;
 import mezz.jei.api.runtime.IJeiRuntime;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.item.ItemStack;
@@ -20,6 +24,7 @@ import java.util.List;
  * - Shift+click an item or fluid in JEI's list (or bookmarks) while a side settings screen is open: it is listed in
  *   the first empty filter slot (JeiShiftClick).
  * - The internal daisychain:fluid item (how fluid filter entries are stored) is hidden from JEI's list.
+ * - Step 136: the facade recipes and an info page (FacadeJeiRecipes).
  */
 @JeiPlugin
 public final class DaisychainJeiPlugin implements IModPlugin {
@@ -28,6 +33,25 @@ public final class DaisychainJeiPlugin implements IModPlugin {
     @Override
     public ResourceLocation getPluginUid() {
         return UID;
+    }
+
+    /** Step 136: each facade cover is its own JEI entry. */
+    @Override
+    public void registerItemSubtypes(ISubtypeRegistration registration) {
+        registration.registerSubtypeInterpreter(ModItems.FACADE.get(), FacadeJeiRecipes.SUBTYPES);
+    }
+
+    /** Step 136: the special facade recipe gets a crafting page (example blocks cycling with their facades). */
+    @Override
+    public void registerVanillaCategoryExtensions(IVanillaCategoryExtensionRegistration registration) {
+        FacadeJeiRecipes.INSTANCE.reset(); // a fresh block list for this JEI start (tags may have changed)
+        registration.getCraftingCategory().addExtension(FacadeRecipe.class, FacadeJeiRecipes.INSTANCE);
+    }
+
+    /** Step 136: the transparent facade example recipe and the facade info page. */
+    @Override
+    public void registerRecipes(IRecipeRegistration registration) {
+        FacadeJeiRecipes.INSTANCE.register(registration);
     }
 
     @Override
