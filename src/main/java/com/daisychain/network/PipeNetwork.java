@@ -391,6 +391,18 @@ public final class PipeNetwork {
          * as full. Shared by all pull sides sending here; starts at 0 when the network is built.
          */
         int itemSlotHint;
+        /**
+         * Step 139: for destinations of a double chest or smaller, what the item transfer numbered slotMemoryId
+         * (Extractor.itemTransferId) learned about their slots: slotTookMask = slots that took items in that transfer
+         * (slotTookItems[slot] = which item), slotFullMask = those of them seen full (they took no more of it).
+         * Later stacks of the same transfer don't ask those slots again (a slot holding one item turns every other
+         * item away). Forgotten when the next transfer starts, so each transfer starts fresh at slot 0. Never a promise:
+         * skipped slots are asked after all if part of a stack finds no room elsewhere.
+         */
+        int slotMemoryId;
+        long slotTookMask;
+        long slotFullMask;
+        ItemStack[] slotTookItems;
         /** Insert side redstone (step 40): the mode, and whether the current signal stops this destination. */
         private RedstoneMode redstoneMode = RedstoneMode.ALWAYS;
         private boolean redstoneBlocked;

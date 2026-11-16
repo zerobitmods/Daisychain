@@ -35,11 +35,14 @@ final class ItemTransfer {
     /**
      * Step 113: destinations with more slots than this (a double chest) start each insert at the slot where the last
      * stack fitted (PipeNetwork.Endpoint.itemSlotHint) instead of at slot 0, so a big storage isn't walked past
-     * hundreds of full slots for every stack. Smaller inventories keep filling from the first slot, like a hopper.
+     * hundreds of full slots for every stack. Smaller inventories keep filling from the first slot, like a hopper
+     * (within one transfer, slots already known full or holding another item are skipped: step 139).
      */
     private static final int HINT_MIN_SLOTS = 54;
 
     private static boolean warnedAboutDrop;
+    /** Step 139: the last Extractor.itemTransferId handed out (server thread only). 0 is never used. */
+    private static int lastTransferId;
 
     private ItemTransfer() {
     }
@@ -60,6 +63,8 @@ final class ItemTransfer {
                         int tierItems, int sideBatch, int keep, int fill, int maxCounted, int maxSlots,
                         int maxCalls) {
         extractor.calls = 0;
+        lastTransferId = lastTransferId == Integer.MAX_VALUE ? 1 : lastTransferId + 1;
+        extractor.itemTransferId = lastTransferId; // step 139: what earlier transfers learned about slots is forgotten
         extractor.countSize = 0;
         extractor.fillSize = 0;
         extractor.fillSkipped = false;
@@ -529,6 +534,11 @@ final class ItemTransfer {
      * storage past hundreds of full slots was invisible to the tick budget), plus 2 for each real move.
      * Step 113: destinations bigger than HINT_MIN_SLOTS are asked starting at the slot where the last stack fitted,
      * wrapping round, so every slot can still be asked before the destination counts as full.
+     * Step 139: smaller destinations are still asked from slot 0 up, but within one transfer the slots it filled with
+     * another item, and the slots it saw full, are skipped without asking (Endpoint slot memory); they are asked after
+     * all if part of the stack finds no room elsewhere. Items land in exactly the slots they did before. Before, a
+     * transfer of 13 stacks into a chest asked its first slot 13 times, its second 12 times, and so on: a Nether Star
+     * pull side spent more calls per item than a diamond one and moved fewer items under the per-tick call limit.
      */
     private static int tryMove(ServerLevel level, Extractor extractor, IItemHandler source, int slot, ItemStack offer,
                                IItemHandler target, PipeNetwork.Endpoint destination, BlockPos pipePos) {
@@ -538,17 +548,51 @@ final class ItemTransfer {
         int targetSlots = target.getSlots();
         boolean hinted = targetSlots > HINT_MIN_SLOTS;
         int start = hinted ? Math.floorMod(destination.itemSlotHint, targetSlots) : 0;
+        if (!hinted && destination.slotMemoryId != extractor.itemTransferId) {
+            // Step 139: first stack sent here in this transfer: nothing is known about the slots yet.
+            destination.slotMemoryId = extractor.itemTransferId;
+            destination.slotTookMask = 0L;
+            destination.slotFullMask = 0L;
+            if (destination.slotTookItems == null) {
+                destination.slotTookItems = new ItemStack[HINT_MIN_SLOTS]; // once per destination, not per transfer
+            }
+        }
+        // Small destinations get two rounds: the first skips the slots the memory rules out, the second (only if part
+        // of the stack is still left) asks exactly those skipped slots, so every slot is asked before "full".
+        int rounds = hinted ? targetSlots : targetSlots * 2;
+        long skipped = 0L;
         int moved = 0;
         ItemStack rest = offer;
-        for (int asked = 0; asked < targetSlots && !rest.isEmpty(); asked++) {
-            int s = start + asked;
-            if (s >= targetSlots) {
-                s -= targetSlots;
+        for (int asked = 0; asked < rounds && !rest.isEmpty(); asked++) {
+            int s;
+            long bit = 0L;
+            if (hinted) {
+                s = start + asked;
+                if (s >= targetSlots) {
+                    s -= targetSlots;
+                }
+            } else {
+                boolean firstRound = asked < targetSlots;
+                s = firstRound ? asked : asked - targetSlots;
+                bit = 1L << s;
+                if (firstRound) {
+                    if ((destination.slotFullMask & bit) != 0 || ((destination.slotTookMask & bit) != 0
+                            && !ItemStack.isSameItemSameComponents(destination.slotTookItems[s], rest))) {
+                        skipped |= bit; // full, or holds another item this transfer put there
+                        continue;
+                    }
+                } else if ((skipped & bit) == 0) {
+                    continue; // second round: only the slots the first round skipped
+                }
             }
             ItemStack after = target.insertItem(s, rest, true);
             extractor.calls++;
             int took = rest.getCount() - after.getCount();
             if (took <= 0) {
+                if ((destination.slotTookMask & bit) != 0
+                        && ItemStack.isSameItemSameComponents(destination.slotTookItems[s], rest)) {
+                    destination.slotFullMask |= bit; // it holds this item (it took some earlier) and takes no more
+                }
                 continue;
             }
             if (!after.isEmpty() && !ItemStack.isSameItemSameComponents(after, rest)) {
@@ -563,8 +607,16 @@ final class ItemTransfer {
             ItemStack notTaken = target.insertItem(s, extracted.copy(), false);
             // Clamped, so a handler that answers nonsense can never make us count more than we extracted.
             int in = Math.max(0, Math.min(got, got - notTaken.getCount()));
-            if (hinted && in > 0) {
-                destination.itemSlotHint = s; // the next stack starts here
+            if (in > 0) {
+                if (hinted) {
+                    destination.itemSlotHint = s; // the next stack starts here
+                } else {
+                    destination.slotTookMask |= bit; // step 139: this slot now holds this item
+                    destination.slotTookItems[s] = extracted; // what really went in
+                    if (!after.isEmpty() && in == took) {
+                        destination.slotFullMask |= bit; // it took what it could and turned the rest away: full
+                    }
+                }
             }
             if (in < got) {
                 // The slot took less than it said it would: try the whole target once, then give the rest back.

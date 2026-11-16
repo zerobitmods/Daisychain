@@ -129,6 +129,12 @@ final class Extractor {
     final IItemHandler[] refusedTargets = new IItemHandler[8];
     final ItemStack[] refusedItems = new ItemStack[8];
     int refusedSize;
+    /**
+     * Step 139: a number for the current item transfer, new every transfer (ItemTransfer.transfer). What a
+     * destination's Endpoint slot memory says only counts while its Endpoint.slotMemoryId equals this, so it never
+     * outlives the transfer that learned it.
+     */
+    int itemTransferId;
 
     /** Destinations sorted nearest first, for the network they were computed from. */
     @Nullable
