@@ -1214,7 +1214,20 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         boolean holdingWrench = player != null && isHoldingWrench(player);
         // Step 127 / F55 (facades step 3): a covered pipe is a full block, except to a player holding a wrench, who works on
         // the pipe inside (step 4 draws the cover see-through then).
-        if (state.getValue(COVER) != CoverShape.NONE && !holdingWrench) {
+        CoverShape cover = state.getValue(COVER);
+        net.minecraft.world.item.Item held = player != null ? player.getMainHandItem().getItem() : null;
+        // Step F69 (port of 143/144): the Settings Copier and upgrades also get the pipe's own outline, like the wrench:
+        // they work on one side's arm, and the arm that matters (a pull or insert side) faces its inventory, so its
+        // full-block face can't be clicked. On every cover.
+        boolean armTool = held instanceof SettingsCopierItem || held instanceof UpgradeItem;
+        if (cover != CoverShape.NONE && !holdingWrench && !armTool) {
+            // Step F69 (port of 142): a transparent cover is there only for a player who is sneaking (to take it off) or
+            // holds a facade (to swap it); otherwise clicks go through to the block behind. Anything that isn't a player
+            // (mobs, other mods' ray traces, the context-free calls) gets the full block.
+            if (cover == CoverShape.GHOST && player != null && !player.isSecondaryUseActive()
+                    && !(held instanceof FacadeItem)) {
+                return Shapes.empty();
+            }
             return Shapes.block();
         }
         // Step 66: only while sneaking, since only a sneak-click changes a side (a plain click opens the settings).
@@ -1224,10 +1237,19 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         return cachedShape(connectionMask(state), pullMask(state), wrench ? GHOST_ALL : GHOST_NONE);
     }
 
-    /** What entities bump into: never includes ghost arms. A covered pipe is a full block for everyone (step 127). */
+    /**
+     * What entities bump into: never includes ghost arms. A covered pipe is a full block for everyone (step 127).
+     * Step F69 (port of 142): a transparent cover has nothing to bump into, whatever anyone holds or does (sneaking never
+     * makes it solid, so nobody standing inside gets stuck). Decided from the state alone, so vanilla's per-state cache
+     * (support for torches, pathfinding, "is a full block") gets the same answer.
+     */
     @Override
     public VoxelShape getCollisionShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
-        if (state.getValue(COVER) != CoverShape.NONE) {
+        CoverShape cover = state.getValue(COVER);
+        if (cover == CoverShape.GHOST) {
+            return Shapes.empty();
+        }
+        if (cover != CoverShape.NONE) {
             return Shapes.block();
         }
         return cachedShape(connectionMask(state), pullMask(state), GHOST_NONE);
@@ -1237,11 +1259,16 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
 
     /**
      * What a cover block means for the pipe's block state: SOLID for opaque full blocks, CLEAR for see-through ones.
-     * Step F61 (port of 134a): a transparent facade is CLEAR like glass (full block to walk on and click, lets light through).
+     * Step F69 (port of 142): a transparent facade is GHOST (lets light through like glass, nothing to walk into or click
+     * unless the player sneaks or holds a facade or a pipe tool). Pipes saved with it as CLEAR get GHOST when their chunk
+     * loads (the step 127 cover check).
      */
     public static CoverShape coverShapeOf(@Nullable BlockState cover) {
         if (cover == null || cover.isAir()) {
             return CoverShape.NONE;
+        }
+        if (FacadeItem.isTransparent(cover)) {
+            return CoverShape.GHOST;
         }
         return cover.isSolidRender(EmptyBlockGetter.INSTANCE, BlockPos.ZERO) ? CoverShape.SOLID : CoverShape.CLEAR;
     }
@@ -1318,7 +1345,7 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
     public boolean propagatesSkylightDown(BlockState state, BlockGetter level, BlockPos pos) {
         return switch (state.getValue(COVER)) {
             case SOLID -> false;
-            case CLEAR -> true;
+            case CLEAR, GHOST -> true; // F69: GHOST is CLEAR for light (super would read the full-block outline)
             default -> super.propagatesSkylightDown(state, level, pos);
         };
     }
