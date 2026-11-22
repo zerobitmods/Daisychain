@@ -66,8 +66,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>
  * Step F61 (port of 134, transparent facade): a pipe wearing the transparent cover draws nothing at all (no pipe, no
  * cover) until a wrench is held; then it is drawn like any see-through cover, except the cover (the hologram cube) isn't
- * faded: its texture is see-through already. Its block state says CLEAR (134a: a full block like glass), so linked plain
- * pipes cap their arm's end as next to a glass cover (step 128).
+ * faded: its texture is see-through already. Its block state says GHOST (F69; not a full block, but any cover counts), so linked
+ * plain pipes cap their arm's end as next to a glass cover (step 128).
  * <p>
  * Step F61 (port of 135): the hologram is drawn full-bright (it glows in the dark; since F67 WrenchCoverOverlay draws
  * every cover flat-lit, vertex by vertex, keeping the brighter of baked and given light), and a cover skips its face toward a neighbor
