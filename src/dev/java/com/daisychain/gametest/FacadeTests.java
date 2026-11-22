@@ -37,6 +37,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.item.context.UseOnContext;
+import com.daisychain.registry.ModDataComponents;
+import com.daisychain.item.CopiedSettings;
 import net.minecraft.world.phys.shapes.CollisionContext;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.minecraft.world.level.pathfinder.PathComputationType;
@@ -515,11 +518,15 @@ public final class FacadeTests {
         ItemStack wrench = new ItemStack(ModItems.BLOOM_WRENCH.get());
         ItemStack facade = FacadeItem.of(OAK, 1);
         ItemStack stick = new ItemStack(Items.STICK);
+        ItemStack copier = new ItemStack(ModItems.SETTINGS_COPIER.get());
         // {held item, sneaking, expected: 0 = empty, 1 = full block, 2 = the pipe's own outline}
         Object[][] cases = {
                 {ItemStack.EMPTY, false, 0}, {stick, false, 0}, {new ItemStack(Items.STONE), false, 0},
                 {ItemStack.EMPTY, true, 1}, {stick, true, 1},
                 {facade, false, 1}, {facade, true, 1},
+                // Step 143: the copier and upgrades work on one side's arm, so they get the pipe's own outline.
+                {copier, false, 2}, {copier, true, 2},
+                {new ItemStack(ModItems.IRON_UPGRADE.get()), false, 2}, {new ItemStack(ModItems.IRON_UPGRADE.get()), true, 2},
                 {wrench, false, 2}, {wrench, true, 2},
         };
         for (Object[] c : cases) {
@@ -559,6 +566,42 @@ public final class FacadeTests {
             helper.assertTrue(Block.isShapeFullBlock(covered.getCollisionShape(level, abs, context)), others[i] + " collision");
             helper.assertTrue(covered.isCollisionShapeFullBlock(level, abs), others[i] + " cached collision");
         }
+        helper.succeed();
+    }
+
+    /**
+     * Step 143: on a transparent-covered pipe, a plain click with the Settings Copier or an upgrade reaches the pull arm
+     * behind the cover, even when that side faces a chest (so its full-block face can't be clicked). The ray is aimed
+     * from the north at the east arm and traced against the outline the player gets, like the crosshair is.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void transparentFacadeToolsReachTheArm(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos at = helper.absolutePos(PIPE);
+        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
+        helper.setBlock(PIPE.east(), Blocks.CHEST.defaultBlockState());
+        BasePipeBlock.refreshArms(level, at);
+        BasePipeBlock.setPullSidesForTest(level, at, 1 << Direction.EAST.get3DDataValue());
+        coverWithSurvivalPlayer(helper, PIPE, FacadeItem.transparentCover());
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        Vec3 from = Vec3.atLowerCornerOf(at).add(0.8, 0.5, -1.0);
+        Vec3 to = Vec3.atLowerCornerOf(at).add(0.8, 0.5, 2.0);
+
+        ItemStack copier = new ItemStack(ModItems.SETTINGS_COPIER.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, copier);
+        BlockHitResult hit = level.getBlockState(at).getShape(level, at, CollisionContext.of(player)).clip(from, to, at);
+        helper.assertTrue(hit != null, "With a copier, the ray toward the east arm hits nothing");
+        copier.useOn(new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
+        CopiedSettings copied = copier.get(ModDataComponents.COPIED_SETTINGS.get());
+        helper.assertTrue(copied != null && !copied.insert(), "A plain copier click on the pull arm copied " + copied);
+
+        ItemStack upgrade = new ItemStack(ModItems.IRON_UPGRADE.get());
+        player.setItemInHand(InteractionHand.MAIN_HAND, upgrade);
+        hit = level.getBlockState(at).getShape(level, at, CollisionContext.of(player)).clip(from, to, at);
+        helper.assertTrue(hit != null, "With an upgrade, the ray toward the east arm hits nothing");
+        clickAt(helper, player, upgrade, hit);
+        helper.assertTrue(data(helper, PIPE).upgradeLevel(Direction.EAST) > 0,
+                "A plain upgrade click on the pull arm didn't install it");
         helper.succeed();
     }
 
