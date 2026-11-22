@@ -1233,10 +1233,10 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         // the pipe inside (step 4 draws the cover see-through then).
         CoverShape cover = state.getValue(COVER);
         net.minecraft.world.item.Item held = player != null ? player.getMainHandItem().getItem() : null;
-        // Step 143: on a transparent cover the Settings Copier and upgrades also get the pipe's own outline, like the
-        // wrench: they work on one side's arm, and the arm that matters (a pull side) faces the inventory, so its
-        // full-block face can't be clicked.
-        boolean armTool = cover == CoverShape.GHOST && (held instanceof SettingsCopierItem || held instanceof UpgradeItem);
+        // Step 143: the Settings Copier and upgrades also get the pipe's own outline, like the wrench: they work on one
+        // side's arm, and the arm that matters (a pull or insert side) faces its inventory, so its full-block face
+        // can't be clicked. Step 144: on every cover, not only the transparent one.
+        boolean armTool = held instanceof SettingsCopierItem || held instanceof UpgradeItem;
         if (cover != CoverShape.NONE && !holdingWrench && !armTool) {
             // Step 142: a transparent cover is there only for a player who is sneaking (to take it off) or holds a
             // facade (to swap it); otherwise clicks go through to the block behind. Anything that isn't a player

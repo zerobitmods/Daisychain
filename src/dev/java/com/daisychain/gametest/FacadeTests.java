@@ -565,43 +565,57 @@ public final class FacadeTests {
             helper.assertTrue(Block.isShapeFullBlock(covered.getShape(level, abs, context)), others[i] + " outline");
             helper.assertTrue(Block.isShapeFullBlock(covered.getCollisionShape(level, abs, context)), others[i] + " collision");
             helper.assertTrue(covered.isCollisionShapeFullBlock(level, abs), others[i] + " cached collision");
+            // Step 144: a copier or an upgrade gets the pipe's own outline on these covers too; collision stays full.
+            player.setItemInHand(InteractionHand.MAIN_HAND, copier);
+            context = CollisionContext.of(player);
+            VoxelShape shape = covered.getShape(level, abs, context);
+            helper.assertTrue(!shape.isEmpty() && !Block.isShapeFullBlock(shape), others[i] + " outline with a copier");
+            helper.assertTrue(Block.isShapeFullBlock(covered.getCollisionShape(level, abs, context)),
+                    others[i] + " collision with a copier");
         }
         helper.succeed();
     }
 
     /**
-     * Step 143: on a transparent-covered pipe, a plain click with the Settings Copier or an upgrade reaches the pull arm
-     * behind the cover, even when that side faces a chest (so its full-block face can't be clicked). The ray is aimed
-     * from the north at the east arm and traced against the outline the player gets, like the crosshair is.
+     * Step 143/144: on a covered pipe (transparent, glass, stone), a plain click with the Settings Copier or an upgrade
+     * reaches the pull arm inside, even when that side faces a chest (so its full-block face can't be clicked). The ray
+     * is aimed from the north at the east arm and traced against the outline the player gets, like the crosshair is.
      */
     @GameTest(template = EMPTY, timeoutTicks = 40)
-    public static void transparentFacadeToolsReachTheArm(GameTestHelper helper) {
+    public static void coveredPipeToolsReachTheArm(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
-        BlockPos at = helper.absolutePos(PIPE);
-        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
-        helper.setBlock(PIPE.east(), Blocks.CHEST.defaultBlockState());
-        BasePipeBlock.refreshArms(level, at);
-        BasePipeBlock.setPullSidesForTest(level, at, 1 << Direction.EAST.get3DDataValue());
-        coverWithSurvivalPlayer(helper, PIPE, FacadeItem.transparentCover());
-        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
-        Vec3 from = Vec3.atLowerCornerOf(at).add(0.8, 0.5, -1.0);
-        Vec3 to = Vec3.atLowerCornerOf(at).add(0.8, 0.5, 2.0);
+        BlockState[] covers = {FacadeItem.transparentCover(), Blocks.GLASS.defaultBlockState(), STONE};
+        for (int i = 0; i < covers.length; i++) {
+            BlockPos pos = PIPE.north(i * 2);
+            BlockPos at = helper.absolutePos(pos);
+            pipe(helper, pos, ModBlocks.ITEM_PIPE.get());
+            helper.setBlock(pos.east(), Blocks.CHEST.defaultBlockState());
+            BasePipeBlock.refreshArms(level, at);
+            BasePipeBlock.setPullSidesForTest(level, at, 1 << Direction.EAST.get3DDataValue());
+            coverWithSurvivalPlayer(helper, pos, covers[i]);
+            Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+            Vec3 from = Vec3.atLowerCornerOf(at).add(0.8, 0.5, -1.0);
+            Vec3 to = Vec3.atLowerCornerOf(at).add(0.8, 0.5, 2.0);
+            String what = " (" + covers[i] + " cover)";
 
-        ItemStack copier = new ItemStack(ModItems.SETTINGS_COPIER.get());
-        player.setItemInHand(InteractionHand.MAIN_HAND, copier);
-        BlockHitResult hit = level.getBlockState(at).getShape(level, at, CollisionContext.of(player)).clip(from, to, at);
-        helper.assertTrue(hit != null, "With a copier, the ray toward the east arm hits nothing");
-        copier.useOn(new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
-        CopiedSettings copied = copier.get(ModDataComponents.COPIED_SETTINGS.get());
-        helper.assertTrue(copied != null && !copied.insert(), "A plain copier click on the pull arm copied " + copied);
+            ItemStack copier = new ItemStack(ModItems.SETTINGS_COPIER.get());
+            player.setItemInHand(InteractionHand.MAIN_HAND, copier);
+            BlockHitResult hit = level.getBlockState(at).getShape(level, at, CollisionContext.of(player))
+                    .clip(from, to, at);
+            helper.assertTrue(hit != null, "With a copier, the ray toward the east arm hits nothing" + what);
+            copier.useOn(new UseOnContext(player, InteractionHand.MAIN_HAND, hit));
+            CopiedSettings copied = copier.get(ModDataComponents.COPIED_SETTINGS.get());
+            helper.assertTrue(copied != null && !copied.insert(),
+                    "A plain copier click on the pull arm copied " + copied + what);
 
-        ItemStack upgrade = new ItemStack(ModItems.IRON_UPGRADE.get());
-        player.setItemInHand(InteractionHand.MAIN_HAND, upgrade);
-        hit = level.getBlockState(at).getShape(level, at, CollisionContext.of(player)).clip(from, to, at);
-        helper.assertTrue(hit != null, "With an upgrade, the ray toward the east arm hits nothing");
-        clickAt(helper, player, upgrade, hit);
-        helper.assertTrue(data(helper, PIPE).upgradeLevel(Direction.EAST) > 0,
-                "A plain upgrade click on the pull arm didn't install it");
+            ItemStack upgrade = new ItemStack(ModItems.IRON_UPGRADE.get());
+            player.setItemInHand(InteractionHand.MAIN_HAND, upgrade);
+            hit = level.getBlockState(at).getShape(level, at, CollisionContext.of(player)).clip(from, to, at);
+            helper.assertTrue(hit != null, "With an upgrade, the ray toward the east arm hits nothing" + what);
+            clickAt(helper, player, upgrade, hit);
+            helper.assertTrue(data(helper, pos).upgradeLevel(Direction.EAST) > 0,
+                    "A plain upgrade click on the pull arm didn't install it" + what);
+        }
         helper.succeed();
     }
 
