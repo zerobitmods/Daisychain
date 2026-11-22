@@ -503,9 +503,9 @@ public final class FacadeTests {
 
     /**
      * Step 142: what a player can click on a transparent-covered pipe. Nothing while walking about (clicks reach the
-     * block behind); the full block while sneaking or holding a facade; the pipe itself with a wrench (standing or
+     * block behind); the full block while sneaking or holding a facade; the pipe itself with a wrench, copier or upgrade (standing or
      * sneaking). Anything that isn't a player gets the full block. Collision is empty in every case. Glass and stone
-     * covers are full blocks for everyone, as before.
+     * covers are full blocks, as before, except that a copier or an upgrade gets the pipe's outline (step 144).
      */
     @GameTest(template = EMPTY)
     public static void transparentFacadeOutline(GameTestHelper helper) {

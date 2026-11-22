@@ -67,8 +67,8 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>
  * Step 134 (transparent facade): a pipe wearing the transparent cover draws nothing at all (no pipe, no cover) until a
  * wrench is held; then it is drawn like any see-through cover, except the cover (the hologram cube) isn't faded: its
- * texture is see-through already. Its block state says CLEAR (step 134a: a full block like glass), so linked plain pipes
- * cap their arm's end as next to a glass cover (step 128).
+ * texture is see-through already. Its block state says GHOST (step 142; not a full block, but any cover counts), so linked
+ * plain pipes cap their arm's end as next to a glass cover (step 128).
  * <p>
  * Step 135: the hologram is drawn full-bright (it glows in the dark), and a cover skips its face toward a neighbor
  * pipe wearing the same cover ({@link #SAME_COVER_SIDES}), like vanilla glass next to glass: a row of covered pipes

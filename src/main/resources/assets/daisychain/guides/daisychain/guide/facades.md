@@ -34,13 +34,16 @@ Sneak while holding facades and look at a pipe: an outline shows every linked pi
 
 ## Living with covered pipes
 
-- A covered pipe is a full block: walk on it, build walls around it. Glass covers let light through.
-- Every side still connects, pulls and inserts. Click the face of the side you mean.
+- A covered pipe is a full block: walk on it, build walls around it. Glass covers let light through. (Transparent
+  ones play by their own rules, see below.)
+- Every side still connects, pulls and inserts. With an empty hand, click the face of the side you mean. With a Settings
+  Copier or an upgrade you aim at the pipe inside, so click the arm itself.
 - **Hold the Bloom Wrench** and every covered pipe nearby turns see-through, so you can see (and fix) what's inside.
 - Breaking the pipe drops the pipe and its cover. Swapping a pipe's tier keeps the cover.
 
 ## Transparent facades
 
-**Glass pane + item pipe → 8 transparent facades.** A pipe wearing one simply isn't there, until you pick up a wrench and it
-shows as a cyan hologram. Perfect for that "how does this even work" factory. Server owners can turn them off; pipes already
-wearing one keep it.
+**Glass pane + item pipe → 8 transparent facades.** A pipe wearing one isn't there: you walk right through it, and clicks
+land on whatever is behind it. Pick up a wrench and it shows as a cyan hologram. To grab the cover itself, sneak or hold a
+facade (sneak + empty hand takes it off). Nothing can stand on it either, so torches and redstone need a real block. Perfect
+for that "how does this even work" factory. Server owners can turn them off; pipes already wearing one keep it.
