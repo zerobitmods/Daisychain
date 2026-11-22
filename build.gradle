@@ -62,6 +62,26 @@ repositories {
 // Step F66: ./gradlew runClient -Pxenon_jar=<path to a xenon-...jar> also puts Xenon (an Embeddium fork: it replaces
 // how chunks are drawn, like Sodium) in the dev game, to check facades and the wrench see-through view with it. Never a
 // dependency of Daisychain. The jar's path is given on the command line, so no local path is written in this file.
+// Step F68: ./gradlew runClient|runServer -Pdev_mods_dir=<folder> also loads every mod jar in that folder (other mods'
+// release jars, e.g. Powah + Cloth Config for the Energizing Rod check). Never a dependency of Daisychain; the folder is
+// given on the command line, so no local path is written in this file.
+def devModsDir = project.findProperty('dev_mods_dir')
+if (devModsDir) {
+    repositories {
+        exclusiveContent {
+            forRepository {
+                flatDir {
+                    name = "DevModsLocal"
+                    dirs file(devModsDir)
+                }
+            }
+            filter {
+                includeGroup "local.devmods"
+            }
+        }
+    }
+}
+
 def xenonJar = project.findProperty('xenon_jar')
 if (xenonJar) {
     repositories {
@@ -186,6 +206,15 @@ dependencies {
     // Step F66: Xenon in the dev game, only with -Pxenon_jar (see the repositories above).
     if (xenonJar) {
         modRuntimeOnly("local.xenon:${file(xenonJar).name - '.jar'}") { transitive = false }
+    }
+    if (devModsDir) {
+        def devModsFolder = file(devModsDir)
+        if (!devModsFolder.isDirectory()) {
+            throw new GradleException("-Pdev_mods_dir: no such folder: ${devModsDir}")
+        }
+        devModsFolder.listFiles().findAll { it.name.endsWith('.jar') }.sort().each { jar ->
+            modRuntimeOnly("local.devmods:${jar.name - '.jar'}") { transitive = false }
+        }
     }
 }
 

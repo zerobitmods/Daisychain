@@ -1338,7 +1338,8 @@ public final class NetworkManager {
         if (network == null || !network.valid) {
             return; // the next build reads the new settings
         }
-        PipeDataBlockEntity pipeData = level.getBlockEntity(pos) instanceof PipeDataBlockEntity data ? data : null;
+        // Step F68: through getData, since energy and universal pipes have a block entity even without settings.
+        PipeDataBlockEntity pipeData = BasePipeBlock.getData(level, pos, level.getBlockState(pos));
         boolean priorityChanged = false;
         boolean found = false;
         for (int i = 0; i < network.endpoints.size(); i++) {

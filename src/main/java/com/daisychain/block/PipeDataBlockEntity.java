@@ -7,6 +7,7 @@ import com.daisychain.item.FacadeItem;
 import com.daisychain.item.UpgradeItem;
 import com.daisychain.network.EnergyInput;
 import com.daisychain.network.NetworkManager;
+import com.daisychain.network.NoEnergy;
 import com.daisychain.registry.ModItems;
 import com.daisychain.registry.ModBlockEntities;
 import net.minecraft.core.BlockPos;
@@ -39,8 +40,9 @@ import net.minecraftforge.energy.IEnergyStorage;
 import javax.annotation.Nullable;
 
 /**
- * Per-side settings for one pipe. Only exists on pipes where a player changed something
- * (blockstate has_data=true), so plain pipes stay as cheap as a normal block. Never ticks.
+ * Per-side settings for one pipe. Holds settings only on pipes where a player changed something (blockstate
+ * has_data=true); plain item and fluid pipes have none, so they stay as cheap as a normal block. Step F68: energy and
+ * universal pipes always have one (for their energy capability), empty and ignored unless has_data. Never ticks.
  */
 public final class PipeDataBlockEntity extends BlockEntity {
     /** Setting ids used by the settings screen and its network packet. */
@@ -148,8 +150,18 @@ public final class PipeDataBlockEntity extends BlockEntity {
     private final LazyOptional<IEnergyStorage>[] energyInputs = new LazyOptional[6];
 
     /**
+     * Step F68 (port of 141): what every other side of an energy or universal pipe shows, NoEnergy (takes and gives
+     * nothing), so blocks that only stay on an energy block (Powah's Energizing Rod) can sit on the pipe. One
+     * LazyOptional per side, made when first asked and invalidated when the side turns into a pull side or the block
+     * entity goes away, so other mods holding it are told to ask again. Null until a side is asked.
+     */
+    @Nullable
+    private LazyOptional<IEnergyStorage>[] noEnergy;
+
+    /**
      * Step 109: the energy storage this pipe shows on one side: only pull sides of energy and universal pipes have one
-     * (it takes pushed energy and passes it straight on). Null on every other side.
+     * (it takes pushed energy and passes it straight on). Null on every other side (step F68: getCapability shows
+     * NoEnergy there).
      */
     @Nullable
     public IEnergyStorage energyInput(@Nullable Direction side) {
@@ -157,7 +169,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
     }
 
     private LazyOptional<IEnergyStorage> energyInputOptional(@Nullable Direction side) {
-        if (side == null || isRemoved() || !offersEnergyInput(getBlockState(), side)) {
+        if (side == null || isRemoved() || !offersEnergyInput(currentState(), side)) {
             return LazyOptional.empty();
         }
         int i = side.get3DDataValue();
@@ -170,6 +182,15 @@ public final class PipeDataBlockEntity extends BlockEntity {
         return input;
     }
 
+    /**
+     * Step F68 (review): the pipe's block state as the level has it now. While a side changes, the level calls onPlace
+     * (and through it refreshEnergyInputs, whose listeners may ask again at once) before this block entity is given the
+     * new state, so getBlockState() can still be the old one.
+     */
+    private BlockState currentState() {
+        return level != null ? level.getBlockState(worldPosition) : getBlockState();
+    }
+
     private static boolean offersEnergyInput(BlockState state, Direction side) {
         return state.getBlock() instanceof BasePipeBlock pipe && pipe.kind().carries(PipeKind.ENERGY_RES)
                 && state.getValue(BasePipeBlock.propertyFor(side)) == SideState.EXTRACT;
@@ -177,16 +198,45 @@ public final class PipeDataBlockEntity extends BlockEntity {
 
     /**
      * Step 109: the pipe's block state changed (BasePipeBlock.onPlace, with the new state, which this block entity
-     * doesn't hold yet): sides that no longer offer an energy input drop the one they handed out.
+     * doesn't hold yet): sides that no longer offer an energy input drop the one they handed out. Step F68: sides
+     * that became pull sides drop the NoEnergy they handed out, so other mods ask again and find the energy input.
      */
     public void refreshEnergyInputs(BlockState newState) {
         for (Direction side : Direction.values()) {
             int i = side.get3DDataValue();
-            if (energyInputs[i] != null && !offersEnergyInput(newState, side)) {
+            boolean input = offersEnergyInput(newState, side);
+            if (energyInputs[i] != null && !input) {
                 energyInputs[i].invalidate();
                 energyInputs[i] = null;
             }
+            if (input && noEnergy != null && noEnergy[i] != null) {
+                noEnergy[i].invalidate();
+                noEnergy[i] = null;
+            }
         }
+    }
+
+    /**
+     * Step F68: NoEnergy on a side of an energy or universal pipe that isn't a pull side, so a block can sit there and
+     * the answer never flickers (every energy and universal pipe keeps a block entity, see BasePipeBlock
+     * .newBlockEntity). Empty for no side and for item and fluid pipes.
+     */
+    @SuppressWarnings("unchecked")
+    private LazyOptional<IEnergyStorage> noEnergyOptional(@Nullable Direction side) {
+        if (side == null || isRemoved() || !(currentState().getBlock() instanceof BasePipeBlock pipe)
+                || !pipe.kind().carries(PipeKind.ENERGY_RES)) {
+            return LazyOptional.empty();
+        }
+        if (noEnergy == null) {
+            noEnergy = new LazyOptional[6];
+        }
+        int i = side.get3DDataValue();
+        LazyOptional<IEnergyStorage> seat = noEnergy[i];
+        if (seat == null) {
+            seat = LazyOptional.of(() -> NoEnergy.INSTANCE);
+            noEnergy[i] = seat;
+        }
+        return seat;
     }
 
     @Override
@@ -195,6 +245,10 @@ public final class PipeDataBlockEntity extends BlockEntity {
             LazyOptional<IEnergyStorage> input = energyInputOptional(side);
             if (input.isPresent()) {
                 return input.cast();
+            }
+            LazyOptional<IEnergyStorage> seat = noEnergyOptional(side);
+            if (seat.isPresent()) {
+                return seat.cast();
             }
         }
         return super.getCapability(cap, side);
@@ -207,6 +261,14 @@ public final class PipeDataBlockEntity extends BlockEntity {
             if (energyInputs[i] != null) {
                 energyInputs[i].invalidate();
                 energyInputs[i] = null;
+            }
+        }
+        if (noEnergy != null) {
+            for (int i = 0; i < noEnergy.length; i++) {
+                if (noEnergy[i] != null) {
+                    noEnergy[i].invalidate();
+                    noEnergy[i] = null;
+                }
             }
         }
     }

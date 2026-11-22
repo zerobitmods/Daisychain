@@ -229,7 +229,9 @@ public final class DaisychainNetwork {
         if (!allowed) {
             return;
         }
-        if (level.getBlockEntity(pos) instanceof PipeDataBlockEntity data) {
+        // Step F68: through getData, since energy and universal pipes have a block entity even without settings.
+        PipeDataBlockEntity data = BasePipeBlock.getData(level, pos, state);
+        if (data != null) {
             data.applySetting(side, payload.setting(), payload.value(), payload.resource());
         }
     }
