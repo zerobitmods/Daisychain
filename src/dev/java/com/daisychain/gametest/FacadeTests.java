@@ -6,6 +6,7 @@ import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.block.FacadeMassApply;
 import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
+import com.daisychain.block.SideState;
 import com.daisychain.config.DaisychainConfig;
 import com.daisychain.item.FacadeItem;
 import com.daisychain.registry.ModBlocks;
@@ -15,9 +16,12 @@ import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.nbt.CompoundTag;
+import net.minecraft.nbt.NbtOps;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.ItemInteractionResult;
+import net.minecraft.world.entity.Entity;
+import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.item.ItemEntity;
 import net.minecraft.world.entity.player.Player;
 import net.minecraft.world.item.ItemStack;
@@ -33,6 +37,9 @@ import net.minecraft.world.level.block.state.BlockState;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.Vec3;
+import net.minecraft.world.phys.shapes.CollisionContext;
+import net.minecraft.world.phys.shapes.VoxelShape;
+import net.minecraft.world.level.pathfinder.PathComputationType;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -445,29 +452,40 @@ public final class FacadeTests {
     }
 
     /**
-     * Step 134a: a transparent cover acts like glass: block state CLEAR, full block to walk on and click, light passes,
-     * no redstone. It comes off with sneak + empty hand (anywhere on the block), nothing drops.
+     * Step 142 (was step 134a's "clear block" test): a transparent cover gets its own block state value, GHOST, and acts
+     * like glass for light and redstone, but nothing collides with it (not even the cached, context-free answer vanilla
+     * uses for support and pathfinding). It still comes off with sneak + empty hand, anywhere on the block, nothing drops.
      */
     @GameTest(template = EMPTY)
-    public static void transparentFacadeIsClearBlock(GameTestHelper helper) {
+    public static void transparentFacadeIsGhost(GameTestHelper helper) {
         ServerLevel level = helper.getLevel();
         BlockPos at = helper.absolutePos(PIPE);
         BlockState clear = FacadeItem.transparentCover();
         pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
         coverWithSurvivalPlayer(helper, PIPE, clear);
         BlockState state = level.getBlockState(at);
-        helper.assertTrue(state.getValue(BasePipeBlock.COVER) == CoverShape.CLEAR, "Cover state: " + state);
+        helper.assertTrue(state.getValue(BasePipeBlock.COVER) == CoverShape.GHOST, "Cover state: " + state);
         helper.assertTrue(data(helper, PIPE).coverStateMatches(), "Stored cover and block state disagree");
-        helper.assertTrue(state.isCollisionShapeFullBlock(level, at), "Transparent-covered pipe isn't a full block to walk on");
-        helper.assertTrue(Block.isShapeFullBlock(state.getShape(level, at)), "Outline isn't a full block");
+        helper.assertTrue(state.getCollisionShape(level, at).isEmpty(), "Cached collision isn't empty");
+        helper.assertTrue(state.getCollisionShape(level, at, CollisionContext.empty()).isEmpty(), "Collision isn't empty");
+        helper.assertFalse(state.isCollisionShapeFullBlock(level, at), "Transparent-covered pipe is a full block to walk on");
+        helper.assertTrue(state.isPathfindable(PathComputationType.LAND), "Mobs see a wall");
+        helper.assertFalse(state.isFaceSturdy(level, at, Direction.UP), "The top face holds things up");
         helper.assertTrue(state.propagatesSkylightDown(level, at), "Sky light stops at a transparent cover");
         helper.assertTrue(state.getLightBlock(level, at) == 0, "Transparent cover blocks light: " + state.getLightBlock(level, at));
         helper.assertFalse(state.isRedstoneConductor(level, at), "Transparent cover conducts redstone");
+        helper.assertFalse(state.isSuffocating(level, at), "Transparent cover suffocates");
         helper.assertTrue(data(helper, PIPE).getModelData().get(PipeDataBlockEntity.COVER_MODEL) == clear,
                 "The model doesn't hear about the transparent cover");
+        // A glass cover is still the CLEAR full block.
+        BlockPos glass = PIPE.east(2);
+        pipe(helper, glass, ModBlocks.ITEM_PIPE.get());
+        coverWithSurvivalPlayer(helper, glass, Blocks.GLASS.defaultBlockState());
+        helper.assertTrue(helper.getBlockState(glass).getValue(BasePipeBlock.COVER) == CoverShape.CLEAR,
+                "Glass cover state: " + helper.getBlockState(glass));
         Player player = helper.makeMockPlayer(GameType.SURVIVAL);
         player.setShiftKeyDown(true);
-        // A corner of the top face: on the full block, nowhere near the pipe inside.
+        // A corner of the top face: on the full block (sneaking shows it), nowhere near the pipe inside.
         BlockHitResult corner = new BlockHitResult(Vec3.atLowerCornerOf(at).add(0.05, 1.0, 0.05), Direction.UP, at, false);
         clickAt(helper, player, ItemStack.EMPTY, corner);
         ItemStack inHand = player.getMainHandItem();
@@ -475,7 +493,156 @@ public final class FacadeTests {
         helper.assertTrue(inHand.is(ModItems.FACADE.get()) && FacadeItem.isTransparent(FacadeItem.coverOf(inHand))
                 && inHand.getCount() == 1, "Hand holds " + inHand + " (should be 1 transparent facade)");
         helper.assertTrue(itemsOnGround(helper) == 0, "Something dropped");
+        helper.assertTrue(level.getBlockState(at).getValue(BasePipeBlock.COVER) == CoverShape.NONE,
+                "Cover state after removal: " + level.getBlockState(at));
         helper.succeed();
+    }
+
+    /**
+     * Step 142: what a player can click on a transparent-covered pipe. Nothing while walking about (clicks reach the
+     * block behind); the full block while sneaking or holding a facade; the pipe itself with a wrench (standing or
+     * sneaking). Anything that isn't a player gets the full block. Collision is empty in every case. Glass and stone
+     * covers are full blocks for everyone, as before.
+     */
+    @GameTest(template = EMPTY)
+    public static void transparentFacadeOutline(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos at = helper.absolutePos(PIPE);
+        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
+        coverWithSurvivalPlayer(helper, PIPE, FacadeItem.transparentCover());
+        BlockState state = level.getBlockState(at);
+        Player player = helper.makeMockPlayer(GameType.SURVIVAL);
+        ItemStack wrench = new ItemStack(ModItems.BLOOM_WRENCH.get());
+        ItemStack facade = FacadeItem.of(OAK, 1);
+        ItemStack stick = new ItemStack(Items.STICK);
+        // {held item, sneaking, expected: 0 = empty, 1 = full block, 2 = the pipe's own outline}
+        Object[][] cases = {
+                {ItemStack.EMPTY, false, 0}, {stick, false, 0}, {new ItemStack(Items.STONE), false, 0},
+                {ItemStack.EMPTY, true, 1}, {stick, true, 1},
+                {facade, false, 1}, {facade, true, 1},
+                {wrench, false, 2}, {wrench, true, 2},
+        };
+        for (Object[] c : cases) {
+            ItemStack held = (ItemStack) c[0];
+            boolean sneaking = (Boolean) c[1];
+            int expected = (Integer) c[2];
+            player.setItemInHand(InteractionHand.MAIN_HAND, held);
+            player.setShiftKeyDown(sneaking);
+            CollisionContext context = CollisionContext.of(player);
+            VoxelShape shape = state.getShape(level, at, context);
+            String what = (sneaking ? "sneaking with " : "standing with ") + held;
+            switch (expected) {
+                case 0 -> helper.assertTrue(shape.isEmpty(), "Outline " + what + ": " + shape);
+                case 1 -> helper.assertTrue(Block.isShapeFullBlock(shape), "Outline " + what + ": " + shape);
+                default -> helper.assertTrue(!shape.isEmpty() && !Block.isShapeFullBlock(shape),
+                        "Outline " + what + " isn't the pipe: " + shape);
+            }
+            helper.assertTrue(state.getCollisionShape(level, at, context).isEmpty(), "Collision " + what + " isn't empty");
+        }
+        helper.assertTrue(Block.isShapeFullBlock(state.getShape(level, at, CollisionContext.empty())),
+                "Outline for a non-player isn't the full block");
+        helper.assertTrue(state.getCollisionShape(level, at, CollisionContext.empty()).isEmpty(),
+                "Collision for a non-player isn't empty");
+
+        // Glass and stone covers: full block outline and collision, whatever the player does.
+        BlockState[] others = {Blocks.GLASS.defaultBlockState(), STONE};
+        for (int i = 0; i < others.length; i++) {
+            BlockPos pos = PIPE.east(2).north(i);
+            pipe(helper, pos, ModBlocks.ITEM_PIPE.get());
+            coverWithSurvivalPlayer(helper, pos, others[i]);
+            BlockPos abs = helper.absolutePos(pos);
+            BlockState covered = level.getBlockState(abs);
+            player.setItemInHand(InteractionHand.MAIN_HAND, ItemStack.EMPTY);
+            player.setShiftKeyDown(false);
+            CollisionContext context = CollisionContext.of(player);
+            helper.assertTrue(Block.isShapeFullBlock(covered.getShape(level, abs, context)), others[i] + " outline");
+            helper.assertTrue(Block.isShapeFullBlock(covered.getCollisionShape(level, abs, context)), others[i] + " collision");
+            helper.assertTrue(covered.isCollisionShapeFullBlock(level, abs), others[i] + " cached collision");
+        }
+        helper.succeed();
+    }
+
+    /** Step 142: a dropped item and a mob fall straight through a transparent-covered pipe to the floor under it. */
+    @GameTest(template = EMPTY, timeoutTicks = 60)
+    public static void transparentFacadeEntitiesPassThrough(GameTestHelper helper) {
+        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
+        coverWithSurvivalPlayer(helper, PIPE, FacadeItem.transparentCover());
+        Vec3 above = Vec3.atBottomCenterOf(helper.absolutePos(PIPE)).add(0, 1.5, 0);
+        ItemEntity item = new ItemEntity(helper.getLevel(), above.x, above.y, above.z, new ItemStack(Items.COBBLESTONE));
+        item.setDeltaMovement(Vec3.ZERO);
+        helper.getLevel().addFreshEntity(item);
+        Entity mob = helper.spawn(EntityType.CHICKEN, PIPE.above(2));
+        double floor = helper.absolutePos(PIPE).getY();
+        helper.succeedWhen(() -> {
+            helper.assertTrue(item.onGround() && item.getY() < floor + 0.5, "Item rests at y " + item.getY());
+            helper.assertTrue(mob.onGround() && mob.getY() < floor + 0.5, "Chicken rests at y " + mob.getY());
+        });
+    }
+
+    /**
+     * Step 142: nothing hangs on a transparent cover. A torch can't go on top, and one standing on a glass cover drops
+     * when the cover is swapped for a transparent one.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 20)
+    public static void transparentFacadeHoldsNoTorch(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockState torch = Blocks.TORCH.defaultBlockState();
+        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
+        coverWithSurvivalPlayer(helper, PIPE, FacadeItem.transparentCover());
+        helper.assertFalse(torch.canSurvive(level, helper.absolutePos(PIPE.above())), "A torch fits on a transparent cover");
+        BlockPos glass = PIPE.east(2);
+        pipe(helper, glass, ModBlocks.ITEM_PIPE.get());
+        coverWithSurvivalPlayer(helper, glass, Blocks.GLASS.defaultBlockState());
+        helper.assertTrue(torch.canSurvive(level, helper.absolutePos(glass.above())), "Setup: no torch on a glass cover");
+        helper.setBlock(glass.above(), torch);
+        coverWithSurvivalPlayer(helper, glass, FacadeItem.transparentCover()); // swaps glass for transparent
+        helper.succeedWhen(() -> helper.assertBlockNotPresent(Blocks.TORCH, glass.above()));
+    }
+
+    /**
+     * Step 142: worlds from before this step saved transparent-covered pipes as "clear". The chunk-load check sees the
+     * mismatch and the pipe's tick sets "ghost". If step 142 is ever reverted, a saved "ghost" reads back as cover "none"
+     * with every other property kept (only that one value falls back; checked through BlockState.CODEC, which chunk
+     * sections use), and the same repair puts the right value back.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void transparentFacadeStateMigrates(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        BlockPos at = helper.absolutePos(PIPE);
+        pipe(helper, PIPE, ModBlocks.ITEM_PIPE.get());
+        coverWithSurvivalPlayer(helper, PIPE, FacadeItem.transparentCover());
+        level.setBlock(at, level.getBlockState(at).setValue(BasePipeBlock.COVER, CoverShape.CLEAR), Block.UPDATE_CLIENTS);
+        helper.assertFalse(data(helper, PIPE).coverStateMatches(), "The chunk-load check wouldn't notice a 'clear' pipe");
+        level.scheduleTick(at, level.getBlockState(at).getBlock(), 1); // what the chunk-load scan does
+
+        CompoundTag saved = new CompoundTag();
+        saved.putString("Name", "daisychain:item_pipe");
+        CompoundTag props = new CompoundTag();
+        props.putString("cover", "bogus");
+        props.putString("has_data", "true");
+        props.putString("north", "extract");
+        props.putString("east", "connected");
+        saved.put("Properties", props);
+        BlockState read = BlockState.CODEC.parse(NbtOps.INSTANCE, saved).getOrThrow();
+        helper.assertTrue(read.is(ModBlocks.ITEM_PIPE.get()) && read.getValue(BasePipeBlock.COVER) == CoverShape.NONE
+                        && read.getValue(BasePipeBlock.HAS_DATA)
+                        && read.getValue(BasePipeBlock.propertyFor(Direction.NORTH)) == SideState.EXTRACT
+                        && read.getValue(BasePipeBlock.propertyFor(Direction.EAST)) == SideState.CONNECTED,
+                "An unknown cover value read as " + read);
+        BlockPos other = PIPE.east(2);
+        BlockPos otherAt = helper.absolutePos(other);
+        pipe(helper, other, ModBlocks.ITEM_PIPE.get());
+        coverWithSurvivalPlayer(helper, other, FacadeItem.transparentCover());
+        level.setBlock(otherAt, level.getBlockState(otherAt).setValue(BasePipeBlock.COVER, CoverShape.NONE),
+                Block.UPDATE_CLIENTS);
+        helper.assertFalse(data(helper, other).coverStateMatches(), "The chunk-load check wouldn't notice a 'none' pipe");
+        level.scheduleTick(otherAt, level.getBlockState(otherAt).getBlock(), 1);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(level.getBlockState(at).getValue(BasePipeBlock.COVER) == CoverShape.GHOST,
+                    "'clear' not repaired: " + level.getBlockState(at));
+            helper.assertTrue(level.getBlockState(otherAt).getValue(BasePipeBlock.COVER) == CoverShape.GHOST,
+                    "'none' not repaired: " + level.getBlockState(otherAt));
+        });
     }
 
     /**
@@ -530,8 +697,8 @@ public final class FacadeTests {
         for (int x = 2; x <= 6; x++) {
             BlockPos pos = new BlockPos(x, 1, 2);
             helper.assertTrue(cover(helper, pos) == clear, "Pipe at x " + x + " has " + cover(helper, pos));
-            helper.assertTrue(helper.getBlockState(pos).getValue(BasePipeBlock.COVER) == CoverShape.CLEAR,
-                    "Pipe at x " + x + " isn't a clear full block");
+            helper.assertTrue(helper.getBlockState(pos).getValue(BasePipeBlock.COVER) == CoverShape.GHOST,
+                    "Pipe at x " + x + " isn't a ghost cover"); // step 142
         }
         helper.assertTrue(facades.getCount() == 3, "Facades left: " + facades.getCount() + " (should be 3)");
         helper.succeed();

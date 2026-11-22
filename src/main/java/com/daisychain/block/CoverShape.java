@@ -13,7 +13,14 @@ public enum CoverShape implements StringRepresentable {
     /** An opaque full block (stone, planks): full block, blocks light, hides neighbor faces. */
     SOLID("solid"),
     /** A see-through full block (glass, leaves, ice): full block, lets light through. */
-    CLEAR("clear");
+    CLEAR("clear"),
+    /**
+     * Step 142: the transparent facade. Same as CLEAR (lets light through, no redstone, hides nothing) except its shape:
+     * nothing to walk into, and an outline only for a player who is sneaking or holds a facade (the wrench shows the
+     * pipe inside), so normal clicks reach the blocks behind it. Kept in the state, not read from the block entity, so
+     * vanilla's per-state cache (collision, face support) gets the same answer.
+     */
+    GHOST("ghost");
 
     private final String name;
 
