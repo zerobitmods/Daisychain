@@ -1402,6 +1402,17 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
     }
 
     /**
+     * Game tests only (step 141): makes exactly these sides pull and these sides Off, as if each had been wrenched.
+     * Server only.
+     */
+    public static void setSidesForTest(ServerLevel level, BlockPos pos, int pullMask, int offMask) {
+        BlockState state = level.getBlockState(pos);
+        if (state.getBlock() instanceof BasePipeBlock pipe) {
+            pipe.applyConfig(level, pos, pullMask & 0b111111, offMask & 0b111111);
+        }
+    }
+
+    /**
      * The pipe's outline as drawn (node, tube, pull caps) plus at most one ghost arm (ghostMask = 0 or one side bit).
      * Cached, never allocates after the first use.
      */

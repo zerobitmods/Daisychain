@@ -142,14 +142,24 @@ public final class PipeDataBlockEntity extends BlockEntity {
 
     /**
      * Step 109: the energy storage this pipe shows on one side: only pull sides of energy and universal pipes have one
-     * (it takes pushed energy and passes it straight on; see EnergyInput). Null on every other side.
+     * (it takes pushed energy and passes it straight on; see EnergyInput). Null on every other side, where
+     * ModCapabilities shows NoEnergy instead (step 141).
      */
     @Nullable
     public IEnergyStorage energyInput(@Nullable Direction side) {
+        return energyInput(getBlockState(), side);
+    }
+
+    /**
+     * Step 141 (review): the same for the given block state. The capability provider passes the level's current one:
+     * while a side changes, capabilities are invalidated (BasePipeBlock.onPlace) before this block entity is given the
+     * new state, and whoever asks again at once must get the new answer.
+     */
+    @Nullable
+    public IEnergyStorage energyInput(BlockState state, @Nullable Direction side) {
         if (side == null || isRemoved()) {
             return null;
         }
-        BlockState state = getBlockState();
         if (!(state.getBlock() instanceof BasePipeBlock pipe) || !pipe.kind().carries(PipeKind.ENERGY_RES)
                 || state.getValue(BasePipeBlock.propertyFor(side)) != SideState.EXTRACT) {
             return null;

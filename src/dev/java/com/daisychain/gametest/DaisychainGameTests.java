@@ -308,7 +308,7 @@ public final class DaisychainGameTests {
 
     /**
      * Stone (stands in for the pushing block) | pipe with a pull side facing it | pipe | lectern (counting sink).
-     * The pull side offers an energy input and the linked side doesn't; a simulated push moves nothing; real pushes
+     * The pull side offers an energy input and the linked side takes nothing; a simulated push moves nothing; real pushes
      * (two per tick, as much as possible) arrive at the lectern exactly, at no more than the side's speed.
      */
     private static void pushedEnergy(GameTestHelper helper, Block pipe) {
@@ -327,9 +327,11 @@ public final class DaisychainGameTests {
             var input = helper.getLevel().getCapability(
                     net.neoforged.neoforge.capabilities.Capabilities.EnergyStorage.BLOCK, pipePos, Direction.WEST);
             helper.assertTrue(input != null && input.canReceive(), "Pull side has no energy input");
-            helper.assertTrue(helper.getLevel().getCapability(
-                    net.neoforged.neoforge.capabilities.Capabilities.EnergyStorage.BLOCK, pipePos, Direction.EAST)
-                    == null, "Linked side must not have an energy input");
+            // Step 141: the linked side shows a storage too (NoEnergy, so blocks can sit on pipes), but takes nothing.
+            var linked = helper.getLevel().getCapability(
+                    net.neoforged.neoforge.capabilities.Capabilities.EnergyStorage.BLOCK, pipePos, Direction.EAST);
+            helper.assertTrue(linked != null && !linked.canReceive() && linked.receiveEnergy(1000, true) == 0,
+                    "Linked side must not take energy");
             start[0] = received(helper, sink);
             int promised = input.receiveEnergy(1000, true);
             helper.assertTrue(promised == 1000, "Simulated push took " + promised + ", expected 1000");
