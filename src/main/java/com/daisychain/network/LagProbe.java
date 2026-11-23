@@ -329,6 +329,9 @@ final class LagProbe {
         } else if (callsPerRun >= BIG_TRANSFER_CALLS) {
             reason = String.format(Locale.ROOT, "very big transfers, about %,.0f inventory calls each (big storage "
                     + "blocks or top upgrades)", callsPerRun);
+        } else if (stat.moved[PipeKind.ITEMS] + stat.moved[PipeKind.FLUIDS] + stat.moved[PipeKind.ENERGY_RES] == 0) {
+            // Step 152: "it just moves a lot" read wrong next to "moved nothing" on the line above.
+            reason = "it moved nothing while measured, its pull sides only checked for something to send";
         } else {
             reason = "nothing unusual, it just moves a lot";
         }
