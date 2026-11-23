@@ -7,7 +7,7 @@ import net.minecraft.core.BlockPos;
 import java.util.Arrays;
 
 /**
- * Step 131: the merged outline of a set of blocks (the mass facade preview, Brandon's option B). Only the outer edges of
+ * Step 131: the merged outline of a set of blocks (the mass facade preview, option B). Only the outer edges of
  * each group are kept: an edge between two selected blocks lying side by side in the same face is dropped, as are edges
  * inside the group. Plain reading, no client classes, so the game tests can check it.
  * <p>

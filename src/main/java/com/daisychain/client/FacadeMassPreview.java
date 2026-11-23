@@ -43,7 +43,7 @@ import java.util.List;
 
 /**
  * Step 131: while the player sneaks with facades in the main hand and looks at a pipe, the pipes a sneak + right-click
- * would cover (step 130, FacadeMassApply) get one merged outline (Brandon's option B: outer edges of each group only),
+ * would cover (step 130, FacadeMassApply) get one merged outline (option B: outer edges of each group only),
  * plus a line under the crosshair: "Cover 5 pipes · 5 facades", or how far the stack reaches when it runs short.
  * <p>
  * Uses the same walk as the server (FacadeMassApply.selection) on the client's copy of the world, nearest first, and
