@@ -88,7 +88,8 @@ public final class PipeModels {
             return;
         }
         boolean glow = DaisychainClientConfig.energyGlow();
-        if (drawnGlow != null && drawnGlow != glow) {
+        boolean colours = PipeTints.refresh(); // step 147: the pipe colours changed (screen or file)
+        if (drawnGlow != null && drawnGlow != glow || colours) {
             Minecraft minecraft = Minecraft.getInstance();
             minecraft.execute(() -> {
                 if (minecraft.levelRenderer != null) {
@@ -103,6 +104,7 @@ public final class PipeModels {
     public static void onConfigLoad(ModConfigEvent.Loading event) {
         if (event.getConfig().getSpec() == DaisychainClientConfig.SPEC) {
             drawnGlow = DaisychainClientConfig.energyGlow();
+            PipeTints.refresh();
         }
     }
 
