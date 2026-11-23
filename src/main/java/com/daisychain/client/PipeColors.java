@@ -54,7 +54,7 @@ public final class PipeColors {
     public static final int BAND_TINT = 12;
     /** Tint index of the energy pipe tube. */
     public static final int BODY_TINT = 13;
-    /** Tint index of the energy pipe pull cap. */
+    /** Tint index of the energy pipe pull cap. Step 149: no model uses it any more (caps take the body tint). */
     public static final int CAP_TINT = 14;
     /**
      * Step 146: tint index of the middle line of item / fluid / universal pipes (their body uses BODY_TINT).
