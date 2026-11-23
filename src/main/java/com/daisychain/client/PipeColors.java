@@ -61,8 +61,6 @@ public final class PipeColors {
      * Not BAND_TINT: PipeBakedModel draws every BAND_TINT quad full-bright (the energy glow).
      */
     public static final int LINE_TINT = 15;
-    /** Insert groove of a tiered energy pipe (the basic one keeps the energy groove color). */
-    private static final int TIER_GROOVE = 0x1E1E22;
 
     /** Groove color without an upgrade, per pipe type (PipeKind order: item, fluid, energy, universal). */
     private static final int[] GROOVE_COLORS = {0x2E2E2C, 0x1D2830, 0x1F2C28, 0x1E1E21};
@@ -87,9 +85,6 @@ public final class PipeColors {
             g = (grey + g) / 2 * 17 / 20;
             b = (grey + b) / 2 * 17 / 20;
             return r << 16 | g << 8 | b;
-        }
-        if (EnergyPipeBlock.tierOf(state.getBlock()) > 0) {
-            return TIER_GROOVE; // step 86: tiered energy pipes are grey
         }
         int kind = BasePipeBlock.kindOf(state).ordinal();
         return kind < GROOVE_COLORS.length ? GROOVE_COLORS[kind] : GROOVE_COLORS[0];
@@ -186,6 +181,11 @@ public final class PipeColors {
         if (level != null && pos != null) {
             PipeDataBlockEntity data = BasePipeBlock.getData(level, pos, state);
             tier = data == null ? 0 : data.upgradeLevel(Direction.from3DDataValue(tintIndex % 6));
+        }
+        if (groove && tier == 0 && energyTier >= 0) {
+            // Step 150: an energy insert ring without a parked upgrade in the same light line color as the pull ring
+            // (was the dark groove color).
+            return bandColor(energyTier);
         }
         return groove ? grooveColor(state, tier) : tierColor(tier);
     }
