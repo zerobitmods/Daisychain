@@ -10,6 +10,7 @@ import com.daisychain.registry.ModItems;
 import com.daisychain.registry.ModMenus;
 import com.daisychain.registry.ModRecipes;
 import com.mojang.logging.LogUtils;
+import net.minecraftforge.api.distmarker.Dist;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.ModLoadingContext;
@@ -17,6 +18,7 @@ import net.minecraftforge.fml.common.Mod;
 import net.minecraftforge.fml.config.ModConfig;
 import net.minecraftforge.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.minecraftforge.fml.javafmlmod.FMLJavaModLoadingContext;
+import net.minecraftforge.fml.loading.FMLEnvironment;
 import org.slf4j.Logger;
 
 @Mod(Daisychain.MOD_ID)
@@ -24,7 +26,7 @@ public final class Daisychain {
     public static final String MOD_ID = "daisychain";
     public static final Logger LOGGER = LogUtils.getLogger();
     /** Development step this build is at. Shown by /daisychain version; bumped with every step. */
-    public static final String DEV_STEP = "F72";
+    public static final String DEV_STEP = "F73";
 
     public Daisychain() {
         IEventBus modEventBus = FMLJavaModLoadingContext.get().getModEventBus();
@@ -37,6 +39,9 @@ public final class Daisychain {
         DaisychainEvents.register();
         ModLoadingContext.get().registerConfig(ModConfig.Type.SERVER, DaisychainConfig.SERVER_SPEC);
         ModLoadingContext.get().registerConfig(ModConfig.Type.CLIENT, DaisychainClientConfig.SPEC);
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            com.daisychain.client.ClientScreens.registerConfigButton(); // step 147 / F73: Config = Pipe colours
+        }
         modEventBus.addListener(this::commonSetup);
         // Step 98 / F26: optional FTB Ultimine add-on, only with an Ultimine new enough to have its right-click API.
         if (ModList.get().isLoaded("ftbultimine") && classExists("dev.ftb.mods.ftbultimine.api.rightclick.RegisterRightClickHandlerEvent")) {

@@ -4,7 +4,7 @@ import net.minecraftforge.common.ForgeConfigSpec;
 
 /**
  * Per-player settings (config/daisychain-client.toml on each player's own computer). Servers never see these.
- * Also editable from the mod list's Config button.
+ * Pipe colours are also set from the mod list's Config button (Pipe colours screen).
  */
 public final class DaisychainClientConfig {
     public static final ForgeConfigSpec SPEC;
@@ -13,6 +13,11 @@ public final class DaisychainClientConfig {
     public static final ForgeConfigSpec.BooleanValue OPEN_ADVANCED;
     public static final ForgeConfigSpec.BooleanValue WRENCH_HOLOGRAMS;
     public static final ForgeConfigSpec.BooleanValue ENERGY_GLOW;
+    /** Step 147: pipe colours per pipe type (item, fluid, universal): the body and middle-line colour, "#rrggbb", empty = default. */
+    public static final ForgeConfigSpec.ConfigValue<String>[] PIPE_BODY;
+    public static final ForgeConfigSpec.ConfigValue<String>[] PIPE_LINE;
+    /** The pipe types with player colours, in PIPE_BODY / PIPE_LINE order. */
+    public static final String[] COLOUR_KINDS = {"item", "fluid", "universal"};
 
     static {
         ForgeConfigSpec.Builder builder = new ForgeConfigSpec.Builder();
@@ -45,10 +50,67 @@ public final class DaisychainClientConfig {
                         "costs nothing per frame either way.")
                 .translation("daisychain.configuration.energy_glow")
                 .define("energy_glow", true);
+        builder.comment("Pipe colours. Only on your screen: other players see their own. \"#rrggbb\", or empty for the",
+                "default look. Easiest from the Pipe colours screen (mod list > Daisychain > Config).").push("pipe_colours");
+        @SuppressWarnings("unchecked")
+        ForgeConfigSpec.ConfigValue<String>[] body = new ForgeConfigSpec.ConfigValue[COLOUR_KINDS.length];
+        @SuppressWarnings("unchecked")
+        ForgeConfigSpec.ConfigValue<String>[] line = new ForgeConfigSpec.ConfigValue[COLOUR_KINDS.length];
+        for (int i = 0; i < COLOUR_KINDS.length; i++) {
+            String kind = COLOUR_KINDS[i];
+            body[i] = builder.comment("The " + kind + " pipe's body colour.")
+                    .translation("daisychain.configuration." + kind + "_body")
+                    .define(kind + "_body", "", DaisychainClientConfig::isColour);
+            line[i] = builder.comment("The colour of the line along the " + kind + " pipe.")
+                    .translation("daisychain.configuration." + kind + "_line")
+                    .define(kind + "_line", "", DaisychainClientConfig::isColour);
+        }
+        builder.pop();
+        PIPE_BODY = body;
+        PIPE_LINE = line;
         SPEC = builder.build();
     }
 
     private DaisychainClientConfig() {
+    }
+
+    /** "" or "#rrggbb" (the # optional). */
+    private static boolean isColour(Object value) {
+        return value instanceof String s && (s.isEmpty() || parseColour(s) >= 0);
+    }
+
+    /** "#rrggbb" or "rrggbb" -> 0xRRGGBB; anything else (also "") -> -1. */
+    public static int parseColour(String s) {
+        String hex = s == null ? "" : s.strip();
+        if (hex.startsWith("#")) {
+            hex = hex.substring(1);
+        }
+        if (hex.length() != 6) {
+            return -1;
+        }
+        try {
+            return Integer.parseInt(hex, 16);
+        } catch (NumberFormatException e) {
+            return -1;
+        }
+    }
+
+    /** A pipe colour setting (index in COLOUR_KINDS; line = the middle line): 0xRRGGBB, or -1 = default. */
+    public static int pipeColour(int kind, boolean line) {
+        if (!SPEC.isLoaded() || kind < 0 || kind >= COLOUR_KINDS.length) {
+            return -1;
+        }
+        return parseColour((line ? PIPE_LINE : PIPE_BODY)[kind].get());
+    }
+
+    /** Saves a pipe colour (-1 = default). Client only. */
+    public static void setPipeColour(int kind, boolean line, int rgb) {
+        if (!SPEC.isLoaded() || kind < 0 || kind >= COLOUR_KINDS.length) {
+            return;
+        }
+        ForgeConfigSpec.ConfigValue<String> value = (line ? PIPE_LINE : PIPE_BODY)[kind];
+        value.set(rgb < 0 ? "" : String.format("#%06x", rgb & 0xFFFFFF));
+        value.save();
     }
 
     /** True if hints should show. Safe to call before the config has loaded (then: show them). */
