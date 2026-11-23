@@ -171,15 +171,18 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     private final BakedModel[][] plugs;
     /** Step 146: drawn only when all six sides are connected (no core face is drawn then). */
     private final BakedModel coreAll;
+    /** Step 151: break and hit particles show the pipe's body texture (the node's particle is an old pre-thin image). */
+    private final net.minecraft.resources.ResourceLocation particleTexture;
 
     PipeBakedModel(BakedModel node, BakedModel[][] cores, BakedModel[][] pieces, BakedModel[][] plugs,
-                   BakedModel coreAll) {
+                   BakedModel coreAll, net.minecraft.resources.ResourceLocation particleTexture) {
         super(node);
         this.node = node;
         this.cores = cores;
         this.pieces = pieces;
         this.plugs = plugs;
         this.coreAll = coreAll;
+        this.particleTexture = particleTexture;
     }
 
     /** Which of the four sides around this side have arms (see PERPENDICULAR). */
@@ -520,7 +523,10 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
                 warnCover(cover, e);
             }
         }
-        return super.getParticleIcon(data);
+        // Step 151: the body texture, tinted by PipeParticles (looked up per call: a cheap map lookup, and always the
+        // current atlas after a resource reload).
+        return Minecraft.getInstance().getTextureAtlas(net.minecraft.world.inventory.InventoryMenu.BLOCK_ATLAS)
+                .apply(particleTexture);
     }
 
     private static BakedModel coverModel(BlockState cover) {

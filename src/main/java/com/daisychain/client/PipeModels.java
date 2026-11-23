@@ -146,7 +146,8 @@ public final class PipeModels {
                 Daisychain.LOGGER.warn("Daisychain: some {} pipe part models are missing; those pipes show plain cores", type);
                 continue;
             }
-            PipeBakedModel model = new PipeBakedModel(node, cores, pieces, plugs, coreAll);
+            PipeBakedModel model = new PipeBakedModel(node, cores, pieces, plugs, coreAll,
+                    ResourceLocation.fromNamespaceAndPath(Daisychain.MOD_ID, "block/" + type + "_pipe_straight"));
             for (Block block : blocks[t]) {
                 for (BlockState state : block.getStateDefinition().getPossibleStates()) {
                     models.put(BlockModelShaper.stateToModelLocation(state), model);
