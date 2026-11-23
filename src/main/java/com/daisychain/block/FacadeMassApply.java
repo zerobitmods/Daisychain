@@ -25,7 +25,7 @@ import java.util.Set;
  * Step 130 (facades): sneak + right-click a pipe with facades covers many pipes at once.
  * <ul>
  *   <li>The walk starts at the clicked pipe and follows linked arms, nearest first, through pipes of the <b>same block
- *   only</b> (Brandon: same type; each energy tier counts as its own type). It never enters unloaded chunks.</li>
+ *   only</b> (same type; each energy tier counts as its own type). It never enters unloaded chunks.</li>
  *   <li>Which pipes change follows the clicked pipe: clicked pipe uncovered → the uncovered ones; clicked pipe covered
  *   with block X → the ones covered with X (their old facades go back to the player). Other pipes are walked through
  *   but left alone. Holding a facade of X itself does nothing.</li>
