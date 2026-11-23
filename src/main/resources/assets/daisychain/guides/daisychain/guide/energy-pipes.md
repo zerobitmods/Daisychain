@@ -14,7 +14,7 @@ item_ids:
 # Energy pipe tiers
 
 Energy pipes don't take upgrades. To move more power, you craft a faster pipe: eight pipes of one tier around the matching upgrade
-make eight pipes of the next. The band along the pipe and the ring on its pull caps show the tier.
+make eight pipes of the next. The line along the pipe and the rings behind its pull and insert caps show the tier.
 
 | Pipe | Up to, per tick |
 | --- | --- |
