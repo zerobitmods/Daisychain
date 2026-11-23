@@ -56,6 +56,11 @@ public final class PipeColors {
     public static final int BODY_TINT = 13;
     /** Tint index of the energy pipe pull cap. */
     public static final int CAP_TINT = 14;
+    /**
+     * Step 146: tint index of the middle line of item / fluid / universal pipes (their body uses BODY_TINT).
+     * Not BAND_TINT: PipeBakedModel draws every BAND_TINT quad full-bright (the energy glow).
+     */
+    public static final int LINE_TINT = 15;
     /** Insert groove of a tiered energy pipe (the basic one keeps the energy groove color). */
     private static final int TIER_GROOVE = 0x1E1E22;
 
@@ -114,8 +119,25 @@ public final class PipeColors {
         return byTier(CAP_COLORS, tier);
     }
 
+    /** The color of a pipe's tint index, as the world draws it (level / pos may be null: no upgrade rings then). */
+    public static int color(BlockState state, @Nullable BlockAndTintGetter level, @Nullable BlockPos pos, int tintIndex) {
+        return ringColor(state, level, pos, tintIndex);
+    }
+
     @SubscribeEvent
     public static void registerItemColors(RegisterColorHandlersEvent.Item event) {
+        // Step 146: the item / fluid / universal pipe items in their pipe colours.
+        event.register((stack, tintIndex) -> {
+            if (!(stack.getItem() instanceof net.minecraft.world.item.BlockItem item)) {
+                return -1;
+            }
+            int slot = PipeTints.slot(BasePipeBlock.kindOf(item.getBlock().defaultBlockState()));
+            if (slot < 0) {
+                return -1;
+            }
+            return tintIndex == BODY_TINT ? 0xFF000000 | PipeTints.body(slot)
+                    : tintIndex == LINE_TINT ? 0xFF000000 | PipeTints.line(slot) : -1;
+        }, ModItems.ITEM_PIPE.get(), ModItems.FLUID_PIPE.get(), ModItems.UNIVERSAL_PIPE.get());
         event.register((stack, tintIndex) -> {
             if (!(stack.getItem() instanceof EnergyPipeItem pipe)) {
                 return -1;
@@ -135,6 +157,12 @@ public final class PipeColors {
             BlockState cover = covered == null ? null : covered.cover();
             return cover == null ? -1 : Minecraft.getInstance().getBlockColors()
                     .getColor(cover, level, pos, tintIndex - PipeBakedModel.COVER_TINT_OFFSET);
+        }
+        if (tintIndex == BODY_TINT || tintIndex == LINE_TINT) {
+            int slot = PipeTints.slot(BasePipeBlock.kindOf(state));
+            if (slot >= 0) {
+                return tintIndex == BODY_TINT ? PipeTints.body(slot) : PipeTints.line(slot);
+            }
         }
         int energyTier = EnergyPipeBlock.tierOf(state.getBlock());
         if (tintIndex == BAND_TINT) {

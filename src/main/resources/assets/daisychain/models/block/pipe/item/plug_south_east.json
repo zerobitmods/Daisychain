@@ -1,0 +1,155 @@
+{
+ "parent": "minecraft:block/block",
+ "textures": {
+  "particle": "daisychain:block/item_pipe",
+  "tube": "daisychain:block/item_pipe_straight",
+  "band_straight": "daisychain:block/item_pipe_band_straight"
+ },
+ "elements": [
+  {
+   "from": [
+    10.25,
+    7.5,
+    10
+   ],
+   "to": [
+    11,
+    8.5,
+    10.25
+   ],
+   "faces": {
+    "south": {
+     "uv": [
+      0,
+      7.5,
+      0.5,
+      8.5
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    }
+   }
+  },
+  {
+   "from": [
+    10,
+    7.5,
+    10.25
+   ],
+   "to": [
+    10.25,
+    8.5,
+    11
+   ],
+   "faces": {
+    "east": {
+     "uv": [
+      0,
+      7.5,
+      0.5,
+      8.5
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    }
+   }
+  },
+  {
+   "from": [
+    10.25,
+    7.25,
+    10.25
+   ],
+   "to": [
+    11,
+    7.5,
+    11
+   ],
+   "faces": {
+    "up": {
+     "uv": [
+      0,
+      5,
+      0.5,
+      5.5
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    }
+   }
+  },
+  {
+   "from": [
+    10.25,
+    8.5,
+    10.25
+   ],
+   "to": [
+    11,
+    8.75,
+    11
+   ],
+   "faces": {
+    "down": {
+     "uv": [
+      0,
+      5,
+      0.5,
+      5.5
+     ],
+     "texture": "#tube",
+     "tintindex": 13
+    }
+   }
+  },
+  {
+   "from": [
+    10.25,
+    7.5,
+    10
+   ],
+   "to": [
+    11,
+    8.5,
+    10.25
+   ],
+   "faces": {
+    "south": {
+     "uv": [
+      0,
+      7.5,
+      0.5,
+      8.5
+     ],
+     "texture": "#band_straight",
+     "tintindex": 15
+    }
+   }
+  },
+  {
+   "from": [
+    10,
+    7.5,
+    10.25
+   ],
+   "to": [
+    10.25,
+    8.5,
+    11
+   ],
+   "faces": {
+    "east": {
+     "uv": [
+      0,
+      7.5,
+      0.5,
+      8.5
+     ],
+     "texture": "#band_straight",
+     "tintindex": 15
+    }
+   }
+  }
+ ],
+ "render_type": "minecraft:cutout"
+}

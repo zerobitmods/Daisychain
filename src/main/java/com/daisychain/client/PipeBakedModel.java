@@ -106,6 +106,8 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     public static final int COVER_TINT_OFFSET = 1000;
     /** Step 129: how opaque a cover is while a wrench is held (0-255; 102 = 40%). */
     static final int FADE_ALPHA = 102;
+    /** Step 146: the transparent facade hologram's opacity: its texture's alpha times this / 255. */
+    static final int HOLOGRAM_ALPHA = 128;
     /**
      * Step 129: a random for asking the cover model its layers and quads inside getQuads, reseeded with COVER_SEED each
      * time. The renderer's own random is used up by weighted models after the first call.
@@ -115,8 +117,26 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     static final int LINK = 0;
     static final int INSERT = 1;
     static final int PULL = 2;
-    /** Core face variants per side: one bit per perpendicular side that has an arm. */
-    static final int CORE_MASKS = 16;
+    /** Step 146: a pipe with exactly one connection, to another pipe, uses its own arm (a longer end block). */
+    static final int END = 3;
+    /** Step 146: a pull side on a pipe that would be a straight dead end without it (one other connection,
+     * opposite): the pull cap plus the dead end's raised end block in front of it. */
+    static final int PULL_END = 4;
+    /** Step 146: as PULL_END for an insert side. */
+    static final int INSERT_END = 5;
+    /** Step 146: the block side of a pipe with no other connection (draws the whole pipe). */
+    static final int PULL_LONE = 6;
+    static final int INSERT_LONE = 7;
+    /**
+     * Step 146: the arm toward a covered pipe (step 128's end cap): it ends like a dead end, the tip (with the
+     * middle hole) at the block face and a full block back to the core.
+     */
+    static final int CAP = 8;
+    /**
+     * Core face variants per side: one bit per perpendicular side that has an arm, plus (step 146) bit 4 = the
+     * opposite side has an arm, so a face's line can wrap round an outer corner to meet the next face's line.
+     */
+    static final int CORE_MASKS = 32;
     private static final Direction[] DIRECTIONS = Direction.values();
     /**
      * For each side, the four perpendicular sides in ascending get3DDataValue order. Bit b of a core face's mask means
@@ -147,11 +167,19 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     /** Step 129: WrenchSeeThrough.generation() when seeThroughCache was last cleared. */
     private volatile int seeThroughGeneration;
 
-    PipeBakedModel(BakedModel node, BakedModel[][] cores, BakedModel[][] pieces) {
+    /** Step 146: [a][b], a < b at right angles: closes the grooves where arms a and b meet at the core. */
+    private final BakedModel[][] plugs;
+    /** Step 146: drawn only when all six sides are connected (no core face is drawn then). */
+    private final BakedModel coreAll;
+
+    PipeBakedModel(BakedModel node, BakedModel[][] cores, BakedModel[][] pieces, BakedModel[][] plugs,
+                   BakedModel coreAll) {
         super(node);
         this.node = node;
         this.cores = cores;
         this.pieces = pieces;
+        this.plugs = plugs;
+        this.coreAll = coreAll;
     }
 
     /** Which of the four sides around this side have arms (see PERPENDICULAR). */
@@ -161,6 +189,9 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             if ((connected & (1 << PERPENDICULAR[side][b])) != 0) {
                 mask |= 1 << b;
             }
+        }
+        if ((connected & (1 << (side ^ 1))) != 0) {
+            mask |= 1 << 4; // Step 146: the opposite side has an arm
         }
         return mask;
     }
@@ -197,7 +228,14 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             }
             return builder.build();
         }
-        return ModelData.builder().with(INSERT_SIDES, sideBits(level, pos, state, true)).build();
+        int bits = sideBits(level, pos, state, true);
+        if (bits >>> 6 != 0 && WrenchSeeThrough.drawSeeThrough(pos)) {
+            // Step 146: wrench in hand, so the covered neighbor shows its pipe; a cap would be a wall across
+            // the joint (a dark square in the line). drawSeeThrough records the section, so it's redrawn
+            // with its caps when the wrench goes away.
+            bits &= 0b111111;
+        }
+        return ModelData.builder().with(INSERT_SIDES, bits).build();
     }
 
     /**
@@ -255,7 +293,10 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             if (neighbor.getBlock() instanceof BasePipeBlock) {
                 // Pipes meet at the block edge. Step 128: a covered neighbor draws only its cover, so this arm's end
                 // would be open; cap it (not pull arms, they have their own cap).
+                // Step 146: not when this pipe is covered too. Its pipe only shows with a wrench (see-through), and
+                // then the neighbor's pipe shows as well, so the caps stood between them as walls (it looked disconnected).
                 if (caps && neighbor.getValue(BasePipeBlock.COVER) != CoverShape.NONE
+                        && state.getValue(BasePipeBlock.COVER) == CoverShape.NONE
                         && state.getValue(BasePipeBlock.propertyFor(direction)) != SideState.EXTRACT) {
                     insert |= 1 << (6 + direction.get3DDataValue());
                 }
@@ -368,7 +409,7 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
             }
             boolean glow = FacadeItem.isTransparent(cover); // step F61 (134/135): the hologram isn't faded, it glows
             for (int i = 0; i < faded.size(); i++) {
-                faded.set(i, glow ? glowingQuad(faded.get(i)) : fadedQuad(faded.get(i)));
+                faded.set(i, glow ? glowingQuad(faded.get(i), HOLOGRAM_ALPHA) : fadedQuad(faded.get(i)));
             }
             return faded;
         } catch (RuntimeException e) {
@@ -394,11 +435,13 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
      * Step F61 (135): the hologram's quad lit full-bright: light 15/15 baked in (Forge keeps the brighter of baked and
      * world light), no side shading, no ambient occlusion, so it glows evenly in caves and at night.
      */
-    private static BakedQuad glowingQuad(BakedQuad quad) {
+    private static BakedQuad glowingQuad(BakedQuad quad, int fade) {
         int[] vertices = quad.getVertices().clone();
         int stride = vertices.length / 4;
         for (int v = 0; v < 4; v++) {
             vertices[v * stride + 6] = FULL_BRIGHT; // BLOCK format: x, y, z, color, u, v, light, normal
+            int color = vertices[v * stride + 3]; // color (ABGR): alpha scaled down like fadedQuad
+            vertices[v * stride + 3] = (color & 0x00FFFFFF) | ((color >>> 24) * fade / 255) << 24;
         }
         return new BakedQuad(vertices, quad.isTinted() ? quad.getTintIndex() + COVER_TINT_OFFSET : quad.getTintIndex(),
                 quad.getDirection(), quad.getSprite(), false, false);
@@ -496,52 +539,67 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
                 pull |= bit;
             }
         }
+        // Step 146: a pipe that would be a dead end (or a lone pipe) without its one block side: that side's
+        // *_END / *_LONE piece draws the whole full block from the cap back to where a dead end's block starts, so no
+        // core faces are drawn.
+        int endSide = -1;
+        for (int side = 0; side < 6; side++) {
+            int bit = 1 << side;
+            int rest = connected & ~bit;
+            if ((connected & bit) != 0 && ((pull | insert) & bit) != 0 && (rest == 0 || rest == (1 << (side ^ 1)))) {
+                endSide = endSide == -1 ? side : -2; // two such sides (a pipe between two blocks): neither
+            }
+        }
+        int coreConn = connected;
         BakedModel[] parts = new BakedModel[6];
         for (int side = 0; side < 6; side++) {
             int bit = 1 << side;
             if ((connected & bit) != 0) {
                 int kind = (pull & bit) != 0 ? PULL : (insert & bit) != 0 ? INSERT : LINK;
+                if (kind == LINK && Integer.bitCount(connected) == 1) {
+                    kind = END;
+                } else if (side == endSide) {
+                    boolean lone = connected == bit;
+                    kind = kind == PULL ? (lone ? PULL_LONE : PULL_END) : (lone ? INSERT_LONE : INSERT_END);
+                }
                 parts[side] = pieces[kind][side];
+                if ((capped & ~pull & bit) != 0 && (kind == LINK || kind == END)) {
+                    parts[side] = pieces[CAP][side]; // Step 146: ends here like a dead end (covered neighbor)
+                }
             } else {
-                parts[side] = cores[side][coreMask(side, connected)];
+                parts[side] = endSide >= 0 ? null : cores[side][coreMask(side, coreConn)];
             }
+        }
+        BakedModel[] extra = new BakedModel[13];
+        int extras = 0;
+        for (int a = 0; a < 6; a++) {
+            for (int b = a + 1; b < 6; b++) {
+                if (a / 2 != b / 2 && (connected & (1 << a)) != 0 && (connected & (1 << b)) != 0) {
+                    extra[extras++] = plugs[a][b];
+                }
+            }
+        }
+        if (connected == 63) {
+            extra[extras++] = coreAll;
         }
         List<BakedQuad>[] lists = new List[7];
         for (int i = 0; i < 7; i++) {
             Direction face = i < 6 ? Direction.from3DDataValue(i) : null;
             List<BakedQuad> quads = new ArrayList<>();
-            for (int side = 0; side < 6; side++) {
-                for (BakedQuad quad : parts[side].getQuads(state, face, rand, ModelData.EMPTY, renderType)) {
+            for (int side = 0; side < 6 + extras; side++) {
+                BakedModel part = side < 6 ? parts[side] : extra[side - 6];
+                if (part == null) {
+                    continue; // Step 146: a core face drawn by a *_END / *_LONE piece instead
+                }
+                for (BakedQuad quad : part.getQuads(state, face, rand, ModelData.EMPTY, renderType)) {
                     BakedQuad shown = glow && quad.getTintIndex() == PipeColors.BAND_TINT ? glowing(quad) : quad;
                     quads.add(seeThrough ? withLightFloor(insetFromSurface(shown), lightFloor) : shown);
                 }
             }
             int bit = 1 << i;
-            if (face != null && (capped & connected & ~pull & bit) != 0) {
-                // Step 128: end cap toward a covered pipe, in this side's culled list (an opaque cover hides it).
-                addEndCap(quads, state, face, glow, rand, renderType);
-            }
             lists[i] = List.copyOf(quads);
         }
         return lists;
-    }
-
-    /**
-     * Step 128: the core's plain face on this side (mask 0: no stripe running off it), moved out to the block edge and
-     * EDGE_INSET back in. Built once per cached quad set.
-     */
-    private void addEndCap(List<BakedQuad> quads, BlockState state, Direction face, boolean glow, RandomSource rand,
-                           @Nullable RenderType renderType) {
-        BakedModel core = cores[face.get3DDataValue()][0];
-        for (int i = 0; i < 7; i++) {
-            Direction listFace = i < 6 ? Direction.from3DDataValue(i) : null;
-            for (BakedQuad quad : core.getQuads(state, listFace, rand, ModelData.EMPTY, renderType)) {
-                if (quad.getDirection() == face) {
-                    BakedQuad shown = glow && quad.getTintIndex() == PipeColors.BAND_TINT ? glowing(quad) : quad;
-                    quads.add(movedToEdge(shown, face));
-                }
-            }
-        }
     }
 
     /**

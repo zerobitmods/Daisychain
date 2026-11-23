@@ -486,7 +486,8 @@ public final class PipeSidesScreen extends Screen {
         MultiBufferSource.BufferSource buffers = minecraft.renderBuffers().bufferSource();
         BlockRenderDispatcher blocks = minecraft.getBlockRenderer();
         Lighting.setupFor3DItems();
-        blocks.renderSingleBlock(state, pose, buffers, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
+        // Each quad in its own tint (body, line, rings); renderSingleBlock would give them all tint 0's color.
+        PipePreview.render(state, pose, buffers, tint -> PipeColors.color(state, minecraft.level, pos, tint));
         for (int i = 0; i < 6; i++) {
             BlockState neighbor = minecraft.level.getBlockState(pos.relative(sides[i]));
             if (neighbor.isAir() || neighbor.getRenderShape() == RenderShape.INVISIBLE) {
@@ -494,7 +495,12 @@ public final class PipeSidesScreen extends Screen {
             }
             pose.pushPose();
             pose.translate(sides[i].getStepX(), sides[i].getStepY(), sides[i].getStepZ());
-            blocks.renderSingleBlock(neighbor, pose, buffers, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
+            if (neighbor.getBlock() instanceof BasePipeBlock) {
+                BlockPos at = pos.relative(sides[i]);
+                PipePreview.render(neighbor, pose, buffers, tint -> PipeColors.color(neighbor, minecraft.level, at, tint));
+            } else {
+                blocks.renderSingleBlock(neighbor, pose, buffers, LightTexture.FULL_BRIGHT, OverlayTexture.NO_OVERLAY);
+            }
             pose.popPose();
         }
         buffers.endBatch();
