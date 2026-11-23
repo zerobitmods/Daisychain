@@ -1200,6 +1200,12 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         return 1.0F / BREAK_TICKS;
     }
 
+    /** Step 151 / F76: pipes make their own break and hit particles, in their colors (client only). */
+    @Override
+    public void initializeClient(java.util.function.Consumer<net.minecraftforge.client.extensions.common.IClientBlockExtensions> consumer) {
+        consumer.accept(com.daisychain.client.PipeParticles.INSTANCE);
+    }
+
     // ---------------------------------------------------------------- shapes
 
     /**
@@ -1207,12 +1213,6 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
      * be clicked to reconnect (and the client draws them, see client/WrenchGhostRenderer). Reuses the 64 prebuilt
      * shapes: no allocation.
      */
-    /** Step 151 / F76: pipes make their own break and hit particles, in their colors (client only). */
-    @Override
-    public void initializeClient(java.util.function.Consumer<net.minecraftforge.client.extensions.common.IClientBlockExtensions> consumer) {
-        consumer.accept(com.daisychain.client.PipeParticles.INSTANCE);
-    }
-
     @Override
     public VoxelShape getShape(BlockState state, BlockGetter level, BlockPos pos, CollisionContext context) {
         Player player = context instanceof EntityCollisionContext entityContext
