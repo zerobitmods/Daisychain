@@ -118,8 +118,10 @@ public final class WrenchSeeThrough {
                 for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
                     if (blockEntity instanceof PipeDataBlockEntity data && data.hasCover()) {
                         BlockPos pos = blockEntity.getBlockPos();
-                        renderer.setSectionDirty(SectionPos.blockToSectionCoord(pos.getX()),
-                                SectionPos.blockToSectionCoord(pos.getY()), SectionPos.blockToSectionCoord(pos.getZ()));
+                        // Step 146: the neighbors too, so a plain pipe next door (maybe in the next section)
+                        // drops its end cap toward this one while the wrench shows the pipe inside.
+                        renderer.setBlocksDirty(pos.getX() - 1, pos.getY() - 1, pos.getZ() - 1,
+                                pos.getX() + 1, pos.getY() + 1, pos.getZ() + 1);
                     }
                 }
             }

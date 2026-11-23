@@ -124,6 +124,9 @@ neoForge {
             }
             if (project.hasProperty('dev_shot')) {
                 systemProperty 'daisychain.devShot', project.property('dev_shot').toString()
+                if (project.hasProperty('dev_shot_views')) {
+                    systemProperty 'daisychain.devShotViews', project.property('dev_shot_views').toString()
+                }
             }
         }
 

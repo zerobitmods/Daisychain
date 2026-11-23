@@ -74,26 +74,26 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
     private static final EnumProperty<SideState>[] PROPERTY_BY_DIRECTION = createPropertyArray();
     private static final Direction[] DIRECTIONS = Direction.values();
 
-    // Pipe core is 6 pixels thick (from 5 to 11).
-    private static final double CORE_MIN = 5.0 / 16.0;
-    private static final double CORE_MAX = 11.0 / 16.0;
+    // Step 146: the tube is 6 px (5 to 11), as the models draw it.
+    private static final double CORE_MIN = 5 / 16.0;
+    private static final double CORE_MAX = 11 / 16.0;
     private static final VoxelShape CORE = Block.box(5, 5, 5, 11, 11, 11);
     private static final VoxelShape[] ARMS = {
-            Block.box(5, 0, 5, 11, 5, 11),   // down
+            Block.box(5, 0, 5, 11, 5, 11), // down
             Block.box(5, 11, 5, 11, 16, 11), // up
-            Block.box(5, 5, 0, 11, 11, 5),   // north
+            Block.box(5, 5, 0, 11, 11, 5), // north
             Block.box(5, 5, 11, 11, 11, 16), // south
-            Block.box(0, 5, 5, 5, 11, 11),   // west
-            Block.box(11, 5, 5, 16, 11, 11)  // east
+            Block.box(0, 5, 5, 5, 11, 11), // west
+            Block.box(11, 5, 5, 16, 11, 11) // east
     };
-    /** Pull side cap (8x8, 2 deep) plus the tier ring behind it (7x7, 1.5 deep), per side. */
+    /** Pull side cap, the part of the pull piece wider than the tube (8x8, 0 to 1.5 px deep), per side. */
     private static final VoxelShape[] PULL_CAPS = {
-            Shapes.or(Block.box(4, 0, 4, 12, 2, 12), Block.box(4.5, 2, 4.5, 11.5, 3.5, 11.5)),     // down
-            Shapes.or(Block.box(4, 14, 4, 12, 16, 12), Block.box(4.5, 12.5, 4.5, 11.5, 14, 11.5)), // up
-            Shapes.or(Block.box(4, 4, 0, 12, 12, 2), Block.box(4.5, 4.5, 2, 11.5, 11.5, 3.5)),     // north
-            Shapes.or(Block.box(4, 4, 14, 12, 12, 16), Block.box(4.5, 4.5, 12.5, 11.5, 11.5, 14)), // south
-            Shapes.or(Block.box(0, 4, 4, 2, 12, 12), Block.box(2, 4.5, 4.5, 3.5, 11.5, 11.5)),     // west
-            Shapes.or(Block.box(14, 4, 4, 16, 12, 12), Block.box(12.5, 4.5, 4.5, 14, 11.5, 11.5))  // east
+            Block.box(4, 0, 4, 12, 1.5, 12), // down
+            Block.box(4, 14.5, 4, 12, 16, 12), // up
+            Block.box(4, 4, 0, 12, 12, 1.5), // north
+            Block.box(4, 4, 14.5, 12, 12, 16), // south
+            Block.box(0, 4, 4, 1.5, 12, 12), // west
+            Block.box(14.5, 4, 4, 16, 12, 12) // east
     };
     /**
      * Step 42a: shapes that match the drawn look, made on first use and kept. Index = arms | pulls << 6 | ghost << 12,
@@ -1251,7 +1251,12 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         // And not while the player has the holograms turned off (client side only; toggled with the Bloom Wrench).
         boolean wrench = holdingWrench && player.isSecondaryUseActive()
                 && !(clientGhostsHidden && player.level().isClientSide());
-        return cachedShape(connectionMask(state), pullMask(state), wrench ? GHOST_ALL : GHOST_NONE);
+        if (wrench) {
+            return cachedShape(connectionMask(state), pullMask(state), GHOST_ALL);
+        }
+        // Step 146: the outline follows the drawn pipe, notches
+        // included. What things bump into (getCollisionShape) stays the plain boxes.
+        return outline(connectionMask(state), pullMask(state), insertMask(level, pos, state), capMask(level, pos, state));
     }
 
     /**
@@ -1490,6 +1495,174 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         return mask;
     }
 
+    /**
+     * Step 146: insert sides, as PipeBakedModel.sideBits finds them: a connected (not pulling) side whose
+     * neighbor isn't a pipe. Not in the block state, so it's read from the neighbors (only for the outline).
+     */
+    private static int insertMask(BlockGetter level, BlockPos pos, BlockState state) {
+        int mask = 0;
+        BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
+        for (int i = 0; i < PROPERTY_BY_DIRECTION.length; i++) {
+            if (state.getValue(PROPERTY_BY_DIRECTION[i]) != SideState.CONNECTED) {
+                continue;
+            }
+            BlockState next = neighborIfLoaded(level, at.setWithOffset(pos, Direction.from3DDataValue(i)));
+            if (next == null) {
+                continue;
+            }
+            Block neighbor = next.getBlock();
+            if (!(neighbor instanceof BasePipeBlock) && neighbor != state.getBlock()) {
+                mask |= 1 << i;
+            }
+        }
+        return mask;
+    }
+
+    /**
+     * Step 146: a neighbor's state for the outline, or null if its chunk isn't really loaded. The outline is asked for by
+     * ray traces, also other mods' on the server at the edge of the loaded area; reading through a ServerLevel there
+     * would load the chunk (or wait for it). The client's level never loads chunks (air when it has none).
+     */
+    @Nullable
+    private static BlockState neighborIfLoaded(BlockGetter level, BlockPos at) {
+        return level instanceof ServerLevel server ? Loaded.stateIfLoaded(server, at) : level.getBlockState(at);
+    }
+
+    /** Step 146: outlines by (arms | pulls << 6), then insert sides; made on first use and kept. */
+    private static final VoxelShape[][] OUTLINE_CACHE = new VoxelShape[1 << 12][];
+    /**
+     * Step 146: the outline as drawn, for renderers. caps: false while the wrench shows covered pipes (then a
+     * pipe doesn't end its arms toward them, PipeBakedModel).
+     */
+    public static VoxelShape outlineFor(BlockGetter level, BlockPos pos, BlockState state, boolean caps) {
+        if (!(state.getBlock() instanceof BasePipeBlock)) {
+            return Shapes.block();
+        }
+        return outline(connectionMask(state), pullMask(state), insertMask(level, pos, state),
+                caps ? capMask(level, pos, state) : 0);
+    }
+
+    /**
+     * Step 146: link arms that end like a dead end, as PipeBakedModel.sideBits finds them (step 128): this
+     * pipe uncovered, the neighbor a covered pipe, the side not pulling.
+     */
+    private static int capMask(BlockGetter level, BlockPos pos, BlockState state) {
+        if (state.getValue(COVER) != CoverShape.NONE) {
+            return 0;
+        }
+        int mask = 0;
+        BlockPos.MutableBlockPos at = new BlockPos.MutableBlockPos();
+        for (int i = 0; i < PROPERTY_BY_DIRECTION.length; i++) {
+            if (state.getValue(PROPERTY_BY_DIRECTION[i]) != SideState.CONNECTED) {
+                continue;
+            }
+            BlockState neighbor = neighborIfLoaded(level, at.setWithOffset(pos, Direction.from3DDataValue(i)));
+            if (neighbor != null && neighbor.getBlock() instanceof BasePipeBlock && neighbor.getValue(COVER) != CoverShape.NONE) {
+                mask |= 1 << i;
+            }
+        }
+        return mask;
+    }
+
+    /** Step 146: the middle cube as the models draw it, by arm mask (PipeCoreShapes); made on first use. */
+    private static final VoxelShape[] CORE_OUTLINE = new VoxelShape[64];
+
+    private static VoxelShape coreOutline(int arms) {
+        VoxelShape shape = CORE_OUTLINE[arms];
+        if (shape == null) {
+            shape = Shapes.empty();
+            for (double[] b : PipeCoreShapes.BOXES[arms]) {
+                shape = Shapes.or(shape, Block.box(b[0], b[1], b[2], b[3], b[4], b[5]));
+            }
+            shape = shape.optimize();
+            CORE_OUTLINE[arms] = shape;
+        }
+        return shape;
+    }
+
+    /** Step 146: the middle cube's outline as drawn (the Settings Copier's "whole network" highlight). */
+    public static VoxelShape coreOutlineFor(BlockState state) {
+        return state.getBlock() instanceof BasePipeBlock ? coreOutline(connectionMask(state)) : CORE;
+    }
+
+    private static VoxelShape outline(int arms, int pulls, int inserts, int caps) {
+        int index = arms | pulls << 6;
+        VoxelShape[] row = OUTLINE_CACHE[index];
+        if (row == null) {
+            row = new VoxelShape[1 << 12];
+            OUTLINE_CACHE[index] = row; // two threads making a row at once: one is dropped, harmless
+        }
+        int inner = inserts | caps << 6;
+        VoxelShape shape = row[inner];
+        if (shape == null) {
+            shape = buildOutline(arms, pulls, inserts, caps);
+            row[inner] = shape;
+        }
+        return shape;
+    }
+
+    /**
+     * Step 146: the outline as PipeBakedModel draws the pipe (6 px tube 5..11, 1 px edge notches; the 0.75 px
+     * middle-line groove is left out). Middle cube: PipeCoreShapes (generated from the models' own rules), or solid
+     * for a pipe that would be a dead end / lone pipe without its one block side (the *_END / *_LONE pieces). Arms: link / dead end = notched tube; pull
+     * = 8x8 plate 0..1.5, ring set in 0.5 px 1.5..2.5, solid block 2.5..5; insert (P3) = solid cap 0..1.5, ring
+     * set in 0.5 px 1.5..2.5, then notched tube (solid when it's the *_END side). Hard-coded to this look.
+     */
+    private static VoxelShape buildOutline(int arms, int pulls, int inserts, int caps) {
+        int blockSides = pulls | inserts;
+        int endSide = -1;
+        for (int side = 0; side < 6; side++) {
+            int bit = 1 << side;
+            int rest = arms & ~bit;
+            if ((arms & bit) != 0 && (blockSides & bit) != 0 && (rest == 0 || rest == 1 << (side ^ 1))) {
+                endSide = endSide == -1 ? side : -2;
+            }
+        }
+        VoxelShape shape = CORE;
+        if (endSide < 0) { // a *_END / *_LONE piece fills the cube; else the cube as the models draw it
+            shape = coreOutline(arms);
+        }
+        for (int side = 0; side < 6; side++) {
+            int bit = 1 << side;
+            if ((arms & bit) == 0) {
+                continue;
+            }
+            if ((pulls & bit) != 0) {
+                shape = Shapes.or(shape, sideBox(side, 4, 12, 0, 1.5), sideBox(side, 5.5, 10.5, 1.5, 2.5),
+                        sideBox(side, 5, 11, 2.5, 5));
+            } else if ((inserts & bit) != 0) {
+                shape = Shapes.or(shape, sideBox(side, 5, 11, 0, 1.5), sideBox(side, 5.5, 10.5, 1.5, 2.5),
+                        side == endSide ? sideBox(side, 5, 11, 2.5, 5) : notchedArm(side, 2.5, 5));
+            } else if ((caps & bit) != 0) {
+                shape = Shapes.or(shape, sideBox(side, 5, 11, 0.125, 5)); // ends like a dead end: a full block
+            } else {
+                shape = Shapes.or(shape, notchedArm(side, 0, 5));
+            }
+        }
+        return shape.optimize();
+    }
+
+    /** The tube with its four long edges notched 1 px, from depth d0 to d1 (px from the block face on that side). */
+    private static VoxelShape notchedArm(int side, double d0, double d1) {
+        return Shapes.or(sideBox(side, 5, 11, 6, 10, d0, d1), sideBox(side, 6, 10, 5, 11, d0, d1));
+    }
+
+    private static VoxelShape sideBox(int side, double lo, double hi, double d0, double d1) {
+        return sideBox(side, lo, hi, lo, hi, d0, d1);
+    }
+
+    /** A box on one side: a / b across the arm (px), d0..d1 deep from that side's block face (px). */
+    private static VoxelShape sideBox(int side, double a0, double a1, double b0, double b1, double d0, double d1) {
+        return switch (side) {
+            case 0 -> Block.box(a0, d0, b0, a1, d1, b1); // down
+            case 1 -> Block.box(a0, 16 - d1, b0, a1, 16 - d0, b1); // up
+            case 2 -> Block.box(a0, b0, d0, a1, b1, d1); // north
+            case 3 -> Block.box(a0, b0, 16 - d1, a1, b1, 16 - d0); // south
+            case 4 -> Block.box(d0, b0, a0, d1, b1, a1); // west
+            default -> Block.box(16 - d1, b0, a0, 16 - d0, b1, a1); // east
+        };
+    }
+
     private static VoxelShape cachedShape(int arms, int pulls, int ghost) {
         int index = arms | pulls << 6 | ghost << 12;
         VoxelShape shape = SHAPE_CACHE[index];
@@ -1502,7 +1675,10 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
 
     /**
      * Same as the model (client/PipeBakedModel, step 55): the 6 px core plus an arm per connection. Pull sides add the
-     * cap and ring.
+     * 8x8 cap. Step 146: everything else the model draws stays inside the tube, so this covers it too: a dead
+     * end (its end block is tube-wide), inserts (whether a side is an insert isn't in the block state; the P3 insert's
+     * groove is set in, not out), the *_END / *_LONE pieces (they fill the core) and a lone pipe (the 6 px cube).
+     * The model build checks that no piece ever sticks out of tube + cap.
      */
     private static VoxelShape buildShape(int arms, int pulls, int ghost) {
         VoxelShape shape = CORE;

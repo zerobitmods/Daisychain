@@ -18,7 +18,6 @@ import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.BlockHitResult;
 import net.minecraft.world.phys.HitResult;
 import net.minecraft.world.phys.Vec3;
-import net.minecraft.world.phys.shapes.Shapes;
 import net.minecraft.world.phys.shapes.VoxelShape;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -53,7 +52,6 @@ public final class WrenchGhostRenderer {
     private static final double GROW = -0.002;
     private static final AABB[] GHOST_BOXES = new AABB[6];
     /** Step 55: the outline shown when the crosshair is on the middle of a pipe while holding the Settings Copier. */
-    private static final VoxelShape CORE_SHAPE = Shapes.create(BasePipeBlock.coreBounds());
 
     static {
         for (int i = 0; i < 6; i++) {
@@ -143,9 +141,13 @@ public final class WrenchGhostRenderer {
         }
         VoxelShape shape;
         if (wrench) {
-            shape = BasePipeBlock.shapeFor(state, 0);
+            shape = BasePipeBlock.outlineFor(minecraft.level, pos, state, false); // Step 146: as drawn
+        } else if (state.getValue(BasePipeBlock.COVER) == com.daisychain.block.CoverShape.GHOST) {
+            // Step 146: a transparent-covered pipe can't be seen without a wrench, so a lone middle box
+            // floated in the air; show the whole pipe as it would be drawn.
+            shape = BasePipeBlock.outlineFor(minecraft.level, pos, state, true);
         } else if (BasePipeBlock.isCoreHit(state, pos, hit.getLocation())) {
-            shape = CORE_SHAPE;
+            shape = BasePipeBlock.coreOutlineFor(state); // Step 146: the middle cube as drawn
         } else {
             return;
         }

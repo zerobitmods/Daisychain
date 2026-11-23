@@ -19,6 +19,7 @@ import net.neoforged.fml.common.EventBusSubscriber;
 @EventBusSubscriber(modid = Daisychain.MOD_ID, value = Dist.CLIENT)
 public final class DevShot {
     private static final String NAME = System.getProperty("daisychain.devShot");
+    private static final String VIEWS = System.getProperty("daisychain.devShotViews");
     private static int ticks = -1;
 
     private DevShot() {
@@ -39,6 +40,27 @@ public final class DevShot {
             return;
         }
         ticks++;
+        if (VIEWS != null) { // -Pdev_shot_views="x,y,z,fx,fy,fz|..." one screenshot per view, bare hand, then stop
+            String[] views = VIEWS.split("\\|");
+            int i = (ticks - 20) / 100;
+            int at = (ticks - 20) % 100;
+            if (ticks == 20) {
+                minecraft.options.hideGui = true;
+                run(minecraft, "time set " + (NAME.contains("night") ? "midnight" : "noon"));
+            }
+            if (ticks >= 20 && i < views.length) {
+                String[] v = views[i].split(",");
+                if (at == 0) {
+                    run(minecraft, "tp @p " + v[0] + " " + v[1] + " " + v[2] + " facing " + v[3] + " " + v[4] + " " + v[5]);
+                } else if (at == 90) {
+                    Screenshot.grab(minecraft.gameDirectory, NAME + "-" + i + ".png", minecraft.getMainRenderTarget(),
+                            message -> { });
+                }
+            } else if (ticks >= 20 && i == views.length && at == 10) {
+                minecraft.stop();
+            }
+            return;
+        }
         // The wrench comes 10 s after the world opens: renderer mods (Sodium) skip rebuild requests for sections whose
         // first mesh isn't finished, so an earlier wrench left some rows solid at random. Players don't hold one that soon.
         switch (ticks) {

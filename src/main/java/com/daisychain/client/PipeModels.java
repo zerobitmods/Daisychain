@@ -30,8 +30,9 @@ import java.util.Map;
 @EventBusSubscriber(modid = Daisychain.MOD_ID, value = Dist.CLIENT)
 public final class PipeModels {
     private static final String[] TYPES = {"item", "fluid", "energy", "universal"};
-    /** Indexed like PipeBakedModel.LINK / INSERT / PULL. */
-    private static final String[] PIECES = {"link", "insert", "pull"};
+    /** Indexed like PipeBakedModel.LINK / INSERT / PULL / END / ... / CAP. */
+    private static final String[] PIECES = {"link", "insert", "pull", "end", "pullend", "insertend", "pulllone", "insertlone",
+            "cap"}; // Step 146: "cap" = the flat end cap toward a covered pipe (PipeBakedModel.CAP)
 
     private PipeModels() {
     }
@@ -45,6 +46,11 @@ public final class PipeModels {
         return Direction.from3DDataValue(side).getSerializedName();
     }
 
+    /** Step 146: closes the grooves where two arms at right angles meet at the core. */
+    private static String plugName(int a, int b) {
+        return "plug_" + sideName(a) + "_" + sideName(b);
+    }
+
     private static String coreName(int side, int mask) {
         return "core_" + sideName(side) + "_" + mask;
     }
@@ -53,9 +59,15 @@ public final class PipeModels {
     public static void registerParts(ModelEvent.RegisterAdditional event) {
         for (String type : TYPES) {
             event.register(part(type, "node"));
+            event.register(part(type, "core_all"));
             for (int side = 0; side < 6; side++) {
                 for (int mask = 0; mask < PipeBakedModel.CORE_MASKS; mask++) {
                     event.register(part(type, coreName(side, mask)));
+                }
+                for (int other = side + 1; other < 6; other++) {
+                    if (other / 2 != side / 2) {
+                        event.register(part(type, plugName(side, other))); // step 146
+                    }
                 }
             }
             for (String piece : PIECES) {
@@ -105,7 +117,17 @@ public final class PipeModels {
             BakedModel node = models.get(part(type, "node"));
             BakedModel[][] cores = new BakedModel[6][PipeBakedModel.CORE_MASKS];
             BakedModel[][] pieces = new BakedModel[PIECES.length][6];
-            boolean complete = node != null;
+            BakedModel[][] plugs = new BakedModel[6][6];
+            BakedModel coreAll = models.get(part(type, "core_all"));
+            boolean complete = node != null && coreAll != null;
+            for (int a = 0; a < 6; a++) {
+                for (int b = a + 1; b < 6; b++) {
+                    if (a / 2 != b / 2) {
+                        plugs[a][b] = models.get(part(type, plugName(a, b)));
+                        complete &= plugs[a][b] != null;
+                    }
+                }
+            }
             for (int side = 0; side < 6; side++) {
                 for (int mask = 0; mask < PipeBakedModel.CORE_MASKS; mask++) {
                     cores[side][mask] = models.get(part(type, coreName(side, mask)));
@@ -122,7 +144,7 @@ public final class PipeModels {
                 Daisychain.LOGGER.warn("Daisychain: some {} pipe part models are missing; those pipes show plain cores", type);
                 continue;
             }
-            PipeBakedModel model = new PipeBakedModel(node, cores, pieces);
+            PipeBakedModel model = new PipeBakedModel(node, cores, pieces, plugs, coreAll);
             for (Block block : blocks[t]) {
                 for (BlockState state : block.getStateDefinition().getPossibleStates()) {
                     models.put(BlockModelShaper.stateToModelLocation(state), model);
