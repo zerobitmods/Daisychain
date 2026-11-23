@@ -9,6 +9,9 @@ navigation:
 
 A few quirks that are nice to know about before they surprise you.
 
+**Your pipes, your colours.** Open Mods > Daisychain > Config to pick the body and line colour of item, fluid and universal
+pipes. Only on your screen: friends keep their own colours, and the server never hears about it. Energy pipes keep their tier colours.
+
 **The face you touch matters.** Blocks decide what each of their faces offers. A pull side on the side of a <ItemLink id="minecraft:furnace" /> takes its fuel, while one underneath takes the smelted goodies, following the same face rules
 hoppers do.
 

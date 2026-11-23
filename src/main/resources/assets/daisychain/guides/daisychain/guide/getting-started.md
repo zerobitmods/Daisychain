@@ -11,8 +11,8 @@ Let's build our first network! A network is any group of connected pipes of the 
 
 1. Place two <ItemLink id="minecraft:chest" />s a few blocks apart.
 2. Connect them with a line of <ItemLink id="daisychain:item_pipe" />s, touching both chests.
-3. Grab a <ItemLink id="daisychain:bloom_wrench" /> and sneak and right-click the pipe right where it meets the first chest. That end grows a wide cap
-   with a ring around it. Say hi to your first **pull side**!
+3. Grab a <ItemLink id="daisychain:bloom_wrench" /> and sneak and right-click the pipe right where it meets the first chest. That end grows a wide plate
+   with a ring tucked in behind it. Say hi to your first **pull side**!
 4. Toss some cobblestone into the first chest and watch it pop out in the second.
 
 Nice work, you've got a network running!
@@ -23,7 +23,7 @@ Everywhere a pipe touches a block, it has a **side**, and each side has a mode:
 
 - **Pull:** grabs things from the block it's touching and sends them down the line. These are the hard workers; nothing moves
   without one.
-- **Insert:** the plain arm with a little groove. Things get delivered here. Any side touching a block that can hold things (an
+- **Insert:** a snug cap with a ring tucked in behind it. Things get delivered here. Any side touching a block that can hold things (an
   inventory, tank or battery) starts out as an insert side.
 - **Off:** not connected at all. Great for a pipe that needs to sneak past a chest without bothering it.
 
