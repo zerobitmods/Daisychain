@@ -12,8 +12,8 @@ item_ids:
 
 # The pipes
 
-Meet the family! There are four kinds of pipe, and each one only connects to its own kind (energy pipes of every tier count as
-one kind). That means you can run an item line right next
+Meet the family! There are five kinds of pipe, and each one only connects to its own kind (energy pipes of every tier count as
+one kind; the redstone pipe is the friendly exception, see below). That means you can run an item line right next
 to a fluid line and they'll politely ignore each other.
 
 | Pipe | Color | Carries |
@@ -22,6 +22,7 @@ to a fluid line and they'll politely ignore each other.
 | <ItemLink id="daisychain:fluid_pipe" /> | Blue | Fluids |
 | <ItemLink id="daisychain:energy_pipe" /> | Dark green, with a colored band | Energy (FE), in six tiers (see [Energy pipe tiers](energy-pipes.md)) |
 | <ItemLink id="daisychain:universal_pipe" /> | Black | All three at once |
+| <ItemLink id="daisychain:redstone_pipe" /> | Dark red | A redstone signal, on or off (see [Redstone pipe](redstone-pipe.md)) |
 
 They all get along with blocks from other mods too, as long as the block has a normal inventory, tank or battery.
 
@@ -48,3 +49,5 @@ Pipe clashing with your build? Give it a [facade](facades.md) and it can dress u
 <RecipeFor id="daisychain:energy_pipe" />
 
 <RecipeFor id="daisychain:universal_pipe" />
+
+<RecipeFor id="daisychain:redstone_pipe" />
