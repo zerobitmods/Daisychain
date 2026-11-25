@@ -191,7 +191,8 @@ public final class NetworkManager {
     public void setExtractor(BlockPos pos, int extractMask, @Nullable PipeDataBlockEntity data) {
         long key = pos.asLong();
         Extractor extractor = extractorsByPos.get(key);
-        if (extractMask == 0 || data == null) {
+        // Step 161: a redstone pipe's pull sides read a signal; they never pull items, fluids or energy.
+        if (extractMask == 0 || data == null || BasePipeBlock.kindOf(data.getBlockState()).isRedstone()) {
             if (extractor != null) {
                 extractorsByPos.remove(key);
                 removeFromList(extractor);
@@ -581,6 +582,11 @@ public final class NetworkManager {
 
     public int extractorCount() {
         return extractors.size();
+    }
+
+    /** True if the pipe at pos has registered pull sides (game tests, step 161). */
+    public boolean hasExtractor(BlockPos pos) {
+        return extractorsByPos.containsKey(pos.asLong());
     }
 
     // ---------------------------------------------------------------- lag finder (step 116)
@@ -1411,7 +1417,7 @@ public final class NetworkManager {
             return network;
         }
         BlockState state = Loaded.stateIfLoaded(level, pos); // review R4
-        if (state == null || !(state.getBlock() instanceof BasePipeBlock)) {
+        if (state == null || !BasePipeBlock.isResourcePipe(state)) { // step 161: redstone pipes are no item network
             return null;
         }
         return build(pos, state.getBlock());

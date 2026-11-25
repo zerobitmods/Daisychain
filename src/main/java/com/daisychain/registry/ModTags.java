@@ -23,6 +23,13 @@ public final class ModTags {
     public static final TagKey<Block> NOT_FACADES =
             TagKey.create(Registries.BLOCK, new ResourceLocation("daisychain", "not_facades"));
 
+    /**
+     * Step F86 (port of 161): blocks a redstone pipe connects to (as an output) although they give no signal themselves:
+     * lamps, pistons, doors... Anything that gives a signal (levers, dust, repeaters) connects without being listed.
+     */
+    public static final TagKey<Block> REDSTONE_PIPE_CONNECTS =
+            TagKey.create(Registries.BLOCK, new ResourceLocation("daisychain", "redstone_pipe_connects"));
+
     private ModTags() {
     }
 

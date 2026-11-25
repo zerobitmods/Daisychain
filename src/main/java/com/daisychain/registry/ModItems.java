@@ -34,6 +34,9 @@ public final class ModItems {
             energyPipe("nether_star_energy_pipe", ModBlocks.NETHER_STAR_ENERGY_PIPE);
     public static final RegistryObject<BlockItem> UNIVERSAL_PIPE =
             ITEMS.register("universal_pipe", () -> new BlockItem(ModBlocks.UNIVERSAL_PIPE.get(), new Item.Properties()));
+    /** Step F86. */
+    public static final RegistryObject<BlockItem> REDSTONE_PIPE =
+            ITEMS.register("redstone_pipe", () -> new BlockItem(ModBlocks.REDSTONE_PIPE.get(), new Item.Properties()));
     /**
      * The Bloom Wrench (step 62b; was the Probe, id daisychain:probe, and before that the Pipe Wrench, id daisychain:wrench).
      * Its behavior comes from the forge:tools/wrench tag.

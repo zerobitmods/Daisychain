@@ -59,6 +59,13 @@ public final class PipeColors {
      */
     public static final int LINE_TINT = 15;
 
+    /**
+     * Step 161: redstone pipe colours, as tints of the item pipe's textures (tint = colour x the item slot's headroom,
+     * PipeTints.tintFor): oxblood body #602C2C, dark red line #3A1210 while off. Not in the pipe colours screen.
+     */
+    public static final int REDSTONE_BODY_TINT = 0x823B3B;
+    public static final int REDSTONE_LINE_OFF_TINT = 0x3C1311;
+
     private PipeColors() {
     }
 
@@ -110,6 +117,9 @@ public final class PipeColors {
             return tintIndex == BODY_TINT ? 0xFF000000 | PipeTints.body(slot)
                     : tintIndex == LINE_TINT ? 0xFF000000 | PipeTints.line(slot) : -1;
         }, ModItems.ITEM_PIPE.get(), ModItems.FLUID_PIPE.get(), ModItems.UNIVERSAL_PIPE.get());
+        // Step 161: the redstone pipe item, unpowered.
+        event.register((stack, tintIndex) -> tintIndex == BODY_TINT ? 0xFF000000 | REDSTONE_BODY_TINT
+                : tintIndex == LINE_TINT ? 0xFF000000 | REDSTONE_LINE_OFF_TINT : -1, ModItems.REDSTONE_PIPE.get());
         event.register((stack, tintIndex) -> {
             if (!(stack.getItem() instanceof EnergyPipeItem pipe)) {
                 return -1;
@@ -129,6 +139,11 @@ public final class PipeColors {
             BlockState cover = covered == null ? null : covered.cover();
             return cover == null ? -1 : Minecraft.getInstance().getBlockColors()
                     .getColor(cover, level, pos, tintIndex - PipeBakedModel.COVER_TINT_OFFSET);
+        }
+        if (BasePipeBlock.kindOf(state).isRedstone()) {
+            // Step 161: body, line and rings (0-11, the line colour like the other pipes).
+            return tintIndex == BODY_TINT ? REDSTONE_BODY_TINT
+                    : tintIndex == LINE_TINT || tintIndex >= 0 && tintIndex <= 11 ? REDSTONE_LINE_OFF_TINT : TIER_COLORS[0];
         }
         if (tintIndex == BODY_TINT || tintIndex == LINE_TINT) {
             int slot = PipeTints.slot(BasePipeBlock.kindOf(state));

@@ -133,6 +133,14 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         return a == b || (a instanceof EnergyPipeBlock && b instanceof EnergyPipeBlock);
     }
 
+    /**
+     * Step 161: true for a Daisychain pipe that moves items, fluids or energy (every pipe but the redstone pipe). Only
+     * these have settings screens, upgrades, the Settings Copier, Jade pipe lines and item / fluid / energy networks.
+     */
+    public static boolean isResourcePipe(BlockState state) {
+        return state.getBlock() instanceof BasePipeBlock pipe && !pipe.kind().isRedstone();
+    }
+
     /** The kind of the pipe at this state, or ITEM if it isn't a Daisychain pipe. */
     public static PipeKind kindOf(BlockState state) {
         return state.getBlock() instanceof BasePipeBlock pipe ? pipe.kind() : PipeKind.ITEM;
@@ -149,8 +157,18 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
      * other types don't connect, even now that pull sides of energy and universal pipes take pushed energy (step 109).
      */
     private boolean connectsToBlock(Level level, BlockPos neighborPos, BlockState neighborState, Direction side) {
-        return !neighborState.isAir() && !(neighborState.getBlock() instanceof BasePipeBlock)
-                && canConnectToBlock(level, neighborPos, side.getOpposite());
+        if (neighborState.getBlock() instanceof BasePipeBlock) {
+            return connectsToOtherPipe(neighborState); // step 161: only the redstone pipe, as an output
+        }
+        return !neighborState.isAir() && canConnectToBlock(level, neighborPos, side.getOpposite());
+    }
+
+    /**
+     * Step 161: true if this pipe puts an insert arm toward a Daisychain pipe of another type (never one it links
+     * with). Only the redstone pipe does, so it can drive the other pipes' redstone settings.
+     */
+    protected boolean connectsToOtherPipe(BlockState neighborState) {
+        return false;
     }
 
     public static EnumProperty<SideState> propertyFor(Direction direction) {
@@ -395,6 +413,9 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
             return InteractionResult.sidedSuccess(level.isClientSide());
         }
         if (stack.getItem() instanceof UpgradeItem upgrade && hand == InteractionHand.MAIN_HAND) {
+            if (kind().isRedstone()) {
+                return InteractionResult.sidedSuccess(level.isClientSide()); // step F86: redstone pipes take no upgrades
+            }
             if (level instanceof ServerLevel serverLevel && player.mayBuild()) { // review R12
                 installUpgrade(serverLevel, pos, state, targetedSide(state, pos, hit), player, stack, upgrade);
             }
@@ -420,6 +441,11 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
                 return InteractionResult.sidedSuccess(level.isClientSide());
             }
         }
+        if (kind().isRedstone()) {
+            // Step F86 (port of 161): no settings screens, so an empty hand does nothing and any other item does its own
+            // thing (redstone dust, a lever, a block placed against the pipe).
+            return InteractionResult.PASS;
+        }
         // Step 95 (zerobit): a plain right-click on a pull cap opens that side's settings, even holding a pipe, so a pull
         // side is never lost to a misclick. Sneak + right-click places the pipe there, like any other block.
         if (hand == InteractionHand.MAIN_HAND && !player.isSecondaryUseActive() && isPullCapHit(state, pos, hit)) {
@@ -444,6 +470,9 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
      * Client and server make the same choice from the same synced state, so only one screen opens.
      */
     private static void openScreen(BlockState state, Level level, BlockPos pos, Player player, BlockHitResult hit) {
+        if (!isResourcePipe(state)) {
+            return; // step 161: a redstone pipe has no settings screens (the wrench sets its sides)
+        }
         if (player instanceof ServerPlayer clicker) {
             // Review R3: the server ran this click (no claim mod or spawn protection stopped it), so the packets of
             // the screens it opens are accepted for this pipe (net/PipeAccess).
@@ -701,6 +730,9 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
             modeKey = "insert";
         } else if (target == MODE_NORMAL && neighborIsPipe) {
             modeKey = "connected";
+        }
+        if (kind().isRedstone()) { // step 161: a redstone pipe's pull side reads a signal, its insert side sends it
+            modeKey = modeKey.equals("pull") ? "input" : modeKey.equals("insert") ? "output" : modeKey;
         }
         player.displayClientMessage(Component.translatable("message.daisychain.side_mode",
                 Component.translatable("message.daisychain.direction." + side.getSerializedName()),
@@ -1501,7 +1533,7 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
                 continue;
             }
             Block neighbor = next.getBlock();
-            if (!(neighbor instanceof BasePipeBlock) && neighbor != state.getBlock()) {
+            if (!sameNetwork(neighbor, state.getBlock())) { // step 161: a redstone output toward another pipe type too
                 mask |= 1 << i;
             }
         }
@@ -1547,7 +1579,8 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
                 continue;
             }
             BlockState neighbor = neighborIfLoaded(level, at.setWithOffset(pos, Direction.from3DDataValue(i)));
-            if (neighbor != null && neighbor.getBlock() instanceof BasePipeBlock && neighbor.getValue(COVER) != CoverShape.NONE) {
+            if (neighbor != null && sameNetwork(neighbor.getBlock(), state.getBlock()) // step 161: linked pipes only
+                    && neighbor.getValue(COVER) != CoverShape.NONE) {
                 mask |= 1 << i;
             }
         }

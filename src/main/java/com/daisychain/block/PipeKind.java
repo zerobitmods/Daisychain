@@ -6,7 +6,12 @@ public enum PipeKind {
     FLUID,
     ENERGY,
     /** Carries items, fluids and energy at once (step 33); each side has settings per resource. */
-    UNIVERSAL;
+    UNIVERSAL,
+    /**
+     * Step 161: carries a redstone signal (on / off), no resource. Pull sides read a signal, insert sides send it out.
+     * Never part of an item / fluid / energy network: it has no settings screens, upgrades, filters or pull extractors.
+     */
+    REDSTONE;
 
     /**
      * What a pipe side can carry, as an index into per-resource settings (step 31): items 0, fluids 1, energy 2.
@@ -29,16 +34,22 @@ public enum PipeKind {
             case ITEM -> ITEMS;
             case FLUID -> FLUIDS;
             case ENERGY -> ENERGY_RES;
-            case UNIVERSAL -> -1;
+            case UNIVERSAL, REDSTONE -> -1;
         };
     }
 
-    /** True if sides of this pipe carry that resource. */
+    /** True if sides of this pipe carry that resource. Step 161: redstone pipes carry none. */
     public boolean carries(int resource) {
-        return resource >= 0 && resource < RESOURCE_COUNT && (this == UNIVERSAL || resource() == resource);
+        return resource >= 0 && resource < RESOURCE_COUNT && this != REDSTONE
+                && (this == UNIVERSAL || resource() == resource);
     }
 
-    /** The first resource this pipe carries (what its settings screen opens on). */
+    /** Step 161: true for the redstone pipe, which carries a signal instead of a resource. */
+    public boolean isRedstone() {
+        return this == REDSTONE;
+    }
+
+    /** The first resource this pipe carries (what its settings screen opens on; redstone pipes have none). */
     public int firstResource() {
         return Math.max(0, resource());
     }

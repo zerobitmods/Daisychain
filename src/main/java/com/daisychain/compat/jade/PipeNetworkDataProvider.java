@@ -36,7 +36,7 @@ public enum PipeNetworkDataProvider implements IServerDataProvider<BlockAccessor
     @Override
     public void appendServerData(CompoundTag data, BlockAccessor accessor) {
         BlockState state = accessor.getBlockState();
-        if (!(accessor.getLevel() instanceof ServerLevel level) || !(state.getBlock() instanceof BasePipeBlock)) {
+        if (!(accessor.getLevel() instanceof ServerLevel level) || !BasePipeBlock.isResourcePipe(state)) {
             return;
         }
         BlockPos pos = accessor.getPosition();

@@ -35,7 +35,7 @@ public final class UpgradeItem extends Item {
     @Override
     public InteractionResult useOn(UseOnContext context) {
         Level level = context.getLevel();
-        if (!(level.getBlockState(context.getClickedPos()).getBlock() instanceof BasePipeBlock)) {
+        if (!BasePipeBlock.isResourcePipe(level.getBlockState(context.getClickedPos()))) { // step 161: not redstone pipes
             return InteractionResult.PASS;
         }
         if (level instanceof ServerLevel serverLevel && context.getPlayer() != null) {
