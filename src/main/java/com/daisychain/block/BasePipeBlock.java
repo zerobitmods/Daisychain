@@ -165,6 +165,11 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         return !neighborState.isAir() && canConnectToBlock(level, neighborPos, side.getOpposite());
     }
 
+    /** Step 162: true if the two states of this block differ only in a signal (the redstone pipe's on / off). */
+    protected boolean signalOnlyChange(BlockState oldState, BlockState newState) {
+        return false;
+    }
+
     /**
      * Step 161: true if this pipe puts an insert arm toward a Daisychain pipe of another type (never one it links
      * with). Only the redstone pipe does, so it can drive the other pipes' redstone settings.
@@ -825,6 +830,9 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         super.onPlace(state, level, pos, oldState, movedByPiston);
         // Called for new pipes and for arm/settings changes on existing pipes.
         if (level instanceof ServerLevel serverLevel && oldState != state) {
+            if (oldState.is(this) && signalOnlyChange(oldState, state)) {
+                return; // step 162: a redstone pipe switched on / off; its arms and settings are the same
+            }
             if (oldState.is(this)
                     && oldState.setValue(HAS_DATA, state.getValue(HAS_DATA)).setValue(COVER, state.getValue(COVER)) == state) {
                 // Review R13: only the "has settings" flag changed (a settings screen was opened, or closed unused).

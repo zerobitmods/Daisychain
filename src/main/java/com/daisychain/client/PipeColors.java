@@ -3,6 +3,7 @@ package com.daisychain.client;
 import com.daisychain.Daisychain;
 import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.block.BasePipeBlock;
+import com.daisychain.block.RedstonePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.item.EnergyPipeItem;
 import com.daisychain.registry.ModBlocks;
@@ -65,6 +66,8 @@ public final class PipeColors {
      */
     public static final int REDSTONE_BODY_TINT = 0x823B3B;
     public static final int REDSTONE_LINE_OFF_TINT = 0x3C1311;
+    /** Step 162: the line while the pipe is powered, #F53020 (glowing full-bright comes with the glow step). */
+    public static final int REDSTONE_LINE_ON_TINT = 0xFF3221;
 
     private PipeColors() {
     }
@@ -142,8 +145,9 @@ public final class PipeColors {
         }
         if (BasePipeBlock.kindOf(state).isRedstone()) {
             // Step 161: body, line and rings (0-11, the line colour like the other pipes).
+            int line = state.getValue(RedstonePipeBlock.POWERED) ? REDSTONE_LINE_ON_TINT : REDSTONE_LINE_OFF_TINT;
             return tintIndex == BODY_TINT ? REDSTONE_BODY_TINT
-                    : tintIndex == LINE_TINT || tintIndex >= 0 && tintIndex <= 11 ? REDSTONE_LINE_OFF_TINT : TIER_COLORS[0];
+                    : tintIndex == LINE_TINT || tintIndex >= 0 && tintIndex <= 11 ? line : TIER_COLORS[0];
         }
         if (tintIndex == BODY_TINT || tintIndex == LINE_TINT) {
             int slot = PipeTints.slot(BasePipeBlock.kindOf(state));
