@@ -72,6 +72,29 @@ public final class PipeOutlineTests {
         helper.succeed();
     }
 
+    /**
+     * Step 156: a pipe between two chests (an insert side on both ends): behind each ring the arm is solid to its
+     * corners, as drawn. The outline used to notch it there, so its edges ran across the pipe's faces.
+     */
+    @GameTest(template = EMPTY)
+    public static void outlineInsertBetweenBlocks(GameTestHelper helper) {
+        BlockPos pipe = new BlockPos(4, 1, 2);
+        helper.setBlock(new BlockPos(4, 1, 1), Blocks.CHEST.defaultBlockState());
+        helper.setBlock(new BlockPos(4, 1, 3), Blocks.CHEST.defaultBlockState());
+        helper.setBlock(pipe, ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(pipe));
+        BlockPos at = helper.absolutePos(pipe);
+        BlockState state = helper.getLevel().getBlockState(at);
+        helper.assertTrue(state.getValue(BasePipeBlock.propertyFor(Direction.NORTH)) == SideState.CONNECTED
+                && state.getValue(BasePipeBlock.propertyFor(Direction.SOUTH)) == SideState.CONNECTED,
+                "Setup: the pipe didn't connect to both chests");
+        VoxelShape outline = state.getShape(helper.getLevel(), at, CollisionContext.empty());
+        expect(helper, outline, 5.5, 5.5, 4, true, "north arm corner behind the ring in the outline");
+        expect(helper, outline, 10.5, 10.5, 12, true, "south arm corner behind the ring in the outline");
+        expect(helper, outline, 5.25, 5.25, 2, false, "insert ring still set in");
+        helper.succeed();
+    }
+
     private static void expect(GameTestHelper helper, VoxelShape shape, double x, double y, double z, boolean inside,
                                String what) {
         boolean found = false;
