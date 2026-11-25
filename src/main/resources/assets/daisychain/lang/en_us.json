@@ -368,7 +368,7 @@
   "jade.daisychain.no_machines": "Network speed: no machines to power yet",
   "config.jade.plugin_daisychain.pipe_network": "Daisychain pull side status and energy network speed",
   "daisychain.configuration.energy_glow": "Energy pipe glow",
-  "daisychain.configuration.energy_glow.tooltip": "The line along energy pipes stays lit in the dark. Only changes the look; it costs nothing per frame either way.",
+  "daisychain.configuration.energy_glow.tooltip": "The line along energy pipes and the rings at their ends stay lit in the dark. Only changes the look; it costs nothing per frame either way.",
   "item.daisychain.facade": "Facade",
   "item.daisychain.facade.named": "%s Facade",
   "tooltip.daisychain.facade.empty": "No block yet: craft one from a full block and an item pipe",
