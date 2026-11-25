@@ -1189,8 +1189,8 @@ public final class NetworkManager {
             return;
         }
         ticketLineCrossings++;
-        // Step 162: redstone lines in this chunk are worked out again (queued: the chunk may still be settling).
-        RedstoneLines.queueChunkEvent(level, chunkPos, newLevel <= LOADED_TICKET_LEVEL);
+        // Step 162: redstone lines touching this chunk are looked at again at the end of the tick.
+        RedstoneLines.onTicketCrossing(level, chunkPos);
         if (!level.getServer().isSameThread()) {
             PENDING_CHUNK_EVENTS.add(new PendingChunkEvent(level, chunkPos)); // not expected: the plain, safe way
             return;
