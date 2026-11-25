@@ -28,6 +28,13 @@ public final class ModTags {
     public static final TagKey<Block> REDSTONE_PIPE_CONNECTS =
             TagKey.create(Registries.BLOCK, ResourceLocation.fromNamespaceAndPath("daisychain", "redstone_pipe_connects"));
 
+    /**
+     * Step 163: blocks that only give a signal (levers, buttons, redstone blocks...). A redstone pipe side that newly
+     * connects to one starts as an input instead of an output.
+     */
+    public static final TagKey<Block> REDSTONE_PIPE_INPUTS =
+            TagKey.create(Registries.BLOCK, ResourceLocation.fromNamespaceAndPath("daisychain", "redstone_pipe_inputs"));
+
     private ModTags() {
     }
 }

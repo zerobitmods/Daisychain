@@ -233,4 +233,77 @@ public final class RedstonePipeTests {
                 .thenWaitUntil(() -> helper.assertFalse(lit(helper, lamp), "The lamp stayed lit"))
                 .thenSucceed();
     }
+
+    // ---------------------------------------------------------------- step 163: which way sides start, forced outputs
+
+    /**
+     * A pipe put next to a redstone block makes that side an input (a lamp on the other side stays an output); a lever
+     * put next to a pipe later does the same. The redstone block then lights the lamp through the pipe.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void sourceSidesStartAsInputs(GameTestHelper helper) {
+        BlockPos pipe = new BlockPos(3, 1, 2);
+        BlockPos lamp = pipe.east();
+        BlockPos other = new BlockPos(6, 1, 2);
+        helper.setBlock(pipe.west(), Blocks.REDSTONE_BLOCK.defaultBlockState());
+        helper.setBlock(lamp, Blocks.REDSTONE_LAMP.defaultBlockState());
+        helper.setBlock(pipe, ModBlocks.REDSTONE_PIPE.get().defaultBlockState());
+        helper.setBlock(other, ModBlocks.REDSTONE_PIPE.get().defaultBlockState());
+        helper.setBlock(other.north().below(), Blocks.STONE.defaultBlockState());
+        BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(pipe)); // as a player's placement works them out
+        BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(other));
+        helper.startSequence()
+                .thenExecute(() -> helper.setBlock(other.north(), Blocks.LEVER.defaultBlockState()
+                        .setValue(net.minecraft.world.level.block.LeverBlock.FACE,
+                                net.minecraft.world.level.block.state.properties.AttachFace.FLOOR)))
+                .thenWaitUntil(() -> {
+                    helper.assertTrue(side(helper, pipe, Direction.WEST) == SideState.EXTRACT,
+                            "The side on the redstone block didn't start as an input");
+                    helper.assertTrue(side(helper, pipe, Direction.EAST) == SideState.CONNECTED, "The lamp side isn't an output");
+                    helper.assertTrue(side(helper, other, Direction.NORTH) == SideState.EXTRACT,
+                            "The side on the new lever didn't become an input");
+                })
+                .thenWaitUntil(() -> helper.assertTrue(lit(helper, lamp), "The lamp didn't light"))
+                .thenSucceed();
+    }
+
+    /** Only new connections: a side wrenched back to Output toward a redstone block stays an output after updates. */
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void wrenchedOutputStays(GameTestHelper helper) {
+        BlockPos pipe = new BlockPos(3, 1, 2);
+        helper.setBlock(pipe.west(), Blocks.REDSTONE_BLOCK.defaultBlockState());
+        helper.setBlock(pipe, ModBlocks.REDSTONE_PIPE.get().defaultBlockState());
+        BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(pipe));
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(side(helper, pipe, Direction.WEST) == SideState.EXTRACT,
+                        "Setup: the side didn't start as an input"))
+                .thenExecute(() -> BasePipeBlock.setSidesForTest(helper.getLevel(), helper.absolutePos(pipe), 0, 0))
+                .thenExecute(() -> helper.setBlock(pipe.north(), Blocks.STONE.defaultBlockState()))
+                .thenExecute(() -> helper.setBlock(pipe.north(), Blocks.AIR.defaultBlockState()))
+                .thenIdle(5)
+                .thenExecute(() -> helper.assertTrue(side(helper, pipe, Direction.WEST) == SideState.CONNECTED,
+                        "The wrenched output turned back into an input"))
+                .thenSucceed();
+    }
+
+    /**
+     * A side wrenched to Output toward plain stone gets an arm and powers the stone strongly, so a lamp on the stone's
+     * far side lights. Pipe x 2 reads a redstone block (west), x 3 puts out into stone at x 4, lamp at x 5.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void forcedOutputPowersBlock(GameTestHelper helper) {
+        BlockPos lamp = new BlockPos(5, 1, 2);
+        helper.setBlock(new BlockPos(4, 1, 2), Blocks.STONE.defaultBlockState());
+        helper.setBlock(lamp, Blocks.REDSTONE_LAMP.defaultBlockState());
+        row(helper, 2, 2);
+        input(helper, new BlockPos(2, 1, 2), Direction.WEST);
+        BasePipeBlock.setOutputsForTest(helper.getLevel(), helper.absolutePos(new BlockPos(3, 1, 2)),
+                1 << Direction.EAST.get3DDataValue());
+        helper.startSequence()
+                .thenExecute(() -> helper.assertTrue(side(helper, new BlockPos(3, 1, 2), Direction.EAST) == SideState.CONNECTED,
+                        "No output arm into the stone"))
+                .thenExecute(() -> helper.setBlock(new BlockPos(1, 1, 2), Blocks.REDSTONE_BLOCK.defaultBlockState()))
+                .thenWaitUntil(() -> helper.assertTrue(lit(helper, lamp), "The lamp behind the stone didn't light"))
+                .thenSucceed();
+    }
 }

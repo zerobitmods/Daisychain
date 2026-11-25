@@ -6,6 +6,7 @@ import com.mojang.serialization.MapCodec;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.util.RandomSource;
 import net.minecraft.world.level.BlockGetter;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
@@ -89,7 +90,44 @@ public final class RedstonePipeBlock extends BasePipeBlock {
         if (level instanceof ServerLevel serverLevel && oldState != state
                 && !(oldState.is(this) && signalOnlyChange(oldState, state))) {
             RedstoneLines.get(serverLevel).shapeChanged(pos); // placed or rewired: the lines here are built again
+            // Step 163: a side that just connected to a lever, button, redstone block...: it becomes an input on the
+            // next tick. Not when the player set it (wrench), nor on a new pipe pasted with its own settings.
+            boolean pasted = !oldState.is(this) && state.getValue(HAS_DATA);
+            if (!changingSideMode && !pasted) {
+                boolean any = false;
+                for (Direction direction : Direction.values()) {
+                    if (state.getValue(propertyFor(direction)) == SideState.CONNECTED
+                            && (!oldState.is(this) || oldState.getValue(propertyFor(direction)) == SideState.NONE)
+                            && level.getBlockState(pos.relative(direction)).is(ModTags.REDSTONE_PIPE_INPUTS)) {
+                        RedstoneLines.get(serverLevel).noteNewSource(pos, direction);
+                        any = true;
+                    }
+                }
+                if (any) {
+                    serverLevel.scheduleTick(pos, this, 1);
+                }
+            }
         }
+    }
+
+    @Override
+    protected void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
+        super.tick(state, level, pos, random);
+        int sources = RedstoneLines.get(level).takeNewSources(pos);
+        for (Direction direction : Direction.values()) {
+            BlockState now = level.getBlockState(pos);
+            if ((sources & (1 << direction.get3DDataValue())) != 0 && now.is(this)
+                    && now.getValue(propertyFor(direction)) == SideState.CONNECTED
+                    && level.getBlockState(pos.relative(direction)).is(ModTags.REDSTONE_PIPE_INPUTS)) {
+                setSideMode(level, pos, now, direction, null, MODE_PULL, false);
+            }
+        }
+    }
+
+    /** Step 163: a side wrenched to Output toward a block the pipe doesn't connect to on its own. */
+    @Override
+    protected boolean forcedOutput(BlockGetter level, BlockPos pos, Direction side) {
+        return (outputMask(level, pos) & (1 << side.get3DDataValue())) != 0;
     }
 
     @Override

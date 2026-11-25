@@ -90,6 +90,8 @@ public final class PipeDataBlockEntity extends BlockEntity {
 
     private byte extractMask;
     private byte disconnectMask;
+    /** Step 163: redstone pipe sides wrenched to Output toward a block they don't connect to on their own. */
+    private byte outputMask;
     private final byte[] redstone = new byte[6];
     /** Insert sides' redstone mode (step 40), separate from the pull sides' so switching a side's type changes nothing. */
     private final byte[] insertRedstone = new byte[6];
@@ -236,6 +238,16 @@ public final class PipeDataBlockEntity extends BlockEntity {
     public void setPullCameFromInsert(Direction side, boolean fromInsert) {
         int bit = 1 << side.get3DDataValue();
         pullFromInsertMask = (byte) (fromInsert ? pullFromInsertMask | bit : pullFromInsertMask & ~bit);
+        setChanged();
+    }
+
+    /** Step 163: the redstone pipe's sides wrenched to Output (toward a plain block). */
+    public int outputMask() {
+        return outputMask;
+    }
+
+    public void setOutputMask(int mask) {
+        outputMask = (byte) (mask & 0b111111);
         setChanged();
     }
 
@@ -969,6 +981,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
     private void saveSettings(CompoundTag tag) {
         tag.putByte("Extract", extractMask);
         putByteIfSet(tag, "Disconnect", disconnectMask);
+        putByteIfSet(tag, "Output", outputMask); // step 163
         putBytesIfSet(tag, "Redstone", redstone);
         putBytesIfSet(tag, "Distribution", distribution);
         putByteIfSet(tag, "SelfFeed", selfFeedMask);
@@ -1027,6 +1040,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
         super.loadAdditional(tag, registries);
         extractMask = (byte) (tag.getByte("Extract") & 0b111111);
         disconnectMask = (byte) (tag.getByte("Disconnect") & 0b111111);
+        outputMask = (byte) (tag.getByte("Output") & 0b111111); // step 163; none before
         copyValidated(tag.getByteArray("Redstone"), redstone, RedstoneMode.values().length);
         copyValidated(tag.getByteArray("InsertRedstone"), insertRedstone, INSERT_REDSTONE_MODES); // none before step 40
         int view = tag.getByte("View");
