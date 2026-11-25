@@ -2,6 +2,10 @@ package com.daisychain.gametest;
 
 import com.daisychain.Daisychain;
 import com.daisychain.block.BasePipeBlock;
+import com.daisychain.block.RedstonePipeBlock;
+import com.daisychain.network.RedstoneLines;
+import net.minecraft.world.level.ChunkPos;
+import net.minecraft.world.level.block.Block;
 import com.daisychain.block.SideState;
 import com.daisychain.network.NetworkManager;
 import com.daisychain.registry.ModBlocks;
@@ -11,6 +15,7 @@ import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.block.Blocks;
+import net.minecraft.world.level.block.RedstoneLampBlock;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.gametest.GameTestHolder;
 import net.minecraftforge.gametest.PrefixGameTestTemplate;
@@ -104,5 +109,128 @@ public final class RedstonePipeTests {
             helper.assertFalse(NetworkManager.get(level).hasExtractor(at), "An extractor appeared");
             helper.succeed();
         });
+    }
+
+    // ---------------------------------------------------------------- step 162: the signal
+
+    /** A row of redstone pipes along x from (2,1,z) to (2 + count - 1,1,z), arms worked out. */
+    private static void row(GameTestHelper helper, int z, int count) {
+        for (int i = 0; i < count; i++) {
+            helper.setBlock(new BlockPos(2 + i, 1, z), ModBlocks.REDSTONE_PIPE.get().defaultBlockState());
+        }
+        for (int i = 0; i < count; i++) {
+            BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(new BlockPos(2 + i, 1, z)));
+        }
+    }
+
+    private static boolean lit(GameTestHelper helper, BlockPos lamp) {
+        return helper.getBlockState(lamp).getValue(RedstoneLampBlock.LIT);
+    }
+
+    private static void input(GameTestHelper helper, BlockPos pipe, Direction side) {
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(pipe), 1 << side.get3DDataValue());
+    }
+
+    /** Redstone block -> input side -> five pipes -> lamp lights; the block goes, the lamp goes out. */
+    @GameTest(template = EMPTY, timeoutTicks = 60)
+    public static void signalCrossesLine(GameTestHelper helper) {
+        BlockPos source = new BlockPos(1, 1, 2);
+        BlockPos lamp = new BlockPos(7, 1, 2);
+        helper.setBlock(lamp, Blocks.REDSTONE_LAMP.defaultBlockState());
+        row(helper, 2, 5);
+        input(helper, new BlockPos(2, 1, 2), Direction.WEST);
+        helper.startSequence()
+                .thenExecute(() -> helper.setBlock(source, Blocks.REDSTONE_BLOCK.defaultBlockState()))
+                .thenWaitUntil(() -> helper.assertTrue(lit(helper, lamp), "The lamp didn't light"))
+                .thenExecute(() -> helper.setBlock(source, Blocks.AIR.defaultBlockState()))
+                .thenWaitUntil(() -> helper.assertFalse(lit(helper, lamp), "The lamp stayed lit"))
+                .thenSucceed();
+    }
+
+    /** An output arm on an item pipe: the item pipe sees a signal (its redstone settings read hasNeighborSignal). */
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void itemPipeSeesSignal(GameTestHelper helper) {
+        BlockPos source = new BlockPos(1, 1, 2);
+        BlockPos item = new BlockPos(4, 1, 2);
+        helper.setBlock(item, ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        row(helper, 2, 2);
+        input(helper, new BlockPos(2, 1, 2), Direction.WEST);
+        helper.setBlock(source, Blocks.REDSTONE_BLOCK.defaultBlockState());
+        helper.succeedWhen(() -> helper.assertTrue(helper.getLevel().hasNeighborSignal(helper.absolutePos(item)),
+                "The item pipe sees no signal"));
+    }
+
+    /**
+     * A line that feeds itself through dust keeps itself on after its source goes (a latch, by design), and goes out
+     * when the loop is broken. Pipes x 2..4 at z 2; dust x 2..4 at z 1. x 2's north side is an input (reads the dust),
+     * x 3 and x 4 put out into the dust. The source is a redstone block on x 4's east input.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 80)
+    public static void loopLatches(GameTestHelper helper) {
+        BlockPos lamp = new BlockPos(3, 1, 3);
+        BlockPos source = new BlockPos(5, 1, 2);
+        for (int x = 2; x <= 4; x++) {
+            helper.setBlock(new BlockPos(x, 0, 1), Blocks.STONE.defaultBlockState()); // dust needs a block under it
+            helper.setBlock(new BlockPos(x, 1, 1), Blocks.REDSTONE_WIRE.defaultBlockState());
+        }
+        helper.setBlock(lamp, Blocks.REDSTONE_LAMP.defaultBlockState());
+        row(helper, 2, 3);
+        input(helper, new BlockPos(2, 1, 2), Direction.NORTH);
+        input(helper, new BlockPos(4, 1, 2), Direction.EAST);
+        helper.startSequence()
+                .thenExecute(() -> helper.setBlock(source, Blocks.REDSTONE_BLOCK.defaultBlockState()))
+                .thenWaitUntil(() -> helper.assertTrue(lit(helper, lamp), "The lamp didn't light"))
+                .thenExecute(() -> helper.setBlock(source, Blocks.AIR.defaultBlockState()))
+                .thenIdle(10)
+                .thenExecute(() -> helper.assertTrue(lit(helper, lamp), "The loop didn't hold the line on"))
+                .thenExecute(() -> helper.setBlock(new BlockPos(3, 1, 1), Blocks.AIR.defaultBlockState()))
+                .thenExecute(() -> helper.setBlock(new BlockPos(4, 1, 1), Blocks.AIR.defaultBlockState()))
+                .thenWaitUntil(() -> helper.assertFalse(lit(helper, lamp), "The line stayed on with the loop broken"))
+                .thenSucceed();
+    }
+
+    /** Breaking a pipe in the middle cuts the line: the lamp past the gap goes out. */
+    @GameTest(template = EMPTY, timeoutTicks = 60)
+    public static void brokenLineGoesOut(GameTestHelper helper) {
+        BlockPos source = new BlockPos(1, 1, 2);
+        BlockPos lamp = new BlockPos(7, 1, 2);
+        helper.setBlock(lamp, Blocks.REDSTONE_LAMP.defaultBlockState());
+        helper.setBlock(source, Blocks.REDSTONE_BLOCK.defaultBlockState());
+        row(helper, 2, 5);
+        input(helper, new BlockPos(2, 1, 2), Direction.WEST);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(lit(helper, lamp), "The lamp didn't light"))
+                .thenExecute(() -> helper.destroyBlock(new BlockPos(4, 1, 2)))
+                .thenWaitUntil(() -> helper.assertFalse(lit(helper, lamp), "The lamp past the gap stayed lit"))
+                .thenSucceed();
+    }
+
+    /**
+     * No stuck-on after a reload: a pipe saved as on with nothing powering it (as if its input changed while its chunk
+     * was unloaded) is switched off when its chunk (re)loads. The lamp next to it goes out too.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void staleOnFixedWhenChunkLoads(GameTestHelper helper) {
+        BlockPos pipe = new BlockPos(3, 1, 2);
+        BlockPos lamp = new BlockPos(4, 1, 2);
+        helper.setBlock(lamp, Blocks.REDSTONE_LAMP.defaultBlockState());
+        row(helper, 2, 2); // x 2..3; x 3 puts out into the lamp
+        helper.startSequence()
+                .thenIdle(2)
+                .thenExecute(() -> {
+                    ServerLevel level = helper.getLevel();
+                    for (BlockPos at : new BlockPos[] {new BlockPos(2, 1, 2), pipe}) {
+                        BlockPos abs = helper.absolutePos(at);
+                        level.setBlock(abs, level.getBlockState(abs).setValue(RedstonePipeBlock.POWERED, true),
+                                Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
+                    }
+                    level.setBlock(helper.absolutePos(lamp),
+                            Blocks.REDSTONE_LAMP.defaultBlockState().setValue(RedstoneLampBlock.LIT, true), Block.UPDATE_CLIENTS);
+                    RedstoneLines.onChunkEvent(level, ChunkPos.asLong(helper.absolutePos(pipe)), true);
+                })
+                .thenWaitUntil(() -> helper.assertFalse(helper.getBlockState(pipe).getValue(RedstonePipeBlock.POWERED),
+                        "The pipe stayed on after its chunk loaded"))
+                .thenWaitUntil(() -> helper.assertFalse(lit(helper, lamp), "The lamp stayed lit"))
+                .thenSucceed();
     }
 }

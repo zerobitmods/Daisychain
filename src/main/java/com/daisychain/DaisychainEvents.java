@@ -7,6 +7,7 @@ import com.daisychain.command.DaisychainCommands;
 import com.daisychain.item.CopierSessions;
 import com.daisychain.net.PipeAccess;
 import com.daisychain.network.NetworkManager;
+import com.daisychain.network.RedstoneLines;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.InteractionHand;
 import net.minecraft.world.level.block.state.BlockState;
@@ -48,11 +49,13 @@ public final class DaisychainEvents {
     public static void onLevelUnload(LevelEvent.Unload event) {
         if (event.getLevel() instanceof ServerLevel serverLevel) {
             NetworkManager.remove(serverLevel);
+            RedstoneLines.remove(serverLevel); // step 162
         }
     }
 
     public static void onServerStopped(ServerStoppedEvent event) {
         NetworkManager.clearAll();
+        RedstoneLines.clearAll(); // step 162
         CopierSessions.clearAll();
         PipeAccess.clearAll();
     }
@@ -86,12 +89,14 @@ public final class DaisychainEvents {
     public static void onChunkLoad(ChunkEvent.Load event) {
         if (event.getLevel() instanceof ServerLevel serverLevel) {
             NetworkManager.onChunkEvent(serverLevel, event.getChunk().getPos().toLong());
+            RedstoneLines.onChunkEvent(serverLevel, event.getChunk().getPos().toLong(), true); // step F87
         }
     }
 
     public static void onChunkUnload(ChunkEvent.Unload event) {
         if (event.getLevel() instanceof ServerLevel serverLevel) {
             NetworkManager.onChunkEvent(serverLevel, event.getChunk().getPos().toLong());
+            RedstoneLines.onChunkEvent(serverLevel, event.getChunk().getPos().toLong(), false); // step F87
         }
     }
 
@@ -117,6 +122,7 @@ public final class DaisychainEvents {
             if (manager != null) {
                 manager.tick();
             }
+            RedstoneLines.tickAll(serverLevel); // step 162: lines marked this tick
         }
     }
 }
