@@ -3,6 +3,7 @@ package com.daisychain.client;
 import com.daisychain.Daisychain;
 import com.daisychain.block.CoverShape;
 import com.daisychain.block.BasePipeBlock;
+import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.SideState;
 import com.daisychain.config.DaisychainClientConfig;
@@ -548,6 +549,7 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     @SuppressWarnings("unchecked")
     private List<BakedQuad>[] build(BlockState state, int insert, int capped, boolean glow, RandomSource rand,
                                     @Nullable RenderType renderType, boolean seeThrough, int lightFloor) {
+        boolean energy = EnergyPipeBlock.tierOf(state.getBlock()) >= 0;
         int connected = 0;
         int pull = 0;
         for (Direction direction : DIRECTIONS) {
@@ -613,7 +615,10 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
                     continue; // Step 146: a core face drawn by a *_END / *_LONE piece instead
                 }
                 for (BakedQuad quad : part.getQuads(state, face, rand, ModelData.EMPTY, renderType)) {
-                    BakedQuad shown = glow && quad.getTintIndex() == PipeColors.BAND_TINT ? glowing(quad) : quad;
+                    int tint = quad.getTintIndex();
+                    // Step 154: an energy pipe's pull and insert rings (tints 0-11) glow with its line.
+                    BakedQuad shown = glow && (tint == PipeColors.BAND_TINT || energy && tint >= 0 && tint <= 11)
+                            ? glowing(quad) : quad;
                     quads.add(seeThrough ? withLightFloor(insetFromSurface(shown), lightFloor) : shown);
                 }
             }
