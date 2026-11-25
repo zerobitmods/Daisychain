@@ -22,6 +22,7 @@ If you're brand new, [Getting started](getting-started.md) is a quick, friendly 
 
 - [Getting started](getting-started.md): your very first pipe line
 - [The pipes](pipes.md): meet the family
+- [Redstone pipe](redstone-pipe.md): signals that never get tired
 - [The Bloom Wrench](bloom-wrench.md): your new best friend
 - [Facades](facades.md): pipes in disguise
 - [Side settings](side-settings.md): filters, amounts, redstone and priority

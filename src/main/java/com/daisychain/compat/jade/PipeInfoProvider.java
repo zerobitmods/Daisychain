@@ -39,10 +39,37 @@ public enum PipeInfoProvider implements IBlockComponentProvider {
         return UID;
     }
 
+    /**
+     * Step 165: a redstone pipe: whether its line is on, and what the side you're looking at does (input or output).
+     * Only the block state, which the client has.
+     */
+    private static void redstoneLine(ITooltip tooltip, BlockAccessor accessor, BlockState state) {
+        boolean on = state.getValue(com.daisychain.block.RedstonePipeBlock.POWERED);
+        tooltip.add(Component.translatable("jade.daisychain.redstone_line",
+                Component.translatable(on ? "jade.daisychain.redstone_on" : "jade.daisychain.redstone_off")
+                        .withStyle(on ? ChatFormatting.RED : ChatFormatting.DARK_GRAY))
+                .withStyle(ChatFormatting.GRAY));
+        Direction looked = BasePipeBlock.targetedSide(state, accessor.getPosition(), accessor.getHitResult());
+        com.daisychain.block.SideState side = state.getValue(BasePipeBlock.propertyFor(looked));
+        BlockState neighbor = accessor.getLevel().getBlockState(accessor.getPosition().relative(looked));
+        String role = side == com.daisychain.block.SideState.EXTRACT ? "input"
+                : side == com.daisychain.block.SideState.CONNECTED
+                        && !(neighbor.getBlock() instanceof com.daisychain.block.RedstonePipeBlock) ? "output" : null;
+        if (role != null) {
+            tooltip.add(Component.translatable("jade.daisychain.redstone_side",
+                    Component.translatable("message.daisychain.direction." + looked.getSerializedName()),
+                    Component.translatable("message.daisychain.mode." + role)).withStyle(ChatFormatting.GRAY));
+        }
+    }
+
     @Override
     public void appendTooltip(ITooltip tooltip, BlockAccessor accessor, IPluginConfig config) {
         BlockState state = accessor.getBlockState();
-        if (!BasePipeBlock.isResourcePipe(state)) { // step 161: redstone pipes have no side settings (their line comes later)
+        if (state.getBlock() instanceof com.daisychain.block.RedstonePipeBlock) {
+            redstoneLine(tooltip, accessor, state); // step 165
+            return;
+        }
+        if (!BasePipeBlock.isResourcePipe(state)) {
             return;
         }
         Level level = accessor.getLevel();
