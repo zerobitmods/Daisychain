@@ -90,6 +90,7 @@ public final class RedstoneLines {
 
     public static void remove(ServerLevel level) {
         LINES.remove(level);
+        PENDING.removeIf(event -> event.level() == level); // step 168: a level that no longer ticks would keep them
     }
 
     public static void clearAll() {
@@ -233,18 +234,26 @@ public final class RedstoneLines {
     /** End of every server tick, for every level. Does nothing unless something was marked. */
     public static void tickAll(ServerLevel level) {
         if (!PENDING.isEmpty()) {
-            java.util.ArrayList<ChunkEvent> retry = null;
-            ChunkEvent event;
-            while ((event = PENDING.poll()) != null) {
-                if (!get(event.level()).chunkChanged(event.chunk(), event.load()) && event.tries() < LOAD_RETRIES) {
-                    if (retry == null) {
-                        retry = new java.util.ArrayList<>();
+            // Only this level's events: each level ticks once per server tick, so a load waiting for its chunk is
+            // tried once per tick (step 168; before, every level's tick used up the same retries).
+            java.util.ArrayList<ChunkEvent> keep = null;
+            for (int i = PENDING.size(); i > 0; i--) {
+                ChunkEvent event = PENDING.poll();
+                if (event == null) {
+                    break;
+                }
+                ChunkEvent next = event.level() != level ? event
+                        : !get(level).chunkChanged(event.chunk(), event.load()) && event.tries() < LOAD_RETRIES
+                                ? new ChunkEvent(level, event.chunk(), true, event.tries() + 1) : null;
+                if (next != null) {
+                    if (keep == null) {
+                        keep = new java.util.ArrayList<>();
                     }
-                    retry.add(new ChunkEvent(event.level(), event.chunk(), true, event.tries() + 1));
+                    keep.add(next);
                 }
             }
-            if (retry != null) {
-                PENDING.addAll(retry);
+            if (keep != null) {
+                PENDING.addAll(keep);
             }
         }
         RedstoneLines lines = LINES.get(level);
