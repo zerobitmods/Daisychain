@@ -56,7 +56,7 @@ public final class PipeColourTests {
     }
 
     /**
-     * Step 155: pull and insert rings are the pipe's line colour, exactly as bright as the line, whatever upgrade the
+     * Step 155: pull and insert rings are the pipe's line colour, whatever upgrade the
      * side holds: item / fluid / universal pipes their line colour, energy pipes their tier's line colour.
      */
     @GameTest(template = EMPTY)
@@ -70,14 +70,10 @@ public final class PipeColourTests {
             int slot = PipeTints.slot(com.daisychain.block.BasePipeBlock.kindOf(state));
             int line = PipeTints.line(slot);
             for (int side = 0; side < 6; side++) {
-                // The line's texture is 255 / headroom bright, the ring's plain white: same colour on screen.
+                // The ring textures are grained around the line texture's brightness: same tint, same colour on screen.
                 int ring = PipeColors.color(state, null, null, side);
-                for (int shift = 0; shift <= 16; shift += 8) {
-                    float lineSeen = (line >> shift & 0xFF) * PipeTints.cap(slot, true) / 255F;
-                    helper.assertTrue(Math.abs((ring >> shift & 0xFF) - lineSeen) <= 1.5F,
-                            kinds[k] + ": ring " + Integer.toHexString(ring) + " isn't as bright as line "
-                                    + Integer.toHexString(line));
-                }
+                helper.assertTrue(ring == line, kinds[k] + ": ring " + Integer.toHexString(ring) + " isn't line "
+                        + Integer.toHexString(line));
                 helper.assertTrue(PipeColors.color(state, null, null, 6 + side) == ring, kinds[k] + ": insert ring differs");
             }
             if (helper.getLevel().getBlockEntity(pos) == null) {
