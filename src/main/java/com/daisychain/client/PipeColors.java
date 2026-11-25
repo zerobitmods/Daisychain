@@ -9,7 +9,6 @@ import com.daisychain.registry.ModBlocks;
 import com.daisychain.registry.ModItems;
 import net.minecraft.client.Minecraft;
 import net.minecraft.core.BlockPos;
-import net.minecraft.core.Direction;
 import net.minecraft.world.level.BlockAndTintGetter;
 import net.minecraft.world.level.block.state.BlockState;
 import net.minecraftforge.api.distmarker.Dist;
@@ -20,10 +19,8 @@ import net.minecraftforge.client.event.RegisterColorHandlersEvent;
 import javax.annotation.Nullable;
 
 /**
- * Colors the ring behind each pull cap by that side's upgrade tier.
- * The ring model on each side uses tint index = that side's Direction.get3DDataValue().
- * Step 67: the insert groove uses tint index 6 + side. Its texture is white: with no upgrade it gets the pipe type's
- * groove color, with a parked upgrade (kept from when the side pulled) a dimmed tier color.
+ * Colors pipes by tint index. The ring behind each pull cap uses tint index = that side's
+ * Direction.get3DDataValue(), the insert ring 6 + side; step 155: both in the pipe's line colour.
  * Colors are worked out when the chunk is rebuilt, never per frame, so this costs nothing while you look around.
  * Client only (registered only on the client).
  */
@@ -62,32 +59,12 @@ public final class PipeColors {
      */
     public static final int LINE_TINT = 15;
 
-    /** Groove color without an upgrade, per pipe type (PipeKind order: item, fluid, energy, universal). */
-    private static final int[] GROOVE_COLORS = {0x2E2E2C, 0x1D2830, 0x1F2C28, 0x1E1E21};
-
     private PipeColors() {
     }
 
-    /** The ring color of an upgrade level (0 = none). Also used by the Pipe sides screen's upgrade marks. */
+    /** The colour of an upgrade level (0 = none), for the Pipe sides screen's upgrade marks. */
     public static int tierColor(int tier) {
         return tier >= 0 && tier < TIER_COLORS.length ? TIER_COLORS[tier] : TIER_COLORS[0];
-    }
-
-    private static int grooveColor(BlockState state, int tier) {
-        if (tier > 0) {
-            // Step 68: parked, so faded: half way to grey, and a little darker than the ring.
-            int c = tierColor(tier);
-            int r = c >> 16 & 0xFF;
-            int g = c >> 8 & 0xFF;
-            int b = c & 0xFF;
-            int grey = (r * 299 + g * 587 + b * 114) / 1000;
-            r = (grey + r) / 2 * 17 / 20;
-            g = (grey + g) / 2 * 17 / 20;
-            b = (grey + b) / 2 * 17 / 20;
-            return r << 16 | g << 8 | b;
-        }
-        int kind = BasePipeBlock.kindOf(state).ordinal();
-        return kind < GROOVE_COLORS.length ? GROOVE_COLORS[kind] : GROOVE_COLORS[0];
     }
 
     private static int byTier(int[] colors, int tier) {
@@ -172,21 +149,14 @@ public final class PipeColors {
         if (tintIndex < 0 || tintIndex > 11) {
             return TIER_COLORS[0];
         }
-        boolean groove = tintIndex >= 6;
-        if (!groove && energyTier >= 0) {
-            // Step 84/90: an energy pull ring shows the pipe's own tier, in its line color (the basic pipe too).
+        // Step 155: every pull and insert ring (0-5 pull, 6-11 insert) is the pipe's line colour, as bright as the line:
+        // energy pipes their tier's line colour, item / fluid / universal pipes theirs (the player's own colour too).
+        // Rings no longer show upgrades (Jade and the side's screen do). Their texture is plain white, so the tint is
+        // the colour as seen.
+        if (energyTier >= 0) {
             return bandColor(energyTier);
         }
-        int tier = 0;
-        if (level != null && pos != null) {
-            PipeDataBlockEntity data = BasePipeBlock.getData(level, pos, state);
-            tier = data == null ? 0 : data.upgradeLevel(Direction.from3DDataValue(tintIndex % 6));
-        }
-        if (groove && tier == 0 && energyTier >= 0) {
-            // Step 150: an energy insert ring without a parked upgrade in the same light line color as the pull ring
-            // (was the dark groove color).
-            return bandColor(energyTier);
-        }
-        return groove ? grooveColor(state, tier) : tierColor(tier);
+        int slot = PipeTints.slot(BasePipeBlock.kindOf(state));
+        return slot >= 0 ? PipeTints.ring(slot) : TIER_COLORS[0];
     }
 }

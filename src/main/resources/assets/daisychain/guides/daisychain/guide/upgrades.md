@@ -14,7 +14,7 @@ item_ids:
 # Upgrades
 
 Good news first: every feature works without upgrades. Upgrades just make a pull side **faster**. The same five work on item,
-fluid and universal pipes, and the ring around the pull cap changes color so you can tell the tier at a glance. Energy pipes are
+fluid and universal pipes, and Jade or the pull side's settings tell you which one a side is wearing. Energy pipes are
 the exception: they get faster by crafting a better pipe instead (see [Energy pipe tiers](energy-pipes.md)), and the energy column
 below is their speed per tier.
 
@@ -53,7 +53,7 @@ You'll never lose one, either. Break or blow up a pipe and its upgrades drop rig
 
 Changed a pull side to Insert or Off, on purpose or by accident? Its upgrade stays put, "parked". It does nothing while the side
 isn't pulling, but switch it back to Pull and it's working again, along with the side's filter and amounts. You can spot a parked
-upgrade by the colored groove on an insert side, the faded slot in its settings, or the little colored mark in the Pipe sides
+upgrade by the faded slot in the side's settings or the little colored mark in the Pipe sides
 screen. Take it out the usual way if you want it back. If you place a pipe where that side points, the side joins the two pipes
 and the upgrade pops out, since a pipe-to-pipe side can never pull.
 

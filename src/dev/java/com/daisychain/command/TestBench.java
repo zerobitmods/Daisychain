@@ -60,7 +60,7 @@ final class TestBench {
         List<Station> stations = new ArrayList<>();
         int x = 0;
 
-        clear(level, start.offset(-1, 0, -DEPTH), 10 * STRIDE + 2);
+        clear(level, start.offset(-1, 0, -DEPTH), 10 * STRIDE + 13); // station 11 is 11 wide
 
         stations.add(items(level, start.east(x)));
         x += STRIDE;
@@ -81,6 +81,8 @@ final class TestBench {
         stations.add(filter(level, start.east(x)));
         x += STRIDE;
         stations.add(ultimine(level, start.east(x)));
+        x += STRIDE;
+        stations.add(rings(level, start.east(x)));
 
         source.sendSuccess(() -> Component.literal("Daisychain test bench: " + stations.size()
                 + " stations, left to right (east of you). Each sign has a number:").withStyle(ChatFormatting.GOLD), false);
@@ -244,6 +246,38 @@ final class TestBench {
         return new Station("Ultimine", "hold the Ultimine key (default `, the key above Tab) and right-click a basic pipe"
                 + " with the 3 Gold pipes from the chest: 3 of the 4 turn Gold (you run out), the line keeps working,"
                 + " you get 3 basic back. Then do it with Diamond: all 4 go up. Without the key, only sneak-clicking swaps.");
+    }
+
+    /**
+     * Step 155: ring colours. Six rows (no upgrade at the front, nether star at the back), each an item, a fluid and a
+     * universal pipe between two blocks: pulling from the west with that row's upgrade, inserting to the east with the
+     * same upgrade parked there.
+     */
+    private static Station rings(ServerLevel level, BlockPos sign) {
+        sign(level, sign, "11 Rings", "upgrades 0-5");
+        Block[] kinds = {ModBlocks.ITEM_PIPE.get(), ModBlocks.FLUID_PIPE.get(), ModBlocks.UNIVERSAL_PIPE.get()};
+        for (int t = 0; t < 6; t++) {
+            BlockPos row = sign.north(3 + t * 2);
+            for (int k = 0; k < kinds.length; k++) {
+                BlockPos a = row.east(k * 4);
+                if (k == 1) {
+                    level.setBlock(a, Blocks.CAULDRON.defaultBlockState(), Block.UPDATE_ALL);
+                    level.setBlock(a.east(2), Blocks.CAULDRON.defaultBlockState(), Block.UPDATE_ALL);
+                } else {
+                    chest(level, a);
+                    chest(level, a.east(2));
+                }
+                line(level, a.east(), 1, kinds[k]);
+                pull(level, a.east(), Direction.WEST);
+                if (t > 0 && level.getBlockEntity(a.east()) instanceof PipeDataBlockEntity data) {
+                    data.setUpgradeLevel(Direction.WEST, t);
+                    data.setUpgradeLevel(Direction.EAST, t); // parked on the insert side
+                }
+            }
+        }
+        return new Station("Rings", "item, fluid and universal pipes, no upgrade at the front to nether star at the"
+                + " back. Each pulls from the west (upgrade in it) and inserts to the east (same upgrade parked). Every"
+                + " ring is the pipe's line colour, as bright as the line, upgrade or not.");
     }
 
     // ---------------------------------------------------------------- helpers

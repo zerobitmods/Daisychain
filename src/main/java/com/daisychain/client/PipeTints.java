@@ -72,6 +72,16 @@ public final class PipeTints {
         return lineTint[slot];
     }
 
+    /**
+     * Step 155: the tint of a slot's pull and insert rings. Their texture is plain white while the line's is
+     * 255 / LINE_HEADROOM, so the line tint scaled down by the same headroom draws them exactly as bright as the line.
+     */
+    public static int ring(int slot) {
+        int t = lineTint[slot];
+        return Math.round((t >> 16 & 0xFF) / LINE_HEADROOM) << 16 | Math.round((t >> 8 & 0xFF) / LINE_HEADROOM) << 8
+                | Math.round((t & 0xFF) / LINE_HEADROOM);
+    }
+
     /** Re-reads the config. Returns true if any tint changed (then the world's pipes need redrawing). */
     public static boolean refresh() {
         int n = DEFAULT_BODY_TINT.length;
