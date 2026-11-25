@@ -66,7 +66,7 @@ public final class PipeColors {
      */
     public static final int REDSTONE_BODY_TINT = 0x823B3B;
     public static final int REDSTONE_LINE_OFF_TINT = 0x3C1311;
-    /** Step 162: the line while the pipe is powered, #F53020 (glowing full-bright comes with the glow step). */
+    /** Step 162: the line while the pipe is powered, #F53020; step 164 draws it full-bright (PipeBakedModel). */
     public static final int REDSTONE_LINE_ON_TINT = 0xFF3221;
 
     private PipeColors() {
