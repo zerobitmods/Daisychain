@@ -27,6 +27,7 @@ public final class ModCreativeTabs {
                             output.accept(energyPipe);
                         }
                         output.accept(ModItems.UNIVERSAL_PIPE.get());
+                        output.accept(ModItems.REDSTONE_PIPE.get()); // step 161
                         output.accept(ModItems.BLOOM_WRENCH.get());
                         output.accept(ModItems.SETTINGS_COPIER.get());
                         // Step 125: a few ready-made facades; any other full block is one craft away.

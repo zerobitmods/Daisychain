@@ -5,6 +5,7 @@ import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.FluidPipeBlock;
 import com.daisychain.block.ItemPipeBlock;
+import com.daisychain.block.RedstonePipeBlock;
 import com.daisychain.block.UniversalPipeBlock;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.SoundType;
@@ -32,6 +33,9 @@ public final class ModBlocks {
             energyPipe(5, "nether_star_energy_pipe");
     public static final DeferredBlock<UniversalPipeBlock> UNIVERSAL_PIPE =
             BLOCKS.register("universal_pipe", () -> new UniversalPipeBlock(pipeProperties().mapColor(MapColor.COLOR_BLACK)));
+    /** Step 161: carries an on / off redstone signal along its line (RedstonePipeBlock). */
+    public static final DeferredBlock<RedstonePipeBlock> REDSTONE_PIPE =
+            BLOCKS.register("redstone_pipe", () -> new RedstonePipeBlock(pipeProperties().mapColor(MapColor.COLOR_RED)));
 
     /**
      * Step 134 (transparent facade): the "block" a transparent facade covers a pipe with. Never placed in the world by
@@ -65,11 +69,11 @@ public final class ModBlocks {
                 DIAMOND_ENERGY_PIPE.get(), NETHERITE_ENERGY_PIPE.get(), NETHER_STAR_ENERGY_PIPE.get()};
     }
 
-    /** Every pipe block: item, fluid, all energy tiers, universal. */
+    /** Every pipe block: item, fluid, all energy tiers, universal, redstone (step 161). */
     public static Block[] allPipes() {
         return new Block[]{ITEM_PIPE.get(), FLUID_PIPE.get(), ENERGY_PIPE.get(), IRON_ENERGY_PIPE.get(),
                 GOLD_ENERGY_PIPE.get(), DIAMOND_ENERGY_PIPE.get(), NETHERITE_ENERGY_PIPE.get(),
-                NETHER_STAR_ENERGY_PIPE.get(), UNIVERSAL_PIPE.get()};
+                NETHER_STAR_ENERGY_PIPE.get(), UNIVERSAL_PIPE.get(), REDSTONE_PIPE.get()};
     }
 
     private static BlockBehaviour.Properties pipeProperties() {

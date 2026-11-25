@@ -34,6 +34,9 @@ public final class ModItems {
             energyPipe("nether_star_energy_pipe", ModBlocks.NETHER_STAR_ENERGY_PIPE);
     public static final DeferredItem<BlockItem> UNIVERSAL_PIPE =
             ITEMS.registerSimpleBlockItem("universal_pipe", ModBlocks.UNIVERSAL_PIPE);
+    /** Step 161. */
+    public static final DeferredItem<BlockItem> REDSTONE_PIPE =
+            ITEMS.registerSimpleBlockItem("redstone_pipe", ModBlocks.REDSTONE_PIPE);
     /**
      * The Bloom Wrench (step 62b; was the Probe, id daisychain:probe, and before that the Pipe Wrench, id daisychain:wrench).
      * Its behavior comes from the c:tools/wrench tag.

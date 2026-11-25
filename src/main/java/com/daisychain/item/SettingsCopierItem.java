@@ -64,7 +64,7 @@ public final class SettingsCopierItem extends Item {
         Player player = context.getPlayer();
         BlockPos pos = context.getClickedPos();
         BlockState state = level.getBlockState(pos);
-        if (!(state.getBlock() instanceof BasePipeBlock)) {
+        if (!BasePipeBlock.isResourcePipe(state)) { // step 161: a redstone pipe has no settings to copy
             // Sneaking on another block: stop here, so the click doesn't fall through to "clear" (that's for the air).
             return player != null && player.isSecondaryUseActive() ? InteractionResult.FAIL : InteractionResult.PASS;
         }

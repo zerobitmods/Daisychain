@@ -35,7 +35,7 @@ public enum PipeNetworkDataProvider implements IServerDataProvider<BlockAccessor
     @Override
     public boolean shouldRequestData(BlockAccessor accessor) {
         BlockState state = accessor.getBlockState();
-        if (!(state.getBlock() instanceof BasePipeBlock)) {
+        if (!BasePipeBlock.isResourcePipe(state)) { // step 161: no pull sides on redstone pipes
             return false;
         }
         Direction looked = BasePipeBlock.targetedSide(state, accessor.getPosition(), accessor.getHitResult());
@@ -45,7 +45,7 @@ public enum PipeNetworkDataProvider implements IServerDataProvider<BlockAccessor
     @Override
     public void appendServerData(CompoundTag data, BlockAccessor accessor) {
         BlockState state = accessor.getBlockState();
-        if (!(accessor.getLevel() instanceof ServerLevel level) || !(state.getBlock() instanceof BasePipeBlock)) {
+        if (!(accessor.getLevel() instanceof ServerLevel level) || !BasePipeBlock.isResourcePipe(state)) {
             return;
         }
         BlockPos pos = accessor.getPosition();

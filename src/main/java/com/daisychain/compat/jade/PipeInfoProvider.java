@@ -42,7 +42,7 @@ public enum PipeInfoProvider implements IBlockComponentProvider {
     @Override
     public void appendTooltip(ITooltip tooltip, BlockAccessor accessor, IPluginConfig config) {
         BlockState state = accessor.getBlockState();
-        if (!(state.getBlock() instanceof BasePipeBlock)) {
+        if (!BasePipeBlock.isResourcePipe(state)) { // step 161: redstone pipes have no side settings (their line comes later)
             return;
         }
         Level level = accessor.getLevel();

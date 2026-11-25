@@ -294,7 +294,9 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
                 continue;
             }
             BlockState neighbor = level.getBlockState(pos.relative(direction));
-            if (neighbor.getBlock() instanceof BasePipeBlock) {
+            // Step 161: only a pipe this one links with; a redstone pipe's output arm toward another pipe type is
+            // drawn as an insert side.
+            if (BasePipeBlock.sameNetwork(neighbor.getBlock(), state.getBlock())) {
                 // Pipes meet at the block edge. Step 128: a covered neighbor draws only its cover, so this arm's end
                 // would be open; cap it (not pull arms, they have their own cap).
                 // Step 146: not when this pipe is covered too. Its pipe only shows with a wrench (see-through), and
