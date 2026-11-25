@@ -45,6 +45,9 @@ public final class RedstoneLines {
     private final Long2ObjectOpenHashMap<Line> lineByPipe = new Long2ObjectOpenHashMap<>();
     private final Long2ObjectOpenHashMap<ReferenceArrayList<Line>> linesByChunk = new Long2ObjectOpenHashMap<>();
     private LongOpenHashSet dirty = new LongOpenHashSet();
+    /** Step 163: sides (bits) that just connected to a block that only gives a signal, waiting for the pipe's tick. */
+    private final it.unimi.dsi.fastutil.longs.Long2ByteOpenHashMap newSources =
+            new it.unimi.dsi.fastutil.longs.Long2ByteOpenHashMap();
     private LongOpenHashSet working = new LongOpenHashSet();
     private int stamp;
 
@@ -196,6 +199,17 @@ public final class RedstoneLines {
                 }
             }
         }
+    }
+
+    /** Step 163: this side of the pipe at pos just connected to a signal source; the pipe's next tick makes it an input. */
+    public void noteNewSource(BlockPos pos, Direction side) {
+        long key = pos.asLong();
+        newSources.put(key, (byte) (newSources.get(key) | (1 << side.get3DDataValue())));
+    }
+
+    /** Step 163: takes the sides noted for the pipe at pos (0 if none). */
+    public int takeNewSources(BlockPos pos) {
+        return newSources.remove(pos.asLong());
     }
 
     // ---------------------------------------------------------------- the tick

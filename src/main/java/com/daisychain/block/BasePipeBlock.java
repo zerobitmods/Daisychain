@@ -163,6 +163,18 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         return !neighborState.isAir() && canConnectToBlock(level, neighborPos, side.getOpposite());
     }
 
+    /** Step 163: true if this side was wrenched to Output toward a block it doesn't connect to (redstone pipe only). */
+    protected boolean forcedOutput(BlockGetter level, BlockPos pos, Direction side) {
+        return false;
+    }
+
+    /** Step 163: the saved forced outputs of the pipe at pos (0 without settings). */
+    protected static int outputMask(BlockGetter level, BlockPos pos) {
+        BlockState state = level.getBlockState(pos);
+        PipeDataBlockEntity data = state.getBlock() instanceof BasePipeBlock ? getData(level, pos, state) : null;
+        return data == null ? 0 : data.outputMask();
+    }
+
     /** Step 162: true if the two states of this block differ only in a signal (the redstone pipe's on / off). */
     protected boolean signalOnlyChange(BlockState oldState, BlockState newState) {
         return false;
@@ -252,7 +264,7 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
     private static boolean hasStoredSettings(BlockGetter level, BlockPos pos, BlockState state) {
         PipeDataBlockEntity data = getData(level, pos, state);
         return data != null && (data.hasUpgrades() || data.hasInsertSettings() || data.hasPullSettings()
-                || data.hasCover());
+                || data.hasCover() || data.outputMask() != 0); // step 163: wrenched redstone outputs
     }
 
     /**
@@ -323,6 +335,9 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         }
         if (neighborState.isAir()) {
             return SideState.NONE;
+        }
+        if (forcedOutput(level, neighborPos.relative(direction.getOpposite()), direction)) {
+            return SideState.CONNECTED; // step 163: a redstone output wrenched toward a plain block
         }
         if (!(level instanceof Level realLevel)) {
             return null;
@@ -602,7 +617,9 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
     public static final int MODE_NORMAL = 0;
     public static final int MODE_PULL = 1;
     public static final int MODE_DISCONNECTED = 2;
-    private static final String[] MODE_KEYS = {"normal", "pull", "disconnected"};
+    /** Step 163: a redstone pipe's output toward a block it doesn't connect to on its own. Never sent by a screen. */
+    static final int MODE_OUTPUT = 3;
+    private static final String[] MODE_KEYS = {"normal", "pull", "disconnected", "output"};
     /**
      * Sides facing a block. Step 41 (zerobit): Pull sits in the middle, so the first click from Insert or from Off is
      * Pull, and the click after that goes on to the other end: off -> pull -> insert -> pull -> off ... (see
@@ -612,6 +629,8 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
     /** Nothing next to the side: normal and off look the same (a ghost arm), so it's just ghost <-> pull. */
     private static final int[] EMPTY_MODES = {MODE_NORMAL, MODE_PULL};
     private static final int[] PIPE_MODES = {MODE_NORMAL, MODE_DISCONNECTED};
+    /** Step 163: a redstone pipe next to a plain block: nothing -> output -> input -> nothing. */
+    private static final int[] REDSTONE_BLOCK_MODES = {MODE_NORMAL, MODE_OUTPUT, MODE_PULL};
 
     /**
      * Step 48: which modes a side may be set to, as bits (1 << MODE_...): next to a pipe of this type, normal (link) or
@@ -656,11 +675,13 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
 
         int bit = 1 << side.get3DDataValue();
         int current = (disconnectMask(level, pos, state) & bit) != 0 ? MODE_DISCONNECTED
-                : (extractMask(level, pos, state) & bit) != 0 ? MODE_PULL : MODE_NORMAL;
+                : (extractMask(level, pos, state) & bit) != 0 ? MODE_PULL
+                : (outputMask(level, pos) & bit) != 0 ? MODE_OUTPUT : MODE_NORMAL;
 
         // Step 34 (zerobit): any side that doesn't face a pipe of the same type can be made a pull side, even with
         // nothing there yet. Pipe-to-pipe sides only switch between normal and disconnected.
-        int[] modes = neighborIsPipe ? PIPE_MODES : neighborIsInventory ? INVENTORY_MODES : EMPTY_MODES;
+        int[] modes = neighborIsPipe ? PIPE_MODES : neighborIsInventory ? INVENTORY_MODES
+                : kind().isRedstone() && !neighborState.isAir() ? REDSTONE_BLOCK_MODES : EMPTY_MODES;
         int index = 0;
         for (int i = 0; i < modes.length; i++) {
             if (modes[i] == current) {
@@ -680,7 +701,21 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
      * Hands back a pull side's upgrade when it stops pulling, keeps a neighbor pipe's matching side in step, and
      * (announce) says the new mode in the action bar.
      */
-    private void setSideMode(ServerLevel level, BlockPos pos, BlockState state, Direction side, Player player, int target,
+    protected void setSideMode(ServerLevel level, BlockPos pos, BlockState state, Direction side, @Nullable Player player, int target,
+                               boolean announce) {
+        boolean was = changingSideMode;
+        changingSideMode = true; // step 163: arms this changes are the player's choice, not a new connection
+        try {
+            setSideModeInner(level, pos, state, side, player, target, announce);
+        } finally {
+            changingSideMode = was;
+        }
+    }
+
+    /** Step 163: true while a side's mode is being set (wrench, screen, a redstone source side becoming an input). */
+    protected static boolean changingSideMode;
+
+    private void setSideModeInner(ServerLevel level, BlockPos pos, BlockState state, Direction side, @Nullable Player player, int target,
                              boolean announce) {
         BlockPos neighborPos = pos.relative(side);
         if (!level.isLoaded(neighborPos)) {
@@ -693,9 +728,19 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         int extract = extractMask(level, pos, state);
         int disconnect = disconnectMask(level, pos, state);
         int bit = 1 << side.get3DDataValue();
-        int current = (disconnect & bit) != 0 ? MODE_DISCONNECTED : (extract & bit) != 0 ? MODE_PULL : MODE_NORMAL;
+        int output = outputMask(level, pos);
+        int current = (disconnect & bit) != 0 ? MODE_DISCONNECTED : (extract & bit) != 0 ? MODE_PULL
+                : (output & bit) != 0 ? MODE_OUTPUT : MODE_NORMAL;
         if (current == target) {
             return;
+        }
+        if ((output & bit) != 0 || target == MODE_OUTPUT) {
+            // Step 163: a redstone output toward a plain block is kept in the settings, which must exist first.
+            ensureData(level, pos);
+            PipeDataBlockEntity outputData = getData(level, pos, level.getBlockState(pos));
+            if (outputData != null) {
+                outputData.setOutputMask(target == MODE_OUTPUT ? output | bit : output & ~bit);
+            }
         }
 
         extract &= ~bit;
@@ -726,7 +771,7 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
             applyConfig(level, neighborPos, extractMask(level, neighborPos, updatedNeighbor),
                     disconnectMask(level, neighborPos, updatedNeighbor));
         }
-        if (!announce) {
+        if (!announce || player == null) {
             return;
         }
         // "Normal" reads as Insert next to an inventory and Connected next to another pipe (zerobit, step 23a).
@@ -1449,6 +1494,16 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         }
         // Step 34a (zerobit): every side without an arm gets a ghost arm, so any side can be clicked with the wrench.
         return ~connectionMask(state) & 0b111111;
+    }
+
+    /** Game tests only (step 163): wrenches these redstone pipe sides to Output toward whatever is there. */
+    public static void setOutputsForTest(ServerLevel level, BlockPos pos, int outputMask) {
+        ensureData(level, pos);
+        PipeDataBlockEntity data = getData(level, pos, level.getBlockState(pos));
+        if (data != null) {
+            data.setOutputMask(outputMask);
+        }
+        refreshArms(level, pos);
     }
 
     /**
