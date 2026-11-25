@@ -90,6 +90,16 @@ public final class RedstonePipeBlock extends BasePipeBlock {
         if (level instanceof ServerLevel serverLevel && oldState != state
                 && !(oldState.is(this) && signalOnlyChange(oldState, state))) {
             RedstoneLines.get(serverLevel).shapeChanged(pos); // placed or rewired: the lines here are built again
+            // A powered pipe that gained or lost an output side (wrench, a neighbor came or went): the line's on / off
+            // doesn't change, so RedstoneLines won't tell anyone; tell the blocks on those sides here.
+            if (oldState.is(this) && state.getValue(POWERED)) {
+                for (Direction direction : Direction.values()) {
+                    boolean was = oldState.getValue(propertyFor(direction)) == SideState.CONNECTED;
+                    if (was != (state.getValue(propertyFor(direction)) == SideState.CONNECTED)) {
+                        RedstoneLines.notifyOutput(serverLevel, pos, direction, this);
+                    }
+                }
+            }
             // Step 163: a side that just connected to a lever, button, redstone block...: it becomes an input on the
             // next tick. Not when the player set it (wrench), nor on a new pipe pasted with its own settings.
             boolean pasted = !oldState.is(this) && state.getValue(HAS_DATA);

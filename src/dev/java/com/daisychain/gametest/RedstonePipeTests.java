@@ -306,4 +306,30 @@ public final class RedstonePipeTests {
                 .thenWaitUntil(() -> helper.assertTrue(lit(helper, lamp), "The lamp behind the stone didn't light"))
                 .thenSucceed();
     }
+
+    /**
+     * Rewiring a line that is already on: an output wrenched toward stone powers it at once (the lamp behind it lights),
+     * and taking that output away again lets the lamp go out.
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 60)
+    public static void rewiringLiveLineNotifies(GameTestHelper helper) {
+        BlockPos lamp = new BlockPos(5, 1, 2);
+        BlockPos pipe = new BlockPos(3, 1, 2);
+        helper.setBlock(new BlockPos(4, 1, 2), Blocks.STONE.defaultBlockState());
+        helper.setBlock(lamp, Blocks.REDSTONE_LAMP.defaultBlockState());
+        helper.setBlock(new BlockPos(1, 1, 2), Blocks.REDSTONE_BLOCK.defaultBlockState());
+        row(helper, 2, 2);
+        input(helper, new BlockPos(2, 1, 2), Direction.WEST);
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(helper.getBlockState(pipe).getValue(RedstonePipeBlock.POWERED),
+                        "Setup: the line isn't on"))
+                .thenIdle(5)
+                .thenExecute(() -> helper.assertFalse(lit(helper, lamp), "Setup: the lamp is lit with no output"))
+                .thenExecute(() -> BasePipeBlock.setOutputsForTest(helper.getLevel(), helper.absolutePos(pipe),
+                        1 << Direction.EAST.get3DDataValue()))
+                .thenWaitUntil(() -> helper.assertTrue(lit(helper, lamp), "A new output on a live line didn't power the stone"))
+                .thenExecute(() -> BasePipeBlock.setOutputsForTest(helper.getLevel(), helper.absolutePos(pipe), 0))
+                .thenWaitUntil(() -> helper.assertFalse(lit(helper, lamp), "A removed output kept powering the stone"))
+                .thenSucceed();
+    }
 }

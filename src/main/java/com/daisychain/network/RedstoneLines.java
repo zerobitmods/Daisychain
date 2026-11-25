@@ -51,8 +51,13 @@ public final class RedstoneLines {
     private LongOpenHashSet working = new LongOpenHashSet();
     private int stamp;
 
-    private record ChunkEvent(ServerLevel level, long chunk, boolean load) {
+    private record ChunkEvent(ServerLevel level, long chunk, boolean load, int tries) {
     }
+
+    /** A load event whose chunk isn't ready yet at the end of the tick is tried again for up to this many ticks. */
+    private static final int LOAD_RETRIES = 40;
+    /** Review R17 ticket crossings of chunks a line touches or stops at; settled at the end of the tick. */
+    private final LongOpenHashSet ticketCrossings = new LongOpenHashSet();
 
     /** One line: its pipes, input sides and output sides (pipe pos + side), and the chunks it touches. */
     static final class Line {
@@ -114,30 +119,40 @@ public final class RedstoneLines {
         }
     }
 
-    /** A chunk loaded or unloaded (or lost / got back its ticket). Any thread. */
+    /**
+     * A chunk loaded or unloaded. Any thread. Handled at the end of the tick: a chunk that just loaded may not be
+     * readable yet at the moment of the event.
+     */
     public static void onChunkEvent(ServerLevel level, long chunk, boolean load) {
-        if (level.getServer().isSameThread()) {
-            get(level).chunkChanged(chunk, load);
-        } else {
-            PENDING.add(new ChunkEvent(level, chunk, load));
+        PENDING.add(new ChunkEvent(level, chunk, load, 0));
+    }
+
+    /**
+     * Review R17: a chunk crossed the loaded ticket line (a player walked away or came back) with no load / unload
+     * event. This fires thousands of times as players move, so it only notes chunks a redstone line touches or stops
+     * at (one lookup, no allocation); the end of the tick checks what is really loaded. Any thread (off the server
+     * thread, which isn't expected, it takes the plain queue).
+     */
+    public static void onTicketCrossing(ServerLevel level, long chunk) {
+        if (!level.getServer().isSameThread()) {
+            PENDING.add(new ChunkEvent(level, chunk, true, 0));
+            return;
+        }
+        RedstoneLines lines = LINES.get(level);
+        if (lines != null && lines.linesByChunk.containsKey(chunk)) {
+            lines.ticketCrossings.add(chunk);
         }
     }
 
-    /** Review R17's ticket crossings: always handled at the end of the tick, never right away. Any thread. */
-    public static void queueChunkEvent(ServerLevel level, long chunk, boolean load) {
-        PENDING.add(new ChunkEvent(level, chunk, load));
-    }
-
-    private void chunkChanged(long chunk, boolean load) {
+    /** Returns false if a load couldn't be handled yet (the chunk isn't readable). */
+    private boolean chunkChanged(long chunk, boolean load) {
         ReferenceArrayList<Line> lines = linesByChunk.remove(chunk);
         if (lines != null) {
-            for (int i = 0; i < lines.size(); i++) {
-                invalidate(lines.get(i)); // its pipes in loaded chunks are worked out again
+            for (Line line : lines.toArray(new Line[0])) {
+                invalidate(line); // its pipes in loaded chunks are worked out again (a line stopping here grows into it)
             }
         }
-        if (load) {
-            scanChunk(chunk);
-        }
+        return !load || scanChunk(chunk);
     }
 
     /**
@@ -145,12 +160,12 @@ public final class RedstoneLines {
      * another chunk changed meanwhile). Marks them dirty. Only sections whose palette holds a redstone pipe are looked
      * through, so a chunk without one costs a few palette checks.
      */
-    private void scanChunk(long chunk) {
+    private boolean scanChunk(long chunk) {
         int chunkX = ChunkPos.getX(chunk);
         int chunkZ = ChunkPos.getZ(chunk);
         LevelChunk levelChunk = Loaded.chunk(level, chunkX, chunkZ);
         if (levelChunk == null) {
-            return;
+            return false; // not readable (yet)
         }
         LevelChunkSection[] sections = levelChunk.getSections();
         for (int s = 0; s < sections.length; s++) {
@@ -170,6 +185,7 @@ public final class RedstoneLines {
                 }
             }
         }
+        return true;
     }
 
     private void invalidateAt(long packed) {
@@ -217,12 +233,30 @@ public final class RedstoneLines {
     /** End of every server tick, for every level. Does nothing unless something was marked. */
     public static void tickAll(ServerLevel level) {
         if (!PENDING.isEmpty()) {
+            java.util.ArrayList<ChunkEvent> retry = null;
             ChunkEvent event;
             while ((event = PENDING.poll()) != null) {
-                get(event.level()).chunkChanged(event.chunk(), event.load());
+                if (!get(event.level()).chunkChanged(event.chunk(), event.load()) && event.tries() < LOAD_RETRIES) {
+                    if (retry == null) {
+                        retry = new java.util.ArrayList<>();
+                    }
+                    retry.add(new ChunkEvent(event.level(), event.chunk(), true, event.tries() + 1));
+                }
+            }
+            if (retry != null) {
+                PENDING.addAll(retry);
             }
         }
         RedstoneLines lines = LINES.get(level);
+        if (lines != null && !lines.ticketCrossings.isEmpty()) {
+            // Settle: a chunk that is really gone drops its part of the lines; one that is (still / again) loaded is
+            // looked at again (a crossing down and straight back up costs one rebuild of the lines there).
+            long[] chunks = lines.ticketCrossings.toLongArray();
+            lines.ticketCrossings.clear();
+            for (long chunk : chunks) {
+                lines.chunkChanged(chunk, Loaded.chunk(level, ChunkPos.getX(chunk), ChunkPos.getZ(chunk)) != null);
+            }
+        }
         if (lines != null && !lines.dirty.isEmpty()) {
             lines.tick();
         }
@@ -359,7 +393,10 @@ public final class RedstoneLines {
                 next.setWithOffset(at, direction);
                 BlockState neighbor = Loaded.stateIfLoaded(level, next);
                 if (neighbor == null) {
-                    continue; // unloaded: the line stops here (it is checked again when that chunk loads)
+                    // Unloaded: the line stops here. It is listed under that chunk too, so it is built again (and
+                    // grows into it) when the chunk loads or gets its ticket back.
+                    chunks.add(ChunkPos.asLong(next));
+                    continue;
                 }
                 if (neighbor.getBlock() instanceof RedstonePipeBlock) {
                     if (neighbor.getValue(BasePipeBlock.propertyFor(direction.getOpposite())) == SideState.CONNECTED
