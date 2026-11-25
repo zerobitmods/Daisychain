@@ -1506,10 +1506,6 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         return ~connectionMask(state) & 0b111111;
     }
 
-    /**
-     * Test worlds only (/daisychain stress, step 35): makes exactly these sides pull and recomputes the arms, as if each had
-     * been wrenched. Server only.
-     */
     /** Game tests only (step 163): wrenches these redstone pipe sides to Output toward whatever is there. */
     public static void setOutputsForTest(ServerLevel level, BlockPos pos, int outputMask) {
         ensureData(level, pos);
@@ -1520,6 +1516,10 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         refreshArms(level, pos);
     }
 
+    /**
+     * Test worlds only (/daisychain stress, step 35): makes exactly these sides pull and recomputes the arms, as if each had
+     * been wrenched. Server only.
+     */
     public static void setPullSidesForTest(ServerLevel level, BlockPos pos, int pullMask) {
         BlockState state = level.getBlockState(pos);
         if (state.getBlock() instanceof BasePipeBlock pipe) {
