@@ -537,6 +537,10 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
     private List<BakedQuad>[] build(BlockState state, int insert, int capped, boolean glow, RandomSource rand,
                                     @Nullable RenderType renderType, boolean seeThrough, int lightFloor) {
         boolean energy = EnergyPipeBlock.tierOf(state.getBlock()) >= 0;
+        // Step 164: a powered redstone pipe's line and rings glow, always (it shows whether the line is on, so not
+        // behind the energy glow setting). The powered state is its own block state, so it has its own cached quads.
+        boolean redstoneLit = state.getBlock() instanceof com.daisychain.block.RedstonePipeBlock
+                && state.getValue(com.daisychain.block.RedstonePipeBlock.POWERED);
         int connected = 0;
         int pull = 0;
         for (Direction direction : DIRECTIONS) {
@@ -605,6 +609,7 @@ public final class PipeBakedModel extends BakedModelWrapper<BakedModel> {
                     int tint = quad.getTintIndex();
                     // Step 154: an energy pipe's pull and insert rings (tints 0-11) glow with its line.
                     BakedQuad shown = glow && (tint == PipeColors.BAND_TINT || energy && tint >= 0 && tint <= 11)
+                            || redstoneLit && (tint == PipeColors.LINE_TINT || tint >= 0 && tint <= 11)
                             ? glowing(quad) : quad;
                     quads.add(seeThrough ? withLightFloor(insetFromSurface(shown), lightFloor) : shown);
                 }
