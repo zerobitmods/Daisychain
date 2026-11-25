@@ -27,7 +27,7 @@ import javax.annotation.Nullable;
 // Registration events are mod-bus events; FML 1.21.1 sends them to the mod bus automatically.
 @EventBusSubscriber(modid = Daisychain.MOD_ID, value = Dist.CLIENT)
 public final class PipeColors {
-    /** Ring color by upgrade level: none, iron, gold, diamond, netherite, nether star. RGB. */
+    /** Upgrade colours (none, iron, gold, diamond, netherite, nether star), RGB: the Pipe sides screen's marks. */
     private static final int[] TIER_COLORS = {
             0x4A4652, // none
             0xA3A6AB, // iron
@@ -47,7 +47,7 @@ public final class PipeColors {
     private static final int[] LINE_COLORS = {0x98BEB2, 0xD6DCE4, 0xF4CA6D, 0x7BE2DB, 0xBEB7BA, 0xFDFFA8};
     private static final int[] BODY_COLORS = {0x5C736F, 0x81858D, 0x927946, 0x4A8888, 0x585159, 0x8B9598};
     private static final int[] CAP_COLORS = {0xA6D0C8, 0xE9F0FF, 0xFFDB7E, 0x86F6F6, 0xD1C9CC, 0xFBFFFF};
-    /** Tint index of the energy line (0-5 are pull rings, 6-11 insert grooves). */
+    /** Tint index of the energy line (0-5 are pull rings, 6-11 insert rings). */
     public static final int BAND_TINT = 12;
     /** Tint index of the energy pipe tube. */
     public static final int BODY_TINT = 13;
@@ -91,7 +91,7 @@ public final class PipeColors {
         return byTier(CAP_COLORS, tier);
     }
 
-    /** The color of a pipe's tint index, as the world draws it (level / pos may be null: no upgrade rings then). */
+    /** The color of a pipe's tint index, as the world draws it (level / pos may be null: no cover colours then). */
     public static int color(BlockState state, @Nullable BlockAndTintGetter level, @Nullable BlockPos pos, int tintIndex) {
         return ringColor(state, level, pos, tintIndex);
     }
@@ -151,8 +151,8 @@ public final class PipeColors {
         }
         // Step 155: every pull and insert ring (0-5 pull, 6-11 insert) is the pipe's line colour, as bright as the line:
         // energy pipes their tier's line colour, item / fluid / universal pipes theirs (the player's own colour too).
-        // Rings no longer show upgrades (Jade and the side's screen do). Their texture is plain white, so the tint is
-        // the colour as seen.
+        // Rings no longer show upgrades (Jade and the side's screen do). Step 156: their textures are grained around
+        // the line texture's brightness, so the line tint draws them as bright as the line.
         if (energyTier >= 0) {
             return bandColor(energyTier);
         }

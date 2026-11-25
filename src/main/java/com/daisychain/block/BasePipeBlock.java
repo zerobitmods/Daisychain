@@ -689,7 +689,7 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         }
         // Step 67 (zerobit): a side that stops pulling keeps its upgrade "parked" (it does nothing until the side pulls
         // again) and keeps its pull settings, so switching back restores everything. Parked upgrades show in the insert
-        // screen and the Pipe sides screen, tint the insert groove, and drop when the pipe breaks.
+        // screen and the Pipe sides screen, and drop when the pipe breaks.
 
         applyConfig(level, pos, extract, disconnect);
         if (neighborIsInventory && target == MODE_PULL) {
@@ -1606,7 +1606,7 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
      * middle-line groove is left out). Middle cube: PipeCoreShapes (generated from the models' own rules), or solid
      * for a pipe that would be a dead end / lone pipe without its one block side (the *_END / *_LONE pieces). Arms: link / dead end = notched tube; pull
      * = 8x8 plate 0..1.5, ring set in 0.5 px 1.5..2.5, solid block 2.5..5; insert (P3) = solid cap 0..1.5, ring
-     * set in 0.5 px 1.5..2.5, solid block 2.5..5 (step 156). Hard-coded to this look.
+     * set in 0.5 px 1.5..2.5, solid block 2.5..5 (step 157). Hard-coded to this look.
      */
     private static VoxelShape buildOutline(int arms, int pulls, int inserts, int caps) {
         int blockSides = pulls | inserts;
@@ -1631,7 +1631,7 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
                 shape = Shapes.or(shape, sideBox(side, 4, 12, 0, 1.5), sideBox(side, 5.5, 10.5, 1.5, 2.5),
                         sideBox(side, 5, 11, 2.5, 5));
             } else if ((inserts & bit) != 0) {
-                // Step 156: solid behind the ring on every insert side, as the insert pieces draw it (was notched
+                // Step 157: solid behind the ring on every insert side, as the insert pieces draw it (was notched
                 // unless it was the pipe's only block side, so a pipe between two blocks had edges across its faces).
                 shape = Shapes.or(shape, sideBox(side, 5, 11, 0, 1.5), sideBox(side, 5.5, 10.5, 1.5, 2.5),
                         sideBox(side, 5, 11, 2.5, 5));

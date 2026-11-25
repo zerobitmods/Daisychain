@@ -73,7 +73,7 @@ public final class PipeOutlineTests {
     }
 
     /**
-     * Step 156: a pipe between two chests (an insert side on both ends): behind each ring the arm is solid to its
+     * Step 157: a pipe between two chests (an insert side on both ends): behind each ring the arm is solid to its
      * corners, as drawn. The outline used to notch it there, so its edges ran across the pipe's faces.
      */
     @GameTest(template = EMPTY)
