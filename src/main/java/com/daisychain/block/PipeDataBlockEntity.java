@@ -6,6 +6,7 @@ import com.daisychain.item.FacadeItem;
 import com.daisychain.item.UpgradeItem;
 import com.daisychain.network.EnergyInput;
 import com.daisychain.network.NetworkManager;
+import com.daisychain.compat.Chemicals;
 import com.daisychain.network.NoEnergy;
 import com.daisychain.registry.ModItems;
 import com.daisychain.registry.ModBlockEntities;
@@ -41,7 +42,8 @@ import javax.annotation.Nullable;
 /**
  * Per-side settings for one pipe. Holds settings only on pipes where a player changed something (blockstate
  * has_data=true); plain item and fluid pipes have none, so they stay as cheap as a normal block. Step F68: energy and
- * universal pipes always have one (for their energy capability), empty and ignored unless has_data. Never ticks.
+ * universal pipes always have one (for their energy capability), and since F104 gas pipes too while Mekanism is
+ * installed (for the chemical handler Mekanism's tubes connect to); empty and ignored unless has_data. Never ticks.
  */
 public final class PipeDataBlockEntity extends BlockEntity {
     /** Setting ids used by the settings screen and its network packet. */
@@ -256,13 +258,49 @@ public final class PipeDataBlockEntity extends BlockEntity {
             if (seat.isPresent()) {
                 return seat.cast();
             }
+        } else if (side != null && !isRemoved()) {
+            // Step F104 (port of 180): gas and universal pipes show Mekanism a chemical handler that holds and takes
+            // nothing, so its pressurized tubes connect to the pipe and take what it hands over. The cheap type check
+            // first (other mods ask often); the pipe's kind can't change while this block entity exists.
+            int type = Chemicals.pipeHandlerType(cap);
+            if (type >= 0 && getBlockState().getBlock() instanceof BasePipeBlock pipe
+                    && pipe.kind().carries(PipeKind.CHEMICALS)) {
+                return chemicalSeat(type).cast();
+            }
         }
         return super.getCapability(cap, side);
+    }
+
+    /** Step F104: per chemical type, the LazyOptional handed out for the nothing-handler (invalidated with the rest). */
+    @Nullable
+    private LazyOptional<?>[] chemicalSeats;
+
+    private LazyOptional<?> chemicalSeat(int type) {
+        if (chemicalSeats == null) {
+            chemicalSeats = new LazyOptional<?>[Chemicals.TYPES];
+        }
+        LazyOptional<?> seat = chemicalSeats[type];
+        if (seat == null) {
+            Object handler = Chemicals.nothingHandler(type);
+            seat = LazyOptional.of(() -> handler);
+            chemicalSeats[type] = seat;
+        }
+        return seat;
     }
 
     @Override
     public void invalidateCaps() {
         super.invalidateCaps();
+        if (chemicalSeats != null) {
+            // Cleared before invalidating: Mekanism's listeners ask again at once, and must get a fresh one.
+            LazyOptional<?>[] old = chemicalSeats;
+            chemicalSeats = null;
+            for (LazyOptional<?> seat : old) {
+                if (seat != null) {
+                    seat.invalidate();
+                }
+            }
+        }
         for (int i = 0; i < energyInputs.length; i++) {
             if (energyInputs[i] != null) {
                 energyInputs[i].invalidate();

@@ -72,6 +72,11 @@ public final class GasPipeTests {
      * has every side off, so the NeoForge test needs this. Kept here so both test the same tank.)
      */
     static void chemicalSidesOn(GameTestHelper helper, BlockPos pos) {
+        chemicalSidesOn(helper, pos, 7);
+    }
+
+    /** Step F104: the same with another data type per side (Mekanism 10.4: 1 = input only, 7 = input and output). */
+    static void chemicalSidesOn(GameTestHelper helper, BlockPos pos, int dataType) {
         BlockPos at = helper.absolutePos(pos);
         BlockEntity blockEntity = helper.getLevel().getBlockEntity(at);
         helper.assertTrue(blockEntity != null, "Setup: no block entity at " + pos);
@@ -80,7 +85,7 @@ public final class GasPipeTests {
         for (int type = 2; type <= 5; type++) {
             CompoundTag sides = new CompoundTag(); // 10.4 saves each side config as side0..side5
             for (int side = 0; side < 6; side++) {
-                sides.putInt("side" + side, 7);
+                sides.putInt("side" + side, dataType);
             }
             config.put("config" + type, sides);
         }
@@ -244,6 +249,42 @@ public final class GasPipeTests {
             long b = MekanismTestKit.amountInfusion(helper.getLevel(), helper.absolutePos(TANK_B));
             long a = MekanismTestKit.amountInfusion(helper.getLevel(), helper.absolutePos(TANK_A));
             helper.assertTrue(b == 4_000 && a == 0, "Redstone: A " + a + ", B " + b + " (should be 0 and 4000)");
+        });
+    }
+
+    /**
+     * Step F104 (port of 180): a gas pipe hands chemicals to Mekanism's pressurized tubes. Tank A -> two gas pipes -> a
+     * basic pressurized tube -> tank B: the hydrogen goes through (before, the tube never connected to the pipe and took
+     * nothing: Mekanism's tubes only connect to, and take from, a side whose neighbor offers a chemical handler).
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 300)
+    public static void gasPipeFeedsMekanismTube(GameTestHelper helper) {
+        if (!Chemicals.mekanismLoaded()) {
+            helper.succeed();
+            return;
+        }
+        Block tank = BuiltInRegistries.BLOCK.get(TANK);
+        Block tube = BuiltInRegistries.BLOCK.get(new ResourceLocation("mekanism", "basic_pressurized_tube"));
+        helper.assertTrue(tube != Blocks.AIR, "Setup: Mekanism has no basic_pressurized_tube");
+        helper.setBlock(TANK_A, tank.defaultBlockState());
+        chemicalSidesOn(helper, TANK_A);
+        helper.setBlock(TANK_B, tank.defaultBlockState());
+        chemicalSidesOn(helper, TANK_B, 1); // input only: an input/output tank ejects back into the tube every tick
+        long in = MekanismTestKit.fill(helper.getLevel(), helper.absolutePos(TANK_A), "mekanism:hydrogen", 8_000);
+        helper.assertTrue(in == 8_000, "Setup: tank A took " + in + " mB");
+        helper.setBlock(new BlockPos(4, 1, 2), tube.defaultBlockState());
+        for (int x = 2; x <= 3; x++) {
+            helper.setBlock(new BlockPos(x, 1, 2), ModBlocks.GAS_PIPE.get().defaultBlockState());
+        }
+        for (int x = 2; x <= 3; x++) {
+            BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(new BlockPos(x, 1, 2)));
+        }
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(new BlockPos(2, 1, 2)),
+                1 << Direction.WEST.get3DDataValue());
+        helper.succeedWhen(() -> {
+            helper.assertTrue(gas(helper, TANK_B) == 8_000, "Tank B has " + gas(helper, TANK_B) + " (A "
+                    + gas(helper, TANK_A) + ")");
+            helper.assertTrue(gas(helper, TANK_A) == 0, "Tank A still has " + gas(helper, TANK_A));
         });
     }
 

@@ -1,5 +1,6 @@
 package com.daisychain.block;
 
+import com.daisychain.compat.Chemicals;
 import com.daisychain.item.FacadeItem;
 import com.daisychain.item.SettingsCopierItem;
 import com.daisychain.item.UpgradeItem;
@@ -65,7 +66,8 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
     public static final EnumProperty<SideState> EAST = EnumProperty.create("east", SideState.class);
     /**
      * True when this pipe has a PipeDataBlockEntity holding its side settings. (Step F68: energy and universal pipes
-     * also have one without settings, for their energy capability; settings count only with this flag, see getData.)
+     * also have one without settings, for their energy capability, and since F104 gas pipes while Mekanism is installed;
+     * settings count only with this flag, see getData.)
      */
     public static final BooleanProperty HAS_DATA = BooleanProperty.create("has_data");
     /** Step 127 / F55 (facades step 3): the cover's shape and light (the cover block itself is in PipeDataBlockEntity). */
@@ -211,8 +213,15 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
         // offers capabilities only through block entities, and blocks like Powah's Energizing Rod only stay on a pipe
         // that offers energy on that face, every time they check. Pipes from older worlds get theirs the first time
         // anything asks (the chunk makes it on demand). Settings still count only with has_data (getData).
-        return state.getValue(HAS_DATA) || kind().carries(PipeKind.ENERGY_RES) ? new PipeDataBlockEntity(pos, state)
-                : null;
+        return state.getValue(HAS_DATA) || alwaysHasBlockEntity(kind()) ? new PipeDataBlockEntity(pos, state) : null;
+    }
+
+    /**
+     * Step F68: energy and universal pipes always have a block entity (for their energy capability). Step F104 (port of
+     * 180): gas pipes too while Mekanism is installed, for the chemical handler Mekanism's tubes connect to.
+     */
+    public static boolean alwaysHasBlockEntity(PipeKind kind) {
+        return kind.carries(PipeKind.ENERGY_RES) || (kind.carries(PipeKind.CHEMICALS) && Chemicals.mekanismLoaded());
     }
 
     /**
@@ -821,8 +830,8 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
             // Only adds the block entity; the arms are recomputed afterwards by applyConfig.
             level.setBlock(pos, state.setValue(HAS_DATA, true), Block.UPDATE_CLIENTS | Block.UPDATE_KNOWN_SHAPE);
         }
-        // Step F68: energy and universal pipes keep a block entity without settings; leave such a bare one alone when
-        // there is nothing to store (no save, no re-registering on every arm refresh).
+        // Step F68 / F104: energy, universal and (with Mekanism) gas pipes keep a block entity without settings; leave
+        // such a bare one alone when there is nothing to store (no save, no re-registering on every arm refresh).
         if (level.getBlockEntity(pos) instanceof PipeDataBlockEntity data
                 && (needsData || data.extractMask() != 0 || data.disconnectMask() != 0)) {
             data.setMasks(extract, disconnect);
@@ -1123,8 +1132,8 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
                 data.dropCover(level, pos); // step F53: the facade drops exactly once, like the upgrades
             }
         }
-        // Same pipe but no settings left: drop the block entity so plain pipes stay cheap. (Step F68: energy and
-        // universal pipes get a fresh, empty one straight away, see newBlockEntity.)
+        // Same pipe but no settings left: drop the block entity so plain pipes stay cheap. (Step F68 / F104: energy,
+        // universal and, with Mekanism, gas pipes get a fresh, empty one straight away, see newBlockEntity.)
         if (sameBlock && state.getValue(HAS_DATA) && !newState.getValue(HAS_DATA)) {
             level.removeBlockEntity(pos);
         }

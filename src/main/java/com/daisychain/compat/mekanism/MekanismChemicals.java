@@ -11,10 +11,18 @@ import mekanism.api.chemical.ChemicalStack;
 import mekanism.api.chemical.ChemicalTags;
 import mekanism.api.chemical.ChemicalType;
 import mekanism.api.chemical.IChemicalHandler;
+import mekanism.api.chemical.gas.Gas;
+import mekanism.api.chemical.gas.GasStack;
 import mekanism.api.chemical.gas.IGasHandler;
 import mekanism.api.chemical.infuse.IInfusionHandler;
+import mekanism.api.chemical.infuse.InfuseType;
+import mekanism.api.chemical.infuse.InfusionStack;
 import mekanism.api.chemical.pigment.IPigmentHandler;
+import mekanism.api.chemical.pigment.Pigment;
+import mekanism.api.chemical.pigment.PigmentStack;
 import mekanism.api.chemical.slurry.ISlurryHandler;
+import mekanism.api.chemical.slurry.Slurry;
+import mekanism.api.chemical.slurry.SlurryStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
@@ -106,6 +114,76 @@ public final class MekanismChemicals {
      */
     public static boolean capabilitiesRegistered() {
         return GAS.isRegistered() && INFUSION.isRegistered() && PIGMENT.isRegistered() && SLURRY.isRegistered();
+    }
+
+    // ---------------------------------------------------------------- step F104 (port of 180): pipes Mekanism's tubes connect to
+
+    /** Handlers that hold and take nothing, one per type in Chemicals' type order. */
+    private static final Object[] NOTHING = {new NoGas(), new NoInfusion(), new NoPigment(), new NoSlurry()};
+
+    /** Which of the four chemical types this capability is (Chemicals' type order), or -1 if it isn't one of them. */
+    public static int typeOf(Capability<?> capability) {
+        for (int type = 0; type < BY_TYPE.length; type++) {
+            if (BY_TYPE[type] == capability) {
+                return type;
+            }
+        }
+        return -1;
+    }
+
+    /** A handler of that type that holds and takes nothing (shared; it has no state). */
+    public static Object nothingHandler(int type) {
+        return NOTHING[type];
+    }
+
+    /** No tanks; refuses every insert, gives nothing. */
+    private abstract static class Nothing<C extends Chemical<C>, S extends ChemicalStack<C>>
+            implements IChemicalHandler<C, S> {
+        @Override
+        public int getTanks() {
+            return 0;
+        }
+
+        @Override
+        public S getChemicalInTank(int tank) {
+            return getEmptyStack();
+        }
+
+        @Override
+        public void setChemicalInTank(int tank, S stack) {
+        }
+
+        @Override
+        public long getTankCapacity(int tank) {
+            return 0;
+        }
+
+        @Override
+        public boolean isValid(int tank, S stack) {
+            return false;
+        }
+
+        @Override
+        public S insertChemical(int tank, S stack, Action action) {
+            return stack;
+        }
+
+        @Override
+        public S extractChemical(int tank, long amount, Action action) {
+            return getEmptyStack();
+        }
+    }
+
+    private static final class NoGas extends Nothing<Gas, GasStack> implements IGasHandler {
+    }
+
+    private static final class NoInfusion extends Nothing<InfuseType, InfusionStack> implements IInfusionHandler {
+    }
+
+    private static final class NoPigment extends Nothing<Pigment, PigmentStack> implements IPigmentHandler {
+    }
+
+    private static final class NoSlurry extends Nothing<Slurry, SlurryStack> implements ISlurryHandler {
     }
 
     // ---------------------------------------------------------------- step F102 (port of 178): filters

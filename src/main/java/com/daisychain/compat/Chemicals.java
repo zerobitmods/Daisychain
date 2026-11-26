@@ -280,6 +280,30 @@ public final class Chemicals {
     public record Look(ResourceLocation texture, int tint) {
     }
 
+    // ---------------------------------------------------------------- step F104 (port of 180)
+
+    /**
+     * Which chemical type this capability is (0 gas .. 3 slurry), or -1: another capability, no Mekanism, or gas off.
+     * Gas and universal pipes answer the four types with a handler that holds and takes nothing (nothingHandler), so
+     * Mekanism's pressurized tubes connect to them and take what they hand over.
+     */
+    public static int pipeHandlerType(Object capability) {
+        if (!available()) {
+            return -1;
+        }
+        try {
+            return MekanismChemicals.typeOf((net.minecraftforge.common.capabilities.Capability<?>) capability);
+        } catch (LinkageError | RuntimeException e) {
+            switchOff("offering pipes to Mekanism's tubes", e);
+            return -1;
+        }
+    }
+
+    /** For a type from pipeHandlerType: a handler that holds and takes nothing. */
+    public static Object nothingHandler(int type) {
+        return MekanismChemicals.nothingHandler(type);
+    }
+
     /** Turns gas off for the rest of this game, with one warning. */
     public static void switchOff(String what, @javax.annotation.Nullable Throwable cause) {
         if (broken) {
