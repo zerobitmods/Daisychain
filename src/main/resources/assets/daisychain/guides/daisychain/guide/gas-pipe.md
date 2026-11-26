@@ -19,7 +19,7 @@ all work the way they do for fluids, counted in mB ([Side settings](side-setting
 
 ## Recipe
 
-Six steel ingots, two glass and a Basic Control Circuit make 16 pipes: steel along the top and bottom, glass on both sides of
+Six steel ingots, two glass and a Basic Control Circuit make 8 pipes: steel along the top and bottom, glass on both sides of
 the circuit in the middle. Steel and basic circuits from any mod work.
 
 ## Good to know

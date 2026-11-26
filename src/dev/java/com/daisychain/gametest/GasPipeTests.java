@@ -97,7 +97,7 @@ public final class GasPipeTests {
     // ---------------------------------------------------------------- step 173: recipe only with Mekanism
 
     /**
-     * The gas pipe recipe loads only with Mekanism: steel / glass, circuit, glass / steel makes 16, with Mekanism's own
+     * The gas pipe recipe loads only with Mekanism: steel / glass, circuit, glass / steel makes 8 (step 175; was 16), with Mekanism's own
      * steel and Basic Control Circuit (found through the c:ingots/steel and c:circuits/basic tags).
      */
     @GameTest(template = EMPTY)
@@ -116,7 +116,7 @@ public final class GasPipeTests {
                     steel, steel, steel));
             ItemStack out = level.getRecipeManager().getRecipeFor(RecipeType.CRAFTING, input, level)
                     .map(recipe -> recipe.value().assemble(input, level.registryAccess())).orElse(ItemStack.EMPTY);
-            helper.assertTrue(out.is(ModItems.GAS_PIPE.get()) && out.getCount() == 16, "Crafted " + out);
+            helper.assertTrue(out.is(ModItems.GAS_PIPE.get()) && out.getCount() == 8, "Crafted " + out);
         }
         helper.succeed();
     }
