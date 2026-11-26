@@ -69,6 +69,33 @@ public final class EnergyStartTests {
                 .thenSucceed();
     }
 
+    /**
+     * Step 181: a block in the tag daisychain:energy_auto_pull (a brewing stand here, in the dev copy of the tag,
+     * standing in for a Flux Networks flux point, which pushes its power out) starts as a pull side. A block that answers
+     * the same way but isn't in the tag (a campfire, like a Flux Plug that hasn't joined its network yet) stays insert,
+     * and so does a block that only takes (a lectern).
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 40)
+    public static void fluxPointStartsAsPullPlugDoesnt(GameTestHelper helper) {
+        BlockPos pipe = new BlockPos(3, 1, 2);
+        helper.setBlock(pipe.west(), Blocks.BREWING_STAND.defaultBlockState());
+        helper.setBlock(pipe.north(), Blocks.CAMPFIRE.defaultBlockState());
+        helper.setBlock(pipe.east(), Blocks.LECTERN.defaultBlockState());
+        helper.setBlock(pipe, ModBlocks.ENERGY_PIPE.get().defaultBlockState());
+        BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(pipe));
+        helper.startSequence()
+                .thenWaitUntil(() -> helper.assertTrue(side(helper, pipe, Direction.WEST) == SideState.EXTRACT,
+                        "The side toward the flux point stand-in didn't start as a pull side: "
+                                + side(helper, pipe, Direction.WEST)))
+                .thenIdle(3)
+                .thenExecute(() -> {
+                    helper.assertTrue(side(helper, pipe, Direction.NORTH) == SideState.CONNECTED,
+                            "The side toward the unlinked plug stand-in isn't insert: " + side(helper, pipe, Direction.NORTH));
+                    helper.assertTrue(side(helper, pipe, Direction.EAST) == SideState.CONNECTED, "The machine side isn't insert");
+                })
+                .thenSucceed();
+    }
+
     /** A generator put next to a pipe later: that side becomes a pull side too. */
     @GameTest(template = EMPTY, timeoutTicks = 40)
     public static void generatorPlacedLaterPulls(GameTestHelper helper) {

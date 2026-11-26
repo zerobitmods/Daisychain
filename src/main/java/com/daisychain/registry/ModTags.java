@@ -43,6 +43,14 @@ public final class ModTags {
     public static final TagKey<Block> ENERGY_NEVER_AUTO_PULL =
             TagKey.create(Registries.BLOCK, ResourceLocation.fromNamespaceAndPath("daisychain", "energy_never_auto_pull"));
 
+    /**
+     * Step 181: energy blocks a new energy pipe side always starts pulling from. For blocks that push their power out
+     * and answer "neither gives nor takes" when asked (a Flux Networks flux point). Not a general rule: a Flux Plug that
+     * hasn't joined its network yet gives the same answers but wants power. Optional entries; pack makers can add more.
+     */
+    public static final TagKey<Block> ENERGY_AUTO_PULL =
+            TagKey.create(Registries.BLOCK, ResourceLocation.fromNamespaceAndPath("daisychain", "energy_auto_pull"));
+
     private ModTags() {
     }
 }

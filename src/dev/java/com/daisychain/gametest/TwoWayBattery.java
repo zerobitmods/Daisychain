@@ -12,7 +12,8 @@ import net.neoforged.neoforge.energy.IEnergyStorage;
 /**
  * Step 169 (game tests only), energy blocks that answer "both ways" (no other dev hook uses these block entities):
  * a smoker is a half-full battery, a furnace a full battery, and a blast furnace a generator that says it can take
- * energy but refuses it (as Mekanism's generators do on their output face).
+ * energy but refuses it (as Mekanism's generators do on their output face). Step 181: a brewing stand (flux point, in the
+ * dev tag) and a campfire (unlinked flux plug) answer neither.
  */
 @EventBusSubscriber(modid = Daisychain.MOD_ID)
 public final class TwoWayBattery {
@@ -57,5 +58,12 @@ public final class TwoWayBattery {
                         return true;
                     }
                 });
+        // Step 181: a brewing stand stands in for a Flux Networks flux point (in the dev copy of the tag
+        // daisychain:energy_auto_pull), a campfire for a Flux Plug that hasn't joined its network yet (not in it). Both
+        // say they neither give nor take energy.
+        event.registerBlockEntity(Capabilities.EnergyStorage.BLOCK, BlockEntityType.BREWING_STAND,
+                (blockEntity, side) -> new EnergyStorage(10_000, 0, 0, 0));
+        event.registerBlockEntity(Capabilities.EnergyStorage.BLOCK, BlockEntityType.CAMPFIRE,
+                (blockEntity, side) -> new EnergyStorage(10_000, 0, 0, 0));
     }
 }

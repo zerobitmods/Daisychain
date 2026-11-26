@@ -41,7 +41,8 @@ So you can upgrade a long line one stretch at a time and it keeps working the wh
 ## Generators pull on their own
 
 Put an energy pipe next to a generator (or a generator next to a pipe) and that side starts as a **pull side** by itself, so
-the power starts flowing without a trip to the wrench. Machines and batteries get an insert side as usual: the pipe never
+the power starts flowing without a trip to the wrench. A **Flux Point**, which pushes its power out instead of handing it
+over, gets a pull side by itself too. Machines and batteries get an insert side as usual: the pipe never
 starts draining a battery on its own. Other mods' cables stay insert sides too, since only you know which way they should run.
 
 It only happens when a side first connects. Wrench it back to insert and it stays that way.
@@ -50,7 +51,8 @@ It only happens when a side first connects. Wrench it back to insert and it stay
 
 Some blocks never hand their power over when a pipe asks for it. They push it out on their own instead: a **Flux Point**
 is the classic, and plenty of generators and cables work the same way. Point a **pull side** at one and it catches what
-gets pushed in, then sends it straight on to your machines. That works on energy pipes and universal pipes.
+gets pushed in, then sends it straight on to your machines. That works on energy pipes and universal pipes, and a new
+energy pipe side next to a Flux Point starts as a pull side by itself.
 
 The pipe still keeps nothing. Power only goes in when a machine down the line wants it, at the pull side's speed, and the
 rest stays in the block that pushed it. Priority, Send to and Fill to work as usual. A side set to **once per pulse** won't
