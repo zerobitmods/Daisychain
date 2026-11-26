@@ -1,6 +1,5 @@
 package com.daisychain.block;
 
-import com.daisychain.filter.FluidGhost;
 import com.daisychain.filter.ItemFilter;
 import com.daisychain.filter.MatchMode;
 import com.daisychain.item.FacadeItem;
@@ -608,14 +607,14 @@ public final class PipeDataBlockEntity extends BlockEntity {
     /**
      * Server only. Lists a ghost copy in plain item mode (never takes the real item). Empty clears the entry.
      * Ignored if the item is already listed in plain item mode in another slot. Items go only in item filters, fluid
-     * ghosts only in fluid filters; energy has no filter.
+     * ghosts only in fluid filters, chemical ghosts only in chemical filters (F102); energy has no filter.
      */
     public void setFilterEntry(Direction side, int slot, ItemStack stack, boolean insert, int resource) {
         if (slot < 0 || slot >= ItemFilter.SIZE || level == null || !carries(resource)) {
             return;
         }
         PipeKind units = PipeKind.ofResource(resource);
-        if (!stack.isEmpty() && (!units.hasFilter() || FluidGhost.isGhost(stack) != (units == PipeKind.FLUID))) {
+        if (!stack.isEmpty() && (!units.hasFilter() || ItemFilter.unitsOf(stack) != units)) {
             return;
         }
         ItemFilter[] array = filterArray(insert);
@@ -747,7 +746,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
 
     /**
      * One side's pull settings (insert = false) or insert settings, for the Settings Copier. Shared settings are at the
-     * top; each resource this pipe carries gets its own sub-tag (Items / Fluids / Energy) with its filter mode, amounts
+     * top; each resource this pipe carries gets its own sub-tag (Items / Fluids / Energy / Chemicals) with its filter mode, amounts
      * and filter. Pull settings include the upgrade level, so pasting can install the same tier from the player's
      * inventory. Missing keys mean "default".
      */

@@ -126,6 +126,12 @@ final class Extractor {
     long chemicalMoved;
     /** Items moved this transfer per filter entry that has its own Batch (reused; cleared at each such transfer). */
     final int[] entryMoved = new int[ItemFilter.SIZE];
+    /**
+     * Step F102: what the upgrade's amount and the side's Batch still allow in the current chemical transfer, shared by
+     * its four type passes (ChemicalTransfer).
+     */
+    long chemicalTierLeft;
+    long chemicalSideLeft;
 
     /**
      * The pipe's block state as of its last run (step 36), or null to read it again. Cleared whenever the pipe's

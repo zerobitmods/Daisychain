@@ -10,6 +10,7 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntity;
 import net.minecraftforge.common.capabilities.Capability;
 import net.minecraftforge.common.capabilities.CapabilityManager;
@@ -17,6 +18,7 @@ import net.minecraftforge.common.capabilities.CapabilityToken;
 import net.minecraftforge.common.capabilities.ICapabilityProvider;
 import net.minecraftforge.common.util.LazyOptional;
 import net.minecraftforge.event.AttachCapabilitiesEvent;
+import net.minecraftforge.registries.ForgeRegistries;
 
 import javax.annotation.Nullable;
 
@@ -91,6 +93,35 @@ final class MekanismTestKit {
             total += handler.getChemicalInTank(i).getAmount();
         }
         return total;
+    }
+
+    /** Step F102: a Basic Chemical Tank item holding mB of a gas (0 = an empty tank item). */
+    static ItemStack tankItem(String gasId, long amount) {
+        return chemicalItem("mekanism:basic_chemical_tank", gasId, amount);
+    }
+
+    /** Step F102: any Mekanism item that holds gas (jetpack, scuba tank...) holding mB of a gas. */
+    static ItemStack chemicalItem(String itemId, String gasId, long amount) {
+        ItemStack stack = new ItemStack(ForgeRegistries.ITEMS.getValue(new ResourceLocation(itemId)));
+        if (amount > 0) {
+            IGasHandler handler = stack.getCapability(GAS).resolve().orElse(null);
+            if (handler == null) {
+                throw new IllegalStateException(itemId + " has no gas handler");
+            }
+            handler.insertChemical(new GasStack(MekanismAPI.gasRegistry().getValue(new ResourceLocation(gasId)), amount),
+                    Action.EXECUTE);
+        }
+        return stack;
+    }
+
+    /** Step F102: what JEI hands over when a gas is dragged from Mekanism's list (a GasStack). */
+    static Object jeiIngredient(String gasId) {
+        return new GasStack(MekanismAPI.gasRegistry().getValue(new ResourceLocation(gasId)), 1_000);
+    }
+
+    /** Step F102: the same for an infuse type (an InfusionStack, Mekanism's second chemical type on 1.20.1). */
+    static Object jeiInfusion(String id) {
+        return new InfusionStack(MekanismAPI.infuseTypeRegistry().getValue(new ResourceLocation(id)), 1_000);
     }
 
     /** Barrels: a gas handler that accepts anything in simulation and throws on a real insert. */

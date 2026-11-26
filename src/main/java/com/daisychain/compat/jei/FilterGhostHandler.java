@@ -1,6 +1,9 @@
 package com.daisychain.compat.jei;
 
 import com.daisychain.client.PullSideScreen;
+import com.daisychain.compat.Chemicals;
+import com.daisychain.filter.ChemicalGhost;
+import com.daisychain.filter.ChemicalId;
 import com.daisychain.filter.FluidGhost;
 import com.daisychain.menu.PullSideMenu;
 import com.daisychain.net.SetFilterGhostPayload;
@@ -18,8 +21,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Lets players drag items (item pipes) or fluids (fluid pipes; also buckets and tanks, which list their fluid) from
- * JEI onto the empty filter slots of a side settings screen. Dropping sends one SetFilterGhostPayload; the server
+ * Lets players drag items (item pipes), fluids (fluid pipes; also buckets and tanks, which list their fluid) or
+ * Mekanism chemicals (chemical filters, step 178; also chemical tank items) from JEI onto the empty filter slots of a
+ * side settings screen. Dropping sends one SetFilterGhostPayload; the server
  * checks it and lists the entry with the same rules as a click. Runs only while dragging, so it may allocate.
  */
 final class FilterGhostHandler implements IGhostIngredientHandler<PullSideScreen> {
@@ -67,6 +71,14 @@ final class FilterGhostHandler implements IGhostIngredientHandler<PullSideScreen
         if (!menu.hasFilter() || minecraft.level == null) {
             return ItemStack.EMPTY;
         }
+        if (menu.isChemical()) {
+            // Step 178: a chemical from Mekanism's JEI list, or the chemical a tank item holds. The server checks it again.
+            ChemicalId id = Chemicals.idOfIngredient(ingredient.getIngredient());
+            if (id == null) {
+                id = ChemicalGhost.fromClicked(ingredient.getItemStack().orElse(ItemStack.EMPTY));
+            }
+            return id != null && Chemicals.exists(id) ? ChemicalGhost.of(id) : ItemStack.EMPTY;
+        }
         if (menu.isFluid()) {
             FluidStack fluid = ingredient.getIngredient(ForgeTypes.FLUID_STACK).orElse(FluidStack.EMPTY);
             if (fluid.isEmpty()) {
@@ -75,6 +87,7 @@ final class FilterGhostHandler implements IGhostIngredientHandler<PullSideScreen
             return FluidGhost.of(fluid, minecraft.level.registryAccess());
         }
         ItemStack item = ingredient.getItemStack().orElse(ItemStack.EMPTY);
-        return item.isEmpty() || FluidGhost.isGhost(item) ? ItemStack.EMPTY : item.copyWithCount(1);
+        return item.isEmpty() || FluidGhost.isGhost(item) || ChemicalGhost.isGhost(item) ? ItemStack.EMPTY
+                : item.copyWithCount(1);
     }
 }

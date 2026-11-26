@@ -20,8 +20,11 @@ public record CopiedSettings(boolean insert, String pipe, CompoundTag settings) 
     ).apply(instance, CopiedSettings::new));
 
 
-    /** Sub-tags per resource (step 31); copies made before that hold one resource's values at the top. */
-    private static final String[] RESOURCE_KEYS = {"Items", "Fluids", "Energy"};
+    /**
+     * Sub-tags per resource (step 31); copies made before that hold one resource's values at the top. "Chemicals" since
+     * step 178 (chemical filters), as PipeDataBlockEntity writes it.
+     */
+    private static final String[] RESOURCE_KEYS = {"Items", "Fluids", "Energy", "Chemicals"};
 
     /** Number of filter entries held, all resources together (for the tooltip and messages). */
     public int filterEntries() {

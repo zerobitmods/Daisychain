@@ -17,8 +17,8 @@ import javax.annotation.Nullable;
 import java.util.Optional;
 
 /**
- * Shift+left-click an item or fluid in JEI's ingredient list (or bookmarks) while a side settings screen with a filter
- * is open: it is listed in the first empty filter slot (step 28a, zerobit). Only on those screens; anywhere else, and
+ * Shift+left-click an item, fluid or chemical (step 178) in JEI's ingredient list (or bookmarks) while a side settings
+ * screen with a filter is open: it is listed in the first empty filter slot (step 28a, zerobit). Only on those screens; anywhere else, and
  * for things the filter can't list, JEI handles the click as usual.
  * Our listener runs before JEI's (HIGH vs JEI's NORMAL priority) and cancels the press, plus the matching release, so
  * JEI doesn't also open a recipe or give the item in cheat mode. The server checks the request like any filter click.

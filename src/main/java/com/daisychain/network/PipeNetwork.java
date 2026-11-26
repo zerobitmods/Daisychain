@@ -6,6 +6,7 @@ import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
 import com.daisychain.block.PipeKind;
 import com.daisychain.block.RedstoneMode;
+import com.daisychain.compat.ChemicalOps;
 import com.daisychain.filter.ItemFilter;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -555,13 +556,34 @@ public final class PipeNetwork {
             return maxStock[PipeKind.FLUIDS];
         }
 
-        /** Step 172, gas pipes: false if redstone stops this destination or it is switched off for chemicals. */
-        public boolean acceptsChemicals() {
-            return !redstoneBlocked && (insertOffMask & (1 << PipeKind.CHEMICALS)) == 0;
+        /**
+         * Step 172, chemicals: false if redstone stops this destination or it is switched off for chemicals. Step 178:
+         * and its insert filter must let this chemical in (always without one). chemical comes from ops.chemical; call
+         * only where Mekanism errors are caught (ChemicalTransfer). No allocation (Mod entries: a name lookup).
+         */
+        public boolean acceptsChemical(ChemicalOps<?, ?> ops, Object chemical) {
+            if (redstoneBlocked || (insertOffMask & (1 << PipeKind.CHEMICALS)) != 0) {
+                return false;
+            }
+            ItemFilter filter = insertFilters[PipeKind.CHEMICALS];
+            return filter == null || !filter.isActive() || filter.testChemical(ops, chemical, denies(PipeKind.CHEMICALS));
         }
 
-        /** Step 172, gas pipes: Max stock in mB (0 = no limit); the side's value (chemical filters come later). */
-        public int maxStockForChemicals() {
+        /**
+         * Chemicals: Max stock for this chemical in mB (0 = no limit): the most exact insert filter entry's own value if
+         * it has one (Allow mode only; step 178), else the side's. No allocation (Mod entries: a name lookup).
+         */
+        public int maxStockForChemical(ChemicalOps<?, ?> ops, Object chemical) {
+            ItemFilter filter = insertFilters[PipeKind.CHEMICALS];
+            if (filter != null && !denies(PipeKind.CHEMICALS) && filter.hasFillOverride()) {
+                int entry = filter.entryForChemical(ops, chemical);
+                if (entry >= 0) {
+                    int own = filter.number(entry, ItemFilter.FILL);
+                    if (own != ItemFilter.UNSET) {
+                        return own;
+                    }
+                }
+            }
             return maxStock[PipeKind.CHEMICALS];
         }
 

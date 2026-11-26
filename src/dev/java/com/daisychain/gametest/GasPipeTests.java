@@ -171,15 +171,15 @@ public final class GasPipeTests {
 
     // ---------------------------------------------------------------- step 172: chemicals move
 
-    private static final BlockPos TANK_A = new BlockPos(1, 1, 2);
-    private static final BlockPos TANK_B = new BlockPos(5, 1, 2);
+    static final BlockPos TANK_A = new BlockPos(1, 1, 2);
+    static final BlockPos TANK_B = new BlockPos(5, 1, 2);
 
     /** Tank A (filled with hydrogen) -> three gas pipes, pulling from A -> tank B (or another block at B). */
-    private static void gasLine(GameTestHelper helper, long hydrogen, @javax.annotation.Nullable Block atB) {
+    static void gasLine(GameTestHelper helper, long hydrogen, @javax.annotation.Nullable Block atB) {
         gasLine(helper, hydrogen, atB, ModBlocks.GAS_PIPE.get());
     }
 
-    private static void gasLine(GameTestHelper helper, long hydrogen, @javax.annotation.Nullable Block atB, Block pipe) {
+    static void gasLine(GameTestHelper helper, long hydrogen, @javax.annotation.Nullable Block atB, Block pipe) {
         Block tank = BuiltInRegistries.BLOCK.get(TANK);
         helper.setBlock(TANK_A, tank.defaultBlockState());
         chemicalSidesOn(helper, TANK_A);
@@ -203,7 +203,7 @@ public final class GasPipeTests {
                 1 << Direction.WEST.get3DDataValue());
     }
 
-    private static long gas(GameTestHelper helper, BlockPos pos) {
+    static long gas(GameTestHelper helper, BlockPos pos) {
         return MekanismTestKit.amount(helper.getLevel(), helper.absolutePos(pos));
     }
 

@@ -88,7 +88,10 @@ Filters decide what a side pulls, or what it's happy to accept. They're ghost sl
   data, like enchantments or damage), **Tag** (pick one of its tags, or search for any tag) or **Mod** (everything from that mod).
 - Shift-click an entry to remove it. That's the only way to remove one, so a carefully built filter is safe from stray clicks.
   **Clear filter** at the bottom of Advanced view empties the whole thing, after a second click to make sure.
-- Got JEI? Drag items or fluids straight from it into the filter, or shift-click them in JEI's list.
+- Fluid and chemical filters list what a container holds: click with a filled bucket or tank, or with a filled Mekanism
+  chemical tank (a jetpack or scuba tank works too). Chemical entries match by **Chemical**, **Tag** or **Mod**; chemicals
+  have no extra data to match.
+- Got JEI? Drag items, fluids or chemicals straight from it into the filter, or shift-click them in JEI's list.
 
 Little badges on an entry tell you how it matches: **D** for item + data, **#** for a tag, **M** for a whole mod. A **+** in the
 bottom-right corner means the entry has its own amounts.
@@ -106,7 +109,7 @@ Four numbers for when you want to get precise, all in Advanced view:
 | Fill to | Pull | Stops once a destination has this many |
 | Max stock | Insert | This block never holds more than this many |
 
-Items count in items, fluids in mB, and energy in FE.
+Items count in items, fluids and chemicals in mB, and energy in FE.
 
 Any filter entry can have its own amounts too. Open the entry in Advanced and set them right there. A dim number means the entry
 just follows the side's settings.
@@ -129,8 +132,9 @@ stack.
 
 ## Universal Pipes
 
-A <ItemLink id="daisychain:universal_pipe" /> side handles items, fluids and energy, each with its own filter and amounts. Pick one
-with the tabs on the left (a box, a drop and a lightning bolt). The power key in the key row switches the one you're looking at
+A <ItemLink id="daisychain:universal_pipe" /> side handles items, fluids and energy (and Mekanism chemicals, when Mekanism is
+installed), each with its own amounts and, except energy, its own filter. Pick one with the tabs on the left (a box, a drop, a
+lightning bolt and a flask). The power key in the key row switches the one you're looking at
 on or off for this side, and a switched-off tab gets a red slash. Redstone, Send to, priority and the upgrade are shared.
 
 ## All six sides at once

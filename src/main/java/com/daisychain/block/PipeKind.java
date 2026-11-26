@@ -16,8 +16,8 @@ public enum PipeKind {
      */
     REDSTONE,
     /**
-     * Step 170: Mekanism chemicals (gas, infusion, pigment, slurry), counted in mB. Only the resource slot exists so far:
-     * no gas pipe block yet (step 172), and the universal pipe doesn't carry chemicals yet (step 173).
+     * Step 170: Mekanism chemicals (gas, infusion, pigment, slurry), counted in mB. The gas pipe carries them (step 172),
+     * and so does the universal pipe (step 176). Filters since step 178.
      */
     GAS;
 
@@ -78,9 +78,12 @@ public enum PipeKind {
     private static final int MAX_ITEM_BATCH = 1_000_000;
     private static final int MAX_ITEM_STOCK = 100_000;
 
-    /** Item and fluid pipes have the 54-slot filter (items or fluids). Energy is all one kind: no filter. */
+    /**
+     * Item, fluid and gas pipes have the 54-slot filter (items, fluids or chemicals; chemicals since step 178). Energy
+     * is all one kind: no filter.
+     */
     public boolean hasFilter() {
-        return this == ITEM || this == FLUID;
+        return this == ITEM || this == FLUID || this == GAS;
     }
 
     /**

@@ -3,6 +3,9 @@ package com.daisychain.menu;
 import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.PipeKind;
+import com.daisychain.compat.Chemicals;
+import com.daisychain.filter.ChemicalGhost;
+import com.daisychain.filter.ChemicalId;
 import com.daisychain.filter.FluidGhost;
 import com.daisychain.filter.ItemFilter;
 import com.daisychain.filter.MatchMode;
@@ -301,17 +304,17 @@ public final class PullSideMenu extends AbstractContainerMenu {
         return kind;
     }
 
-    /** The resource the screen shows (PipeKind.ITEMS / FLUIDS / ENERGY_RES). */
+    /** The resource the screen shows (PipeKind.ITEMS / FLUIDS / ENERGY_RES / CHEMICALS). */
     public int resource() {
         return resource;
     }
 
-    /** The shown resource as a kind (ITEM, FLUID or ENERGY): decides units, steps, limits and help texts. */
+    /** The shown resource as a kind (ITEM, FLUID, ENERGY or GAS): decides units, steps, limits and help texts. */
     public PipeKind resourceKind() {
         return PipeKind.ofResource(resource);
     }
 
-    /** True if the shown resource has the 54-slot filter (items or fluids; energy has none). */
+    /** True if the shown resource has the 54-slot filter (items, fluids or chemicals; energy has none). */
     public boolean hasFilter() {
         return resourceKind().hasFilter();
     }
@@ -324,6 +327,11 @@ public final class PullSideMenu extends AbstractContainerMenu {
     /** True when the shown resource is fluids: the filter lists fluids. */
     public boolean isFluid() {
         return resource == PipeKind.FLUIDS;
+    }
+
+    /** Step 178: true when the shown resource is chemicals: the filter lists chemicals. */
+    public boolean isChemical() {
+        return resource == PipeKind.CHEMICALS;
     }
 
     public BlockPos pos() {
@@ -466,14 +474,19 @@ public final class PullSideMenu extends AbstractContainerMenu {
     }
 
     /**
-     * What clicking with this stack lists. Item pipes: a copy of the item (never a fluid ghost). Fluid pipes: the
-     * fluid it holds (bucket, tank, cell...), or EMPTY if it holds none.
+     * What clicking with this stack lists. Item pipes: a copy of the item (never a fluid or chemical ghost). Fluid
+     * pipes: the fluid it holds (bucket, tank, cell...), or EMPTY if it holds none. Chemical filters (step 178): the
+     * chemical it holds (chemical tank, jetpack...) or a dropped chemical ghost's, if that chemical exists here.
      */
     private ItemStack ghostFor(ItemStack stack, Player player) {
         if (isFluid()) {
             return FluidGhost.of(FluidGhost.fromClicked(stack), player.level().registryAccess());
         }
-        return FluidGhost.isGhost(stack) ? ItemStack.EMPTY : ItemFilter.ghostOf(stack, player.level().registryAccess());
+        if (isChemical()) {
+            return ChemicalGhost.listable(stack);
+        }
+        return FluidGhost.isGhost(stack) || ChemicalGhost.isGhost(stack) ? ItemStack.EMPTY
+                : ItemFilter.ghostOf(stack, player.level().registryAccess());
     }
 
     /**
@@ -495,6 +508,12 @@ public final class PullSideMenu extends AbstractContainerMenu {
             }
             ItemStack entry = slots.get(i).getItem();
             if (entry.isEmpty() || ModDataComponents.FILTER_MATCH.has(entry) || !entry.is(stack.getItem())) {
+                continue;
+            }
+            if (ChemicalGhost.isGhost(stack)) {
+                if (ChemicalGhost.sameChemical(entry, stack)) {
+                    return i; // the same chemical (step 178)
+                }
                 continue;
             }
             SimpleFluidContent mine = FluidGhost.contentOf(stack);
@@ -524,10 +543,18 @@ public final class PullSideMenu extends AbstractContainerMenu {
             if (tag == null) {
                 return;
             }
-            // Fluid pipes list fluid tags, item pipes item tags; either way it must exist on this server.
-            boolean exists = isFluid()
-                    ? BuiltInRegistries.FLUID.getTag(TagKey.create(Registries.FLUID, tag)).isPresent()
-                    : BuiltInRegistries.ITEM.getTag(TagKey.create(Registries.ITEM, tag)).isPresent();
+            // Fluid pipes list fluid tags, chemical filters chemical tags (step 178), item pipes item tags; either way it
+            // must exist on this server.
+            boolean exists;
+            if (isFluid()) {
+                exists = BuiltInRegistries.FLUID.getTag(TagKey.create(Registries.FLUID, tag)).isPresent();
+            } else if (isChemical()) {
+                // 1.20.1: each chemical type has its own tags; the entry's type decides which.
+                ChemicalId chemical = ChemicalGhost.idOf(data.filterEntry(side, filterSlot, insert, resource));
+                exists = chemical != null && Chemicals.tagExists(chemical.type(), tag);
+            } else {
+                exists = BuiltInRegistries.ITEM.getTag(TagKey.create(Registries.ITEM, tag)).isPresent();
+            }
             if (!exists) {
                 return; // no such tag on this server
             }

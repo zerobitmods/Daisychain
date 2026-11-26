@@ -1,6 +1,7 @@
 package com.daisychain.registry;
 
 import com.daisychain.Daisychain;
+import com.daisychain.filter.ChemicalId;
 import com.daisychain.filter.FilterMatch;
 import com.daisychain.filter.FilterNumbers;
 import com.daisychain.filter.SimpleFluidContent;
@@ -26,6 +27,11 @@ public final class ModDataComponents {
     public static final Entry<CopiedSettings> COPIED_SETTINGS = new Entry<>("copied_settings", CopiedSettings.CODEC);
     /** The fluid a fluid filter entry stands for; only on daisychain:fluid ghosts in filters. */
     public static final Entry<SimpleFluidContent> GHOST_FLUID = new Entry<>("ghost_fluid", SimpleFluidContent.CODEC);
+    /**
+     * Step F102 (port of 178): the chemical a chemical filter entry stands for, by type and registry name only (no
+     * Mekanism type), so filters load and stay intact without Mekanism. Only on daisychain:chemical ghosts in filters.
+     */
+    public static final Entry<ChemicalId> GHOST_CHEMICAL = new Entry<>("ghost_chemical", ChemicalId.CODEC);
     /** Step F53: the block a facade covers a pipe with. */
     public static final Entry<BlockState> FACADE = new Entry<>("facade", BlockState.CODEC);
 
