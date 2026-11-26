@@ -203,8 +203,12 @@ dependencies {
     localRuntime "maven.modrinth:jade:${jade_version}"
     // Mekanism + Mekanism Generators, only so energy pipes can be tested in ./gradlew runClient (step 29a).
     // localRuntime: present in the dev game, never a dependency of Daisychain itself.
-    localRuntime "mekanism:Mekanism:${mekanism_version}"
-    localRuntime "mekanism:Mekanism:${mekanism_version}:generators"
+    // Step 170: ./gradlew runGameTestServer -Pwithout_mekanism runs everything without Mekanism, so a Mekanism class
+    // used outside the compat code shows up as a crash in the dev game instead of in someone's modpack.
+    if (!project.hasProperty('without_mekanism')) {
+        localRuntime "mekanism:Mekanism:${mekanism_version}"
+        localRuntime "mekanism:Mekanism:${mekanism_version}:generators"
+    }
     // GuideME (step 45): optional since the 2026-11-09 review (decision 5). It shows the in-game guide
     // (src/main/resources/assets/daisychain/guides). The guide is plain data files and no Daisychain code calls GuideME,
     // so it is only put in the dev game (localRuntime), like JEI and Jade. To check that everything still works

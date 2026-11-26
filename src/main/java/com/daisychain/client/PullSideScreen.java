@@ -281,6 +281,9 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         if (menu.hasResourceTabs()) {
             String[][] icons = {DaisyGui.ITEMS, DaisyGui.FLUIDS, DaisyGui.ENERGY};
             for (int r = 0; r < PipeKind.RESOURCE_COUNT; r++) {
+                if (!menu.kind().carries(r) || r >= icons.length) {
+                    continue; // step 170: the chemicals slot gets its tab with the universal pipe's chemicals (173)
+                }
                 int resource = r;
                 resourceTabs[r] = addRenderableWidget(new DaisyTab(panelX, panelY + 64 + r * 22, 20, icons[r],
                         r == menu.resource(), resourceName(r), () -> showResource(resource),
@@ -1112,6 +1115,9 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                     ? Component.translatable(insert ? "screen.daisychain.resource_accept_help"
                     : "screen.daisychain.resource_pull_help") : Component.translatable("screen.daisychain.key_hint_toggle")));
             for (int i = 0; i < PipeKind.RESOURCE_COUNT; i++) {
+                if (resourceTabs[i] == null) {
+                    continue;
+                }
                 resourceTabs[i].setTooltip(Tooltip.create(Component.translatable(resourceOff(i)
                         ? "screen.daisychain.resource_tab_off" : "screen.daisychain.resource_tab", resourceName(i))));
             }
