@@ -351,6 +351,7 @@ final class LagProbe {
             case ENERGY -> label.append("energy pipe, ").append(tierName).append(" tier");
             case FLUID -> label.append("fluid pipe, ");
             case UNIVERSAL -> label.append("universal pipe, ");
+            case GAS -> label.append("gas pipe, ");
             default -> label.append("item pipe, ");
         }
         if (extractor.kind != PipeKind.ENERGY) {

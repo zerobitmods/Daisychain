@@ -37,6 +37,9 @@ public final class ModItems {
     /** Step 161. */
     public static final DeferredItem<BlockItem> REDSTONE_PIPE =
             ITEMS.registerSimpleBlockItem("redstone_pipe", ModBlocks.REDSTONE_PIPE);
+    /** Step 171. */
+    public static final DeferredItem<BlockItem> GAS_PIPE =
+            ITEMS.registerSimpleBlockItem("gas_pipe", ModBlocks.GAS_PIPE);
     /**
      * The Bloom Wrench (step 62b; was the Probe, id daisychain:probe, and before that the Pipe Wrench, id daisychain:wrench).
      * Its behavior comes from the c:tools/wrench tag.

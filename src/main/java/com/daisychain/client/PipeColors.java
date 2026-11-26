@@ -5,6 +5,7 @@ import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.RedstonePipeBlock;
 import com.daisychain.block.PipeDataBlockEntity;
+import com.daisychain.block.PipeKind;
 import com.daisychain.item.EnergyPipeItem;
 import com.daisychain.registry.ModBlocks;
 import com.daisychain.registry.ModItems;
@@ -68,6 +69,12 @@ public final class PipeColors {
     public static final int REDSTONE_LINE_OFF_TINT = 0x3C1311;
     /** Step 162: the line while the pipe is powered, #F53020; step 164 draws it full-bright (PipeBakedModel). */
     public static final int REDSTONE_LINE_ON_TINT = 0xFF3221;
+    /**
+     * Step 171: gas pipe colours (look E), as tints of the item pipe's textures like the redstone pipe's: plum body
+     * #6E2E5C, pink line #F27AC4. Not in the pipe colours screen.
+     */
+    public static final int GAS_BODY_TINT = PipeTints.tintFor(0, false, 0x6E2E5C);
+    public static final int GAS_LINE_TINT = PipeTints.tintFor(0, true, 0xF27AC4);
 
     private PipeColors() {
     }
@@ -123,6 +130,9 @@ public final class PipeColors {
         // Step 161: the redstone pipe item, unpowered.
         event.register((stack, tintIndex) -> tintIndex == BODY_TINT ? 0xFF000000 | REDSTONE_BODY_TINT
                 : tintIndex == LINE_TINT ? 0xFF000000 | REDSTONE_LINE_OFF_TINT : -1, ModItems.REDSTONE_PIPE.get());
+        // Step 171: the gas pipe item.
+        event.register((stack, tintIndex) -> tintIndex == BODY_TINT ? 0xFF000000 | GAS_BODY_TINT
+                : tintIndex == LINE_TINT ? 0xFF000000 | GAS_LINE_TINT : -1, ModItems.GAS_PIPE.get());
         event.register((stack, tintIndex) -> {
             if (!(stack.getItem() instanceof EnergyPipeItem pipe)) {
                 return -1;
@@ -148,6 +158,11 @@ public final class PipeColors {
             int line = state.getValue(RedstonePipeBlock.POWERED) ? REDSTONE_LINE_ON_TINT : REDSTONE_LINE_OFF_TINT;
             return tintIndex == BODY_TINT ? REDSTONE_BODY_TINT
                     : tintIndex == LINE_TINT || tintIndex >= 0 && tintIndex <= 11 ? line : TIER_COLORS[0];
+        }
+        if (BasePipeBlock.kindOf(state) == PipeKind.GAS) {
+            // Step 171: body, line and rings (0-11, the line colour like the other pipes).
+            return tintIndex == BODY_TINT ? GAS_BODY_TINT
+                    : tintIndex == LINE_TINT || tintIndex >= 0 && tintIndex <= 11 ? GAS_LINE_TINT : TIER_COLORS[0];
         }
         if (tintIndex == BODY_TINT || tintIndex == LINE_TINT) {
             int slot = PipeTints.slot(BasePipeBlock.kindOf(state));

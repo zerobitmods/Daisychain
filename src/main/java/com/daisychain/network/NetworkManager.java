@@ -877,6 +877,9 @@ public final class NetworkManager {
 
     private int transferNow(Extractor extractor, Direction direction, int resource, int tier, PipeDataBlockEntity data,
                             int maxSlots, int maxCalls) {
+        if (resource == PipeKind.CHEMICALS) {
+            return 0; // step 171: gas pipes connect, but chemicals don't move yet (step 172)
+        }
         if (resource == PipeKind.FLUIDS) {
             return FluidTransfer.transfer(level, extractor, direction, extractor.destinations,
                     data.distribution(direction), data.allowsSelfFeed(direction),

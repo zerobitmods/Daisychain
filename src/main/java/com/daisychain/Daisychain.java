@@ -24,7 +24,7 @@ public final class Daisychain {
     public static final String MOD_ID = "daisychain";
     public static final Logger LOGGER = LogUtils.getLogger();
     /** Development step this build is at. Shown by /daisychain version; bumped with every step. */
-    public static final String DEV_STEP = "170";
+    public static final String DEV_STEP = "171";
 
     public Daisychain(IEventBus modEventBus, ModContainer modContainer) {
         ModBlocks.register(modEventBus);
@@ -39,6 +39,7 @@ public final class Daisychain {
         modContainer.registerConfig(ModConfig.Type.CLIENT, DaisychainClientConfig.SPEC);
         modEventBus.addListener(DaisychainNetwork::register);
         modEventBus.addListener(this::commonSetup);
+        com.daisychain.compat.Chemicals.register(modEventBus); // step 171: Mekanism gas, optional
         // Step 98: optional FTB Ultimine add-on, only with an Ultimine new enough to have its right-click API.
         if (ModList.get().isLoaded("ftbultimine") && classExists("dev.ftb.mods.ftbultimine.api.rightclick.RegisterRightClickHandlerEvent")) {
             com.daisychain.compat.ultimine.UltimineCompat.register();

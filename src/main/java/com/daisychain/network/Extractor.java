@@ -279,6 +279,7 @@ final class Extractor {
     boolean hasAnySource(ServerLevel level, Direction side) {
         return switch (kind) {
             case FLUID -> fluidSource(level, side) != null;
+            case GAS -> false; // step 171: nothing moves chemicals yet, so a gas pull side may sleep
             case ENERGY -> energySource(level, side) != null;
             case UNIVERSAL -> source(level, side) != null || fluidSource(level, side) != null
                     || energySource(level, side) != null;

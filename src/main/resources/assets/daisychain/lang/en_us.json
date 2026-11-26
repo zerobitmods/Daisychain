@@ -242,6 +242,7 @@
   "daisychain.configuration.fe_per_transfer": "FE per transfer",
   "block.daisychain.universal_pipe": "Universal Pipe",
   "block.daisychain.redstone_pipe": "Redstone Pipe",
+  "block.daisychain.gas_pipe": "Gas Pipe",
   "screen.daisychain.resource.items": "Items",
   "screen.daisychain.resource.fluids": "Fluids",
   "screen.daisychain.resource.energy": "Energy",

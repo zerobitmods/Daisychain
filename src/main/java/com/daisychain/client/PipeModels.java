@@ -113,7 +113,9 @@ public final class PipeModels {
         Map<ModelResourceLocation, BakedModel> models = event.getModels();
         // Step 84: every energy pipe tier uses the energy parts; the tier color comes from PipeColors (tint 12).
         // Step 161: the redstone pipe uses the item pipe's parts; its own colours come from PipeColors (tints 13 / 15).
-        Block[][] blocks = {{ModBlocks.ITEM_PIPE.get(), ModBlocks.REDSTONE_PIPE.get()}, {ModBlocks.FLUID_PIPE.get()},
+        // Step 171: the gas pipe too (tints 13 / 15 from PipeColors).
+        Block[][] blocks = {{ModBlocks.ITEM_PIPE.get(), ModBlocks.REDSTONE_PIPE.get(), ModBlocks.GAS_PIPE.get()},
+                {ModBlocks.FLUID_PIPE.get()},
                 ModBlocks.energyPipes(), {ModBlocks.UNIVERSAL_PIPE.get()}};
         for (int t = 0; t < TYPES.length; t++) {
             String type = TYPES[t];
