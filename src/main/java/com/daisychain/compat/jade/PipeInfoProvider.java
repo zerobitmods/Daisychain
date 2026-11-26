@@ -142,6 +142,14 @@ public enum PipeInfoProvider implements IBlockComponentProvider {
             speeds.append(Component.translatable("jade.daisychain.speed.fluids", number(perSecond)));
             first = false;
         }
+        if (kind.carries(PipeKind.CHEMICALS)) { // step 173: gas pipes
+            long perSecond = Math.round(UpgradeSpeeds.chemicalMb(level) * 20.0 / UpgradeSpeeds.chemicalInterval(level));
+            if (!first) {
+                speeds.append(", ");
+            }
+            speeds.append(Component.translatable("jade.daisychain.speed.chemicals", number(perSecond)));
+            first = false;
+        }
         if (kind.carries(PipeKind.ENERGY_RES)) {
             long perTick = UpgradeSpeeds.energyFe(level) / Math.max(1, UpgradeSpeeds.energyInterval(level));
             if (!first) {

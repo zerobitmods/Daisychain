@@ -23,6 +23,7 @@ to a fluid line and they'll politely ignore each other.
 | <ItemLink id="daisychain:energy_pipe" /> | Dark green, with a colored band | Energy (FE), in six tiers (see [Energy pipe tiers](energy-pipes.md)) |
 | <ItemLink id="daisychain:universal_pipe" /> | Black | All three at once |
 | <ItemLink id="daisychain:redstone_pipe" /> | Dark red | A redstone signal, on or off (see [Redstone pipe](redstone-pipe.md)) |
+| <ItemLink id="daisychain:gas_pipe" /> | Plum, with a pink line | Mekanism chemicals, only with Mekanism installed (see [Gas pipe](gas-pipe.md)) |
 
 They all get along with blocks from other mods too, as long as the block has a normal inventory, tank or battery.
 

@@ -749,7 +749,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
     /** A number as shown on this pipe: "250 mB" on fluid pipes, plain on item pipes. */
     Component amount(int value) {
         return switch (menu.resourceKind()) {
-            case FLUID -> Component.translatable("screen.daisychain.amount_mb", value);
+            case FLUID, GAS -> Component.translatable("screen.daisychain.amount_mb", value);
             case ENERGY -> Component.translatable("screen.daisychain.amount_fe",
                     String.format(java.util.Locale.ROOT, "%,d", value));
             default -> Component.literal(Integer.toString(value));
@@ -777,12 +777,12 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         return number + units[unit];
     }
 
-    /** Off for 0, else the amount (with mB on fluid pipes). */
+    /** Off for 0, else the amount (with mB on fluid and gas pipes). */
     Component offOrAmount(int value) {
         return value == 0 ? Component.translatable("screen.daisychain.off") : amount(value);
     }
 
-    /** A help text key, with "_fluid" added on fluid pipes (the fluid text talks about mB). */
+    /** A help text key, with "_fluid" / "_gas" added on fluid / gas pipes (those texts talk about mB). */
     String helpKey(String key) {
         return key + menu.resourceKind().langSuffix();
     }

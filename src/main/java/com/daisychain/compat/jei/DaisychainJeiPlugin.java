@@ -63,6 +63,11 @@ public final class DaisychainJeiPlugin implements IModPlugin {
     public void onRuntimeAvailable(IJeiRuntime runtime) {
         runtime.getIngredientManager().removeIngredientsAtRuntime(VanillaTypes.ITEM_STACK,
                 List.of(new ItemStack(ModItems.FLUID_GHOST.get())));
+        if (!com.daisychain.compat.Chemicals.mekanismLoaded()) {
+            // Step 173: the gas pipe is always registered but only useful (and craftable) with Mekanism.
+            runtime.getIngredientManager().removeIngredientsAtRuntime(VanillaTypes.ITEM_STACK,
+                    List.of(new ItemStack(ModItems.GAS_PIPE.get())));
+        }
         JeiShiftClick.setRuntime(runtime);
     }
 
