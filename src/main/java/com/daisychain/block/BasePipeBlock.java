@@ -912,6 +912,68 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
                     && (armsDisagreeWithSettings(serverLevel, pos, state) || state.getValue(COVER) != CoverShape.NONE)) {
                 serverLevel.scheduleTick(pos, this, 2);
             }
+            noteNewSides(serverLevel, pos, state, oldState);
+        }
+    }
+
+    /**
+     * Steps 163 / 169: sides that just connected to a block (a new pipe's sides, or a side that had no arm) are noted for
+     * the next tick, which makes them pull sides if startsAsPull says so (a lever for a redstone pipe, a generator for an
+     * energy pipe). Never a side the player set (changingSideMode), a pipe that replaced another pipe (tier swap), or a
+     * new pipe pasted with its own settings.
+     */
+    private void noteNewSides(ServerLevel level, BlockPos pos, BlockState state, BlockState oldState) {
+        if (!checksNewSides() || changingSideMode) {
+            return;
+        }
+        boolean fresh = !(oldState.getBlock() instanceof BasePipeBlock);
+        if (fresh ? state.getValue(HAS_DATA) : !oldState.is(this)) {
+            return;
+        }
+        boolean any = false;
+        for (Direction direction : DIRECTIONS) {
+            if (state.getValue(propertyFor(direction)) == SideState.CONNECTED
+                    && (fresh || oldState.getValue(propertyFor(direction)) == SideState.NONE)
+                    && !(level.getBlockState(pos.relative(direction)).getBlock() instanceof BasePipeBlock)) {
+                NewSides.note(level, pos, direction);
+                any = true;
+            }
+        }
+        if (any) {
+            level.scheduleTick(pos, this, 1);
+        }
+    }
+
+    /** Steps 163 / 169: true for pipes whose new sides may start as pull sides (redstone and energy pipes). */
+    protected boolean checksNewSides() {
+        return false;
+    }
+
+    /**
+     * Steps 163 / 169: true if this side, which just connected to the block next to it, should start as a pull side.
+     * Asked one tick after it connected (so a block entity's side settings have arrived).
+     */
+    protected boolean startsAsPull(ServerLevel level, BlockPos pos, Direction side, BlockState neighborState) {
+        return false;
+    }
+
+    /** Steps 163 / 169: makes the noted new sides pull sides where startsAsPull says so. */
+    private void applyNewSides(ServerLevel level, BlockPos pos) {
+        int sides = NewSides.take(level, pos);
+        if (sides == 0) {
+            return;
+        }
+        for (Direction direction : DIRECTIONS) {
+            BlockState now = level.getBlockState(pos);
+            if ((sides & (1 << direction.get3DDataValue())) == 0 || !now.is(this)
+                    || now.getValue(propertyFor(direction)) != SideState.CONNECTED) {
+                continue;
+            }
+            BlockState neighbor = Loaded.stateIfLoaded(level, pos.relative(direction));
+            if (neighbor != null && !(neighbor.getBlock() instanceof BasePipeBlock)
+                    && startsAsPull(level, pos, direction, neighbor)) {
+                setSideMode(level, pos, now, direction, null, MODE_PULL, false);
+            }
         }
     }
 
@@ -934,6 +996,11 @@ public abstract class BasePipeBlock extends Block implements EntityBlock {
      */
     @Override
     protected void tick(BlockState state, ServerLevel level, BlockPos pos, RandomSource random) {
+        tickArms(state, level, pos);
+        applyNewSides(level, pos); // steps 163 / 169
+    }
+
+    private void tickArms(BlockState state, ServerLevel level, BlockPos pos) {
         if (syncCoverState(level, pos)) { // step 127: also scheduled when a chunk loads with a cover state out of date
             state = level.getBlockState(pos);
             if (!(state.getBlock() instanceof BasePipeBlock)) {
