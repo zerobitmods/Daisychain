@@ -128,4 +128,40 @@ public final class EnergyPipeBlock extends BasePipeBlock {
     protected boolean canConnectToBlock(Level level, BlockPos targetPos, Direction targetSide) {
         return CapCache.has(level, targetPos, targetSide, ForgeCapabilities.ENERGY);
     }
+
+    @Override
+    protected boolean checksNewSides() {
+        return true;
+    }
+
+    /**
+     * Step F93 (port of 169): a side that just connected to a block that gives energy but won't take any (a generator, a
+     * solar panel) starts as a pull side. Blocks that take energy (machines, batteries, energy cubes, other mods' cables)
+     * stay insert sides, so the pipe never drains a battery on its own. Some generators say they can take energy too
+     * (Mekanism's, on their output face): such a block counts as a generator only if it has room and still refuses
+     * 1,000 FE (asked as a simulation, nothing moves). A full battery can't be told apart that way, so it stays an insert
+     * side. Other mods' cables and pipes (tag daisychain:energy_never_auto_pull) never start as pull sides. Asked once,
+     * one tick after the side connected; a handler that throws counts as "no".
+     */
+    @Override
+    protected boolean startsAsPull(ServerLevel level, BlockPos pos, Direction side, BlockState neighborState) {
+        if (neighborState.is(com.daisychain.registry.ModTags.ENERGY_NEVER_AUTO_PULL)) {
+            return false; // another mod's cable or pipe: which way it should run is the player's call
+        }
+        try {
+            net.minecraft.world.level.block.entity.BlockEntity be = level.getBlockEntity(pos.relative(side));
+            net.minecraftforge.energy.IEnergyStorage storage = be == null ? null
+                    : be.getCapability(ForgeCapabilities.ENERGY, side.getOpposite()).resolve().orElse(null);
+            if (storage == null || !storage.canExtract()) {
+                return false;
+            }
+            if (!storage.canReceive()) {
+                return true;
+            }
+            int max = storage.getMaxEnergyStored();
+            return max > 0 && storage.getEnergyStored() < max && storage.receiveEnergy(1_000, true) == 0;
+        } catch (RuntimeException e) {
+            return false; // another mod's handler misbehaved: leave the side as it is
+        }
+    }
 }

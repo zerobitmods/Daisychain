@@ -37,6 +37,14 @@ public final class ModTags {
     public static final TagKey<Block> REDSTONE_PIPE_INPUTS =
             TagKey.create(Registries.BLOCK, new ResourceLocation("daisychain", "redstone_pipe_inputs"));
 
+    /**
+     * Step F93 (port of 169): energy blocks a new energy pipe side never starts pulling from, though they answer like a
+     * generator: other mods' cables and pipes, so the pipe can't tell which way they should run. Optional entries;
+     * pack makers can add more.
+     */
+    public static final TagKey<Block> ENERGY_NEVER_AUTO_PULL =
+            TagKey.create(Registries.BLOCK, new ResourceLocation("daisychain", "energy_never_auto_pull"));
+
     private ModTags() {
     }
 

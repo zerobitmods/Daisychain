@@ -38,6 +38,14 @@ Energy pipes of every tier connect to each other and make one network. Energy go
 
 So you can upgrade a long line one stretch at a time and it keeps working the whole way.
 
+## Generators pull on their own
+
+Put an energy pipe next to a generator (or a generator next to a pipe) and that side starts as a **pull side** by itself, so
+the power starts flowing without a trip to the wrench. Machines and batteries get an insert side as usual: the pipe never
+starts draining a battery on its own. Other mods' cables stay insert sides too, since only you know which way they should run.
+
+It only happens when a side first connects. Wrench it back to insert and it stays that way.
+
 ## Blocks that push power
 
 Some blocks never hand their power over when a pipe asks for it. They push it out on their own instead: a **Flux Point**

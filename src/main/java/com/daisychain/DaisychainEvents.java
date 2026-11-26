@@ -50,12 +50,14 @@ public final class DaisychainEvents {
         if (event.getLevel() instanceof ServerLevel serverLevel) {
             NetworkManager.remove(serverLevel);
             RedstoneLines.remove(serverLevel); // step 162
+            com.daisychain.block.NewSides.remove(serverLevel); // step 169
         }
     }
 
     public static void onServerStopped(ServerStoppedEvent event) {
         NetworkManager.clearAll();
         RedstoneLines.clearAll(); // step 162
+        com.daisychain.block.NewSides.clearAll(); // step 169
         CopierSessions.clearAll();
         PipeAccess.clearAll();
     }
