@@ -1208,6 +1208,15 @@ public final class PipeDataBlockEntity extends BlockEntity {
             requestModelDataUpdate(); // step F54: the model reads the cover from getModelData
             clientCoverChanges++; // step F57 (129c)
         }
+        // Step F103: settings written into a pipe that is already in the world (/setblock with data, a schematic or
+        // building-tool paste). Forge ran onLoad when the block was placed, before these settings arrived: the pull
+        // sides were registered empty and the arms were drawn without them (a pull side shown as a plain connection).
+        // Register them again now, and redraw the arms from the settings next tick (BasePipeBlock.tick). A chunk loading
+        // from disk calls load before the block entity has a level, so this does nothing there (onLoad registers them).
+        if (level instanceof ServerLevel serverLevel && !isRemoved()) {
+            syncExtractor();
+            serverLevel.scheduleTick(worldPosition, getBlockState().getBlock(), 1);
+        }
     }
 
     /** A saved cover, or null if its block no longer exists (its mod was removed: reads as air). */
