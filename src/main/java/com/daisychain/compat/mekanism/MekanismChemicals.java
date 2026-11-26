@@ -89,6 +89,58 @@ public final class MekanismChemicals {
         return false;
     }
 
+    // ---------------------------------------------------------------- step 180: pipes Mekanism's tubes connect to
+
+    /**
+     * Registers a chemical handler that holds and takes nothing on these pipes, on every side (none for no side). Per
+     * block, not per block entity: bare pipes have none, and Mekanism looks the capability up by position. Mekanism's
+     * pressurized tubes then see the pipe as something to connect to (they connect, and take chemicals, only on such
+     * sides). Daisychain's own pipes never connect to each other through it (pipe neighbors are handled first).
+     */
+    public static void offerPipeHandlers(RegisterCapabilitiesEvent event, Block... pipes) {
+        event.registerBlock(CHEMICAL, (level, pos, state, blockEntity, side) -> side == null ? null : NoChemicals.INSTANCE,
+                pipes);
+    }
+
+    /** Step 180: no tanks; refuses every insert, gives nothing. */
+    private static final class NoChemicals implements IChemicalHandler {
+        static final NoChemicals INSTANCE = new NoChemicals();
+
+        @Override
+        public int getChemicalTanks() {
+            return 0;
+        }
+
+        @Override
+        public ChemicalStack getChemicalInTank(int tank) {
+            return ChemicalStack.EMPTY;
+        }
+
+        @Override
+        public void setChemicalInTank(int tank, ChemicalStack stack) {
+        }
+
+        @Override
+        public long getChemicalTankCapacity(int tank) {
+            return 0;
+        }
+
+        @Override
+        public boolean isValid(int tank, ChemicalStack stack) {
+            return false;
+        }
+
+        @Override
+        public ChemicalStack insertChemical(int tank, ChemicalStack stack, Action action) {
+            return stack;
+        }
+
+        @Override
+        public ChemicalStack extractChemical(int tank, long amount, Action action) {
+            return ChemicalStack.EMPTY;
+        }
+    }
+
     // ---------------------------------------------------------------- step 178: filters
 
     public static boolean exists(ResourceLocation id) {

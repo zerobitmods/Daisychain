@@ -2,6 +2,7 @@ package com.daisychain.compat;
 
 import com.daisychain.Daisychain;
 import com.daisychain.compat.mekanism.MekanismChemicals;
+import com.daisychain.registry.ModBlocks;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.network.chat.Component;
@@ -37,6 +38,7 @@ public final class Chemicals {
     public static void register(IEventBus modEventBus) {
         if (MEKANISM) {
             modEventBus.addListener(EventPriority.LOWEST, Chemicals::checkHookup);
+            modEventBus.addListener(Chemicals::offerPipeHandlers);
         }
     }
 
@@ -253,6 +255,19 @@ public final class Chemicals {
 
     /** How to draw a chemical: a block-atlas texture tinted with a colour. */
     public record Look(ResourceLocation texture, int tint) {
+    }
+
+    /**
+     * Step 180: gas and universal pipes show Mekanism a chemical handler that holds and takes nothing. Mekanism's
+     * pressurized tubes only connect to, and only take chemicals from, a side whose neighbor offers one; without it a
+     * gas pipe drew an arm into a tube but could never hand anything over.
+     */
+    private static void offerPipeHandlers(RegisterCapabilitiesEvent event) {
+        try {
+            MekanismChemicals.offerPipeHandlers(event, ModBlocks.GAS_PIPE.get(), ModBlocks.UNIVERSAL_PIPE.get());
+        } catch (LinkageError | RuntimeException e) {
+            switchOff("offering pipes to Mekanism's tubes", e);
+        }
     }
 
     private static void checkHookup(RegisterCapabilitiesEvent event) {

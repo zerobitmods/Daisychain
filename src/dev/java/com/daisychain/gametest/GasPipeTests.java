@@ -237,6 +237,42 @@ public final class GasPipeTests {
         });
     }
 
+    /**
+     * Step 180: a gas pipe hands chemicals to Mekanism's pressurized tubes. Tank A -> two gas pipes -> a basic
+     * pressurized tube -> tank B: all 8000 mB arrive. (Before, the tube never connected to the pipe and took nothing:
+     * Mekanism's tubes only connect to, and take from, a side whose neighbor offers a chemical handler.)
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 300)
+    public static void gasPipeFeedsMekanismTube(GameTestHelper helper) {
+        if (!Chemicals.mekanismLoaded()) {
+            helper.succeed();
+            return;
+        }
+        Block tank = BuiltInRegistries.BLOCK.get(TANK);
+        Block tube = BuiltInRegistries.BLOCK.get(ResourceLocation.fromNamespaceAndPath("mekanism", "basic_pressurized_tube"));
+        helper.assertTrue(tube != Blocks.AIR, "Setup: Mekanism has no basic_pressurized_tube");
+        helper.setBlock(TANK_A, tank.defaultBlockState());
+        chemicalSidesOn(helper, TANK_A);
+        helper.setBlock(TANK_B, tank.defaultBlockState());
+        chemicalSidesOn(helper, TANK_B);
+        long in = MekanismTestKit.fill(helper.getLevel(), helper.absolutePos(TANK_A), "mekanism:hydrogen", 8_000);
+        helper.assertTrue(in == 8_000, "Setup: tank A took " + in + " mB");
+        helper.setBlock(new BlockPos(4, 1, 2), tube.defaultBlockState());
+        for (int x = 2; x <= 3; x++) {
+            helper.setBlock(new BlockPos(x, 1, 2), ModBlocks.GAS_PIPE.get().defaultBlockState());
+        }
+        for (int x = 2; x <= 3; x++) {
+            BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(new BlockPos(x, 1, 2)));
+        }
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(new BlockPos(2, 1, 2)),
+                1 << Direction.WEST.get3DDataValue());
+        helper.succeedWhen(() -> {
+            helper.assertTrue(gas(helper, TANK_B) == 8_000, "Tank B has " + gas(helper, TANK_B) + " (A "
+                    + gas(helper, TANK_A) + ")");
+            helper.assertTrue(gas(helper, TANK_A) == 0, "Tank A still has " + gas(helper, TANK_A));
+        });
+    }
+
     /** Step 176: a universal pipe line carries hydrogen too (a new pull side has chemicals on). */
     @GameTest(template = EMPTY, timeoutTicks = 200)
     public static void universalCarriesGas(GameTestHelper helper) {
