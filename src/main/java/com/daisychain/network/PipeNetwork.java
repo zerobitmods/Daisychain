@@ -1,5 +1,6 @@
 package com.daisychain.network;
 
+import com.daisychain.compat.Chemicals;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -543,6 +544,16 @@ public final class PipeNetwork {
             return maxStock[PipeKind.FLUIDS];
         }
 
+        /** Step 172, gas pipes: false if redstone stops this destination or it is switched off for chemicals. */
+        public boolean acceptsChemicals() {
+            return !redstoneBlocked && (insertOffMask & (1 << PipeKind.CHEMICALS)) == 0;
+        }
+
+        /** Step 172, gas pipes: Max stock in mB (0 = no limit); the side's value (chemical filters come later). */
+        public int maxStockForChemicals() {
+            return maxStock[PipeKind.CHEMICALS];
+        }
+
         /** Energy: false if this insert side is switched off for energy (step 33a). */
         public boolean acceptsEnergy() {
             return !redstoneBlocked && (insertOffMask & (1 << PipeKind.ENERGY_RES)) == 0;
@@ -611,6 +622,22 @@ public final class PipeNetwork {
             return c.energy.getCapability();
         }
 
+        /**
+         * Step 172: the target's chemical handler (gas pipes), cached, as an opaque object for ChemicalTransfer. Null if
+         * it has none, its chunk isn't loaded, or gas is off.
+         */
+        @Nullable
+        public Object chemicalHandler(ServerLevel level) {
+            if (!targetLoaded(level)) {
+                return null;
+            }
+            TargetCaps c = caps;
+            if (c.chemical == null) {
+                c.chemical = Chemicals.newCache(level, targetPos, side.getOpposite(), null, null);
+            }
+            return Chemicals.handler(c.chemical);
+        }
+
         /** The target's fluid handler (fluid pipes), cached. Null if it has none or its chunk isn't loaded. */
         @Nullable
         public IFluidHandler fluidHandler(ServerLevel level) {
@@ -639,6 +666,9 @@ public final class PipeNetwork {
         BlockCapabilityCache<IFluidHandler, Direction> fluid;
         @Nullable
         BlockCapabilityCache<IEnergyStorage, Direction> energy;
+        /** Step 172: chemical handler cache (opaque, from compat.Chemicals.newCache). */
+        @Nullable
+        Object chemical;
         /** Valid networks with an endpoint using these. */
         int users;
         /** Game time when users last dropped to 0. */

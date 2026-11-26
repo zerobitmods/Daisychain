@@ -37,6 +37,7 @@ public final class UpgradeSpeeds {
         return switch (kind) {
             case FLUID -> fluidMb(level);
             case ENERGY -> energyFe(level);
+            case GAS -> chemicalMb(level);
             default -> items(level); // ITEM (UNIVERSAL asks per resource: amount(ofResource(r), level))
         };
     }
@@ -46,6 +47,7 @@ public final class UpgradeSpeeds {
         return switch (kind) {
             case FLUID -> fluidInterval(level);
             case ENERGY -> energyInterval(level);
+            case GAS -> chemicalInterval(level);
             // A universal side wakes as often as its fastest resource; each resource still waits its own interval.
             case UNIVERSAL -> Math.min(interval(level), Math.min(fluidInterval(level), energyInterval(level)));
             default -> interval(level);
@@ -60,6 +62,17 @@ public final class UpgradeSpeeds {
     public static int fluidInterval(int level) {
         return level >= 1 && level <= 5 ? DaisychainConfig.FLUID_UPGRADE_INTERVAL[level].getAsInt()
                 : DaisychainConfig.FLUID_TRANSFER_INTERVAL.getAsInt();
+    }
+
+    /** Step 172: gas pipes, mB of chemical per transfer. */
+    public static int chemicalMb(int level) {
+        return level >= 1 && level <= 5 ? DaisychainConfig.CHEMICAL_UPGRADE_MB[level].getAsInt()
+                : DaisychainConfig.CHEMICAL_MB_PER_TRANSFER.getAsInt();
+    }
+
+    public static int chemicalInterval(int level) {
+        return level >= 1 && level <= 5 ? DaisychainConfig.CHEMICAL_UPGRADE_INTERVAL[level].getAsInt()
+                : DaisychainConfig.CHEMICAL_TRANSFER_INTERVAL.getAsInt();
     }
 
     public static int energyFe(int level) {

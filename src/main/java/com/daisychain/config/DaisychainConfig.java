@@ -29,6 +29,13 @@ public final class DaisychainConfig {
     public static final ModConfigSpec.IntValue[] FLUID_UPGRADE_MB = new ModConfigSpec.IntValue[6];
     public static final ModConfigSpec.IntValue[] FLUID_UPGRADE_INTERVAL = new ModConfigSpec.IntValue[6];
 
+    /** Step 172: gas pipes (Mekanism chemicals): on/off, speed with no upgrade, and per upgrade level 1..5. */
+    public static final ModConfigSpec.BooleanValue CHEMICALS_ENABLED;
+    public static final ModConfigSpec.IntValue CHEMICAL_TRANSFER_INTERVAL;
+    public static final ModConfigSpec.IntValue CHEMICAL_MB_PER_TRANSFER;
+    public static final ModConfigSpec.IntValue[] CHEMICAL_UPGRADE_MB = new ModConfigSpec.IntValue[6];
+    public static final ModConfigSpec.IntValue[] CHEMICAL_UPGRADE_INTERVAL = new ModConfigSpec.IntValue[6];
+
     public static final ModConfigSpec.IntValue ENERGY_TRANSFER_INTERVAL;
     public static final ModConfigSpec.IntValue ENERGY_FE_PER_TRANSFER;
     /** Energy speed per upgrade level 1..5 (index 0 unused): FE per transfer and ticks between transfers. */
@@ -111,6 +118,30 @@ public final class DaisychainConfig {
             builder.push(TIER_NAMES[level]);
             FLUID_UPGRADE_MB[level] = builder.defineInRange("mb_per_transfer", DEFAULT_FLUID_MB[level], 1, MAX_MB);
             FLUID_UPGRADE_INTERVAL[level] = builder.defineInRange("transfer_interval_ticks",
+                    DEFAULT_FLUID_INTERVAL[level], 1, MAX_INTERVAL);
+            builder.pop();
+        }
+        builder.pop();
+
+        builder.comment("Gas pipes: Mekanism chemicals (gas, infusion, pigment, slurry), in mB. Only used with Mekanism installed.")
+                .push("chemicals");
+        CHEMICALS_ENABLED = builder
+                .comment("Set to false to stop gas pipes moving chemicals (the pipes stay, and connect, but carry nothing).")
+                .define("enabled", true);
+        CHEMICAL_TRANSFER_INTERVAL = builder
+                .comment("Ticks between transfers for each pulling side with no upgrade. 20 ticks = 1 second.")
+                .defineInRange("transfer_interval_ticks", DEFAULT_FLUID_INTERVAL[0], 1, MAX_INTERVAL);
+        CHEMICAL_MB_PER_TRANSFER = builder
+                .comment("Maximum chemical moved per pulling side per transfer with no upgrade, in mB.")
+                .defineInRange("mb_per_transfer", DEFAULT_FLUID_MB[0], 1, MAX_MB);
+        builder.pop();
+
+        builder.comment("Gas pipe speed of each upgrade tier: mB per transfer, and ticks between transfers",
+                "(the same upgrade items as item pipes)").push("chemical_upgrades");
+        for (int level = 1; level <= 5; level++) {
+            builder.push(TIER_NAMES[level]);
+            CHEMICAL_UPGRADE_MB[level] = builder.defineInRange("mb_per_transfer", DEFAULT_FLUID_MB[level], 1, MAX_MB);
+            CHEMICAL_UPGRADE_INTERVAL[level] = builder.defineInRange("transfer_interval_ticks",
                     DEFAULT_FLUID_INTERVAL[level], 1, MAX_INTERVAL);
             builder.pop();
         }

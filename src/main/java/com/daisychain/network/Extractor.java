@@ -1,5 +1,6 @@
 package com.daisychain.network;
 
+import com.daisychain.compat.Chemicals;
 import com.daisychain.block.PipeDataBlockEntity;
 import com.daisychain.block.PipeKind;
 import com.daisychain.filter.ItemFilter;
@@ -111,6 +112,19 @@ final class Extractor {
     final Fluid[] fluidFillFluids = new Fluid[16];
     final long[] fluidFillTotals = new long[16];
     int fluidFillSize;
+    /**
+     * Step 172, gas pipes: the same counting caches for chemicals (ChemicalTransfer). Chemicals and handlers are kept as
+     * Object so this class names no Mekanism type; handler refs are cleared after each transfer.
+     */
+    final Object[] countChemicals = new Object[16];
+    final long[] countChemicalTotals = new long[16];
+    int countChemicalSize;
+    final Object[] chemicalFillTargets = new Object[16];
+    final Object[] chemicalFillChemicals = new Object[16];
+    final long[] chemicalFillTotals = new long[16];
+    int chemicalFillSize;
+    /** Step 172: mB the current chemical transfer has really moved (kept right if a throw ends it half way). */
+    long chemicalMoved;
     /** Items moved this transfer per filter entry that has its own Batch (reused; cleared at each such transfer). */
     final int[] entryMoved = new int[ItemFilter.SIZE];
 
@@ -186,6 +200,8 @@ final class Extractor {
     private final BlockCapabilityCache<IFluidHandler, Direction>[] fluidSourceCaches = new BlockCapabilityCache[6];
     @SuppressWarnings("unchecked")
     private final BlockCapabilityCache<IEnergyStorage, Direction>[] energySourceCaches = new BlockCapabilityCache[6];
+    /** Step 172: chemical handler caches per side (opaque, from compat.Chemicals.newCache). */
+    private final Object[] chemicalSourceCaches = new Object[6];
 
     /**
      * Review R4: one bit per side whose neighbor block is in another chunk than this pipe. Only those sides need a
@@ -251,6 +267,28 @@ final class Extractor {
         return cache.getCapability();
     }
 
+    /**
+     * Step 172: the chemical handler of the block on this side (gas pipes), cached, as an opaque object for
+     * ChemicalTransfer. Null if it has none, isn't loaded, or gas is off.
+     */
+    @Nullable
+    Object chemicalSource(ServerLevel level, Direction side) {
+        if (!neighborLoaded(level, side)) {
+            return null;
+        }
+        int i = side.get3DDataValue();
+        Object cache = chemicalSourceCaches[i];
+        if (cache == null) {
+            cache = Chemicals.newCache(level, pos.relative(side), side.getOpposite(), this::isRegistered,
+                    this::wakeIdleSides);
+            if (cache == null) {
+                return null;
+            }
+            chemicalSourceCaches[i] = cache;
+        }
+        return Chemicals.handler(cache);
+    }
+
     /** The energy storage of the block on this side (energy pipes), cached. Null if it has none or isn't loaded. */
     @Nullable
     IEnergyStorage energySource(ServerLevel level, Direction side) {
@@ -279,7 +317,7 @@ final class Extractor {
     boolean hasAnySource(ServerLevel level, Direction side) {
         return switch (kind) {
             case FLUID -> fluidSource(level, side) != null;
-            case GAS -> false; // step 171: nothing moves chemicals yet, so a gas pull side may sleep
+            case GAS -> chemicalSource(level, side) != null;
             case ENERGY -> energySource(level, side) != null;
             case UNIVERSAL -> source(level, side) != null || fluidSource(level, side) != null
                     || energySource(level, side) != null;

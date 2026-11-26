@@ -205,6 +205,8 @@ dependencies {
     // localRuntime: present in the dev game, never a dependency of Daisychain itself.
     // Step 171: gas pipes compile against Mekanism's published API only (its api jar, never the rest of Mekanism).
     compileOnly "mekanism:Mekanism:${mekanism_version}:api"
+    // Game tests that fill and read Mekanism tanks use the same api jar (dev source set only, never in the mod).
+    devCompileOnly "mekanism:Mekanism:${mekanism_version}:api"
     // Step 170: ./gradlew runGameTestServer -Pwithout_mekanism runs everything without Mekanism, so a Mekanism class
     // used outside the compat code shows up as a crash in the dev game instead of in someone's modpack.
     if (!project.hasProperty('without_mekanism')) {

@@ -4,11 +4,15 @@ import com.daisychain.Daisychain;
 import com.daisychain.compat.mekanism.MekanismChemicals;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
+
+import javax.annotation.Nullable;
+import java.util.function.BooleanSupplier;
 
 /**
  * Step 171: what the rest of Daisychain uses for Mekanism chemicals (gas, infusion, pigment, slurry). Never names a
@@ -52,6 +56,53 @@ public final class Chemicals {
         } catch (LinkageError | RuntimeException e) {
             switchOff("looking for a chemical handler at " + pos.toShortString(), e);
             return false;
+        }
+    }
+
+    /**
+     * Step 172: a cache for the chemical handler of the block at pos (its side), kept by the caller like NeoForge's
+     * BlockCapabilityCache (it is one). onValid / onInvalidate as for BlockCapabilityCache.create (may be null). Null if
+     * gas is off.
+     */
+    @Nullable
+    public static Object newCache(ServerLevel level, BlockPos pos, Direction side, @Nullable BooleanSupplier onValid,
+                                  @Nullable Runnable onInvalidate) {
+        if (!available()) {
+            return null;
+        }
+        try {
+            return MekanismChemicals.newCache(level, pos, side, onValid, onInvalidate);
+        } catch (LinkageError | RuntimeException e) {
+            switchOff("looking for a chemical handler at " + pos.toShortString(), e);
+            return null;
+        }
+    }
+
+    /** Step 172: the handler a cache from newCache holds now, or null (none, or gas is off). */
+    @Nullable
+    public static Object handler(@Nullable Object cache) {
+        if (cache == null || !available()) {
+            return null;
+        }
+        try {
+            return MekanismChemicals.handler(cache);
+        } catch (LinkageError | RuntimeException e) {
+            switchOff("reading a chemical handler", e);
+            return null;
+        }
+    }
+
+    /** Step 172: how to work a handler from {@link #handler}; null if gas is off. */
+    @Nullable
+    public static ChemicalOps<?, ?> ops() {
+        if (!available()) {
+            return null;
+        }
+        try {
+            return MekanismChemicals.OPS;
+        } catch (LinkageError | RuntimeException e) {
+            switchOff("setting up chemical transfers", e);
+            return null;
         }
     }
 
