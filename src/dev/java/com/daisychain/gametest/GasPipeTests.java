@@ -7,7 +7,9 @@ import com.daisychain.block.PipeKind;
 import com.daisychain.block.SideState;
 import com.daisychain.compat.Chemicals;
 import com.daisychain.registry.ModBlocks;
+import com.daisychain.registry.ModItems;
 import net.minecraft.core.BlockPos;
+import net.minecraft.core.NonNullList;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.gametest.framework.AfterBatch;
@@ -19,6 +21,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
+import net.minecraft.world.inventory.TransientCraftingContainer;
+import net.minecraft.world.item.crafting.RecipeType;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -95,6 +99,35 @@ public final class GasPipeTests {
         }
         helper.assertTrue(side(helper, pipe, Direction.SOUTH) == SideState.NONE, "Arm into a chest");
         helper.assertTrue(side(helper, pipe, Direction.EAST) == SideState.CONNECTED, "Gas pipes didn't link");
+        helper.succeed();
+    }
+
+    // ---------------------------------------------------------------- step 173: recipe only with Mekanism
+
+    /**
+     * The gas pipe recipe loads only with Mekanism: steel / glass, circuit, glass / steel makes 16, with Mekanism's own
+     * steel and Basic Control Circuit (found through the forge:ingots/steel and forge:circuits/basic tags).
+     */
+    @GameTest(template = EMPTY)
+    public static void gasPipeRecipeOnlyWithMekanism(GameTestHelper helper) {
+        ServerLevel level = helper.getLevel();
+        boolean loaded = level.getRecipeManager()
+                .byKey(new ResourceLocation(Daisychain.MOD_ID, "gas_pipe")).isPresent();
+        helper.assertTrue(loaded == Chemicals.mekanismLoaded(), "Gas pipe recipe loaded: " + loaded + ", Mekanism: "
+                + Chemicals.mekanismLoaded());
+        if (Chemicals.mekanismLoaded()) {
+            ItemStack steel = new ItemStack(BuiltInRegistries.ITEM.get(new ResourceLocation("mekanism", "ingot_steel")));
+            ItemStack circuit = new ItemStack(BuiltInRegistries.ITEM.get(
+                    new ResourceLocation("mekanism", "basic_control_circuit")));
+            ItemStack glass = new ItemStack(Items.GLASS);
+            // No menu: the items go in through the constructor.
+            TransientCraftingContainer input = new TransientCraftingContainer(null, 3, 3, NonNullList.of(ItemStack.EMPTY,
+                    steel.copy(), steel.copy(), steel.copy(), glass.copy(), circuit, glass.copy(), steel.copy(),
+                    steel.copy(), steel.copy()));
+            ItemStack out = level.getRecipeManager().getRecipeFor(RecipeType.CRAFTING, input, level)
+                    .map(recipe -> recipe.assemble(input, level.registryAccess())).orElse(ItemStack.EMPTY);
+            helper.assertTrue(out.is(ModItems.GAS_PIPE.get()) && out.getCount() == 16, "Crafted " + out);
+        }
         helper.succeed();
     }
 
