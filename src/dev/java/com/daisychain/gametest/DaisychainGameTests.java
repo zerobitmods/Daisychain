@@ -440,6 +440,35 @@ public final class DaisychainGameTests {
     // ---------------------------------------------------------------- odd data (step 100)
 
     /**
+     * Step 179: a pipe put down with its settings by /setblock (as schematic and building-tool pastes do) pulls at once.
+     * Forge 1.20.1 needed a fix for this (F103); this checks NeoForge does it too. (No upgrade: 8 items per 20 ticks.)
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 240)
+    public static void pastedPipeWithSettingsPulls(GameTestHelper helper) {
+        chest(helper, A, new ItemStack(Items.COBBLESTONE, 64));
+        chest(helper, B);
+        BlockPos at = helper.absolutePos(A.east());
+        String command = "setblock " + at.getX() + " " + at.getY() + " " + at.getZ()
+                + " daisychain:item_pipe[west=extract,east=connected,has_data=true]{Extract:16b}";
+        var server = helper.getLevel().getServer();
+        server.getCommands().performPrefixedCommand(server.createCommandSourceStack().withSuppressedOutput()
+                .withPermission(4), command);
+        helper.assertTrue(helper.getLevel().getBlockState(at).is(ModBlocks.ITEM_PIPE.get()), "Setup: /setblock placed "
+                + helper.getLevel().getBlockState(at));
+        for (int i = 2; i <= 3; i++) {
+            helper.setBlock(A.east(i), ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        }
+        for (int i = 2; i <= 3; i++) {
+            BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(A.east(i)));
+        }
+        helper.runAfterDelay(5, () -> helper.assertTrue(helper.getLevel().getBlockState(at)
+                .getValue(BasePipeBlock.propertyFor(Direction.WEST)) == SideState.EXTRACT,
+                "The pasted pull side isn't drawn as one: " + helper.getLevel().getBlockState(at)));
+        helper.succeedWhen(() -> helper.assertTrue(count(helper, B) == 64,
+                "The pasted pull side moved " + count(helper, B) + " of 64 items"));
+    }
+
+    /**
      * What a building tool's copy/paste can leave behind: pipes whose block state says "pull side" or "has settings"
      * with no settings stored. Nothing may crash, and no item may be lost or doubled.
      */
