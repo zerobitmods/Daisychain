@@ -27,6 +27,7 @@ public final class UniversalPipeBlock extends BasePipeBlock {
     protected boolean canConnectToBlock(Level level, BlockPos targetPos, Direction targetSide) {
         return CapCache.has(level, targetPos, targetSide, ForgeCapabilities.ITEM_HANDLER)
                 || CapCache.has(level, targetPos, targetSide, ForgeCapabilities.FLUID_HANDLER)
-                || CapCache.has(level, targetPos, targetSide, ForgeCapabilities.ENERGY);
+                || CapCache.has(level, targetPos, targetSide, ForgeCapabilities.ENERGY)
+                || com.daisychain.compat.Chemicals.hasHandler(level, targetPos, targetSide); // step F100
     }
 }

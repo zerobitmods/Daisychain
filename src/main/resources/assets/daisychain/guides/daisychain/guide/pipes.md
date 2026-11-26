@@ -21,7 +21,7 @@ to a fluid line and they'll politely ignore each other.
 | <ItemLink id="daisychain:item_pipe" /> | Gray | Items |
 | <ItemLink id="daisychain:fluid_pipe" /> | Blue | Fluids |
 | <ItemLink id="daisychain:energy_pipe" /> | Dark green, with a colored band | Energy (FE), in six tiers (see [Energy pipe tiers](energy-pipes.md)) |
-| <ItemLink id="daisychain:universal_pipe" /> | Black | All three at once |
+| <ItemLink id="daisychain:universal_pipe" /> | Black | Items, fluids and energy at once, plus chemicals with Mekanism |
 | <ItemLink id="daisychain:redstone_pipe" /> | Dark red | A redstone signal, on or off (see [Redstone pipe](redstone-pipe.md)) |
 | <ItemLink id="daisychain:gas_pipe" /> | Plum, with a pink line | Mekanism chemicals, only with Mekanism installed (see [Gas pipe](gas-pipe.md)) |
 
@@ -30,9 +30,10 @@ They all get along with blocks from other mods too, as long as the block has a n
 ## The Universal Pipe
 
 The overachiever of the family. One pipe carries items, fluids and energy at the same time, each at its own speed. Connect a single
-line to a row of machines and it can feed them, fill them and power them all at once.
+line to a row of machines and it can feed them, fill them and power them all at once. With Mekanism installed it carries
+Mekanism's chemicals too (see [Gas pipe](gas-pipe.md)).
 
-Each side can switch items, fluids or energy off by itself. Got a machine that should get power from the line but no items? Turn
+Each side can switch items, fluids, energy or chemicals off by itself. Got a machine that should get power from the line but no items? Turn
 items off on that side and it'll only get the power.
 
 ## Built to last

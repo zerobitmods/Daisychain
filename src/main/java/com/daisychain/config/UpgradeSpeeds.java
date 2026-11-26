@@ -49,7 +49,8 @@ public final class UpgradeSpeeds {
             case ENERGY -> energyInterval(level);
             case GAS -> chemicalInterval(level);
             // A universal side wakes as often as its fastest resource; each resource still waits its own interval.
-            case UNIVERSAL -> Math.min(interval(level), Math.min(fluidInterval(level), energyInterval(level)));
+            case UNIVERSAL -> Math.min(Math.min(interval(level), chemicalInterval(level)),
+                    Math.min(fluidInterval(level), energyInterval(level)));
             default -> interval(level);
         };
     }

@@ -255,6 +255,7 @@
   "screen.daisychain.resource.items": "Items",
   "screen.daisychain.resource.fluids": "Fluids",
   "screen.daisychain.resource.energy": "Energy",
+  "screen.daisychain.resource.chemicals": "Chemicals",
   "screen.daisychain.resource_pull": "Pull %s: %s",
   "screen.daisychain.resource_accept": "Accept %s: %s",
   "screen.daisychain.on_short": "On",

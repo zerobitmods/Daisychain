@@ -354,7 +354,7 @@ final class Extractor {
             case GAS -> hasChemicalSource(level, side);
             case ENERGY -> energySource(level, side) != null;
             case UNIVERSAL -> source(level, side) != null || fluidSource(level, side) != null
-                    || energySource(level, side) != null;
+                    || hasChemicalSource(level, side) || energySource(level, side) != null;
             default -> source(level, side) != null;
         };
     }
