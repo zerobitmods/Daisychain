@@ -1041,12 +1041,12 @@ public final class NetworkManager {
             boolean itemsBlocked = false; // decision 2: this run had items to send and every destination refused them
             boolean noDestination = extractor.destinations.isEmpty();
             if (extractor.kind == PipeKind.UNIVERSAL) {
-                // Universal pipe (step 33): items, fluids and energy, each at its own speed. The side wakes as often
-                // as its fastest resource; a resource only runs once its own interval has passed.
+                // Universal pipe (step 33): items, fluids, energy and (step 176) chemicals, each at its own speed. The
+                // side wakes as often as its fastest resource; a resource only runs once its own interval has passed.
                 boolean saw = false;
                 for (int resource = 0; resource < PipeKind.RESOURCE_COUNT; resource++) {
                     int slot = resource * 6 + side;
-                    if (!extractor.kind.carries(resource) // step 170: not chemicals (yet)
+                    if (!extractor.kind.carries(resource) // step 170: only what this pipe carries
                             || !data.pullsResource(direction, resource) || now < extractor.resourceLastRun[slot]
                             + resourceInterval(data, direction, resource, tier)) {
                         continue; // switched off on this side (step 33a), or not due yet

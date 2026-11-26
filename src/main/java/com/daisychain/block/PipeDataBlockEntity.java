@@ -804,6 +804,19 @@ public final class PipeDataBlockEntity extends BlockEntity {
     }
 
     /**
+     * Step 177: true for the chemicals of a pull side copy taken from a universal pipe before universal pipes carried
+     * chemicals (it has items, fluids and energy but no chemicals). Pasting it leaves chemicals off, as such a pipe's own
+     * sides start (step 176), so pasting an old copy doesn't start pulling chemicals out of a machine.
+     */
+    private static boolean copiedBeforeChemicals(CompoundTag tag, int resource, PipeKind kind) {
+        return resource == PipeKind.CHEMICALS && kind == PipeKind.UNIVERSAL
+                && !tag.contains(RESOURCE_KEYS[PipeKind.CHEMICALS], Tag.TAG_COMPOUND)
+                && tag.contains(RESOURCE_KEYS[PipeKind.ITEMS], Tag.TAG_COMPOUND)
+                && tag.contains(RESOURCE_KEYS[PipeKind.FLUIDS], Tag.TAG_COMPOUND)
+                && tag.contains(RESOURCE_KEYS[PipeKind.ENERGY_RES], Tag.TAG_COMPOUND);
+    }
+
+    /**
      * Server only. Replaces one side's pull settings (insert = false) or insert settings with copied ones, filters
      * included. Every value is checked again (the tag comes from an item, which a creative player can edit): out-of-range
      * values become the default. Upgrades are not touched here; the caller installs them from the player's inventory.
@@ -837,7 +850,7 @@ public final class PipeDataBlockEntity extends BlockEntity {
             filter.load(part.getList("Filter", Tag.TAG_COMPOUND), registries);
             ItemFilter pasted = filter.isActive() && units.hasFilter() ? filter : null;
             boolean deny = part.getBoolean("Deny");
-            boolean off = part.getBoolean("Off");
+            boolean off = part.getBoolean("Off") || (!insert && copiedBeforeChemicals(tag, resource, kind));
             if (insert) {
                 insertOffBits = off ? insertOffBits | (1 << r) : insertOffBits & ~(1 << r);
                 maxStock[r] = inRange(part.getInt("MaxStock"), units.maxStock());

@@ -6,7 +6,7 @@ import net.minecraft.core.BlockPos;
 
 /**
  * Client -> server: "set this setting on this side to this value". resource = which of the side's resources
- * (items 0, fluids 1, energy 2) a per-resource setting belongs to; shared settings ignore it. Validated on the server
+ * (items 0, fluids 1, energy 2, chemicals 3) a per-resource setting belongs to; shared settings ignore it. Validated on the server
  * (PipeDataBlockEntity.applySetting ignores out-of-range values and resources the pipe doesn't carry). The value is an
  * int for the number settings.
  */

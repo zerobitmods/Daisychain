@@ -87,6 +87,29 @@ public final class ChemicalSlotTests {
     }
 
     /**
+     * Step F101 (port of 177): pasting a pull side copied from a universal pipe before universal pipes carried chemicals
+     * (no "Chemicals" part) leaves chemicals off; a copy made now pastes them as they were copied.
+     */
+    @GameTest(template = EMPTY)
+    public static void oldCopyKeepsChemicalsOff(GameTestHelper helper) {
+        helper.setBlock(PIPE, ModBlocks.UNIVERSAL_PIPE.get().defaultBlockState().setValue(BasePipeBlock.HAS_DATA, true));
+        BlockPos at = helper.absolutePos(PIPE);
+        var registries = helper.getLevel().registryAccess();
+        PipeDataBlockEntity data = BasePipeBlock.getData(helper.getLevel(), at, helper.getLevel().getBlockState(at));
+        helper.assertTrue(data != null, "Setup: no settings storage");
+        CompoundTag now = data.copySide(Direction.NORTH, false, registries);
+        helper.assertTrue(now.contains("Chemicals"), "Setup: the copy has no chemicals part");
+        CompoundTag old = now.copy();
+        old.remove("Chemicals");
+        data.pasteSide(Direction.EAST, false, old, registries);
+        helper.assertFalse(data.pullsResource(Direction.EAST, PipeKind.CHEMICALS), "An old copy turned chemicals on");
+        helper.assertTrue(data.pullsResource(Direction.EAST, PipeKind.ITEMS), "An old copy turned items off");
+        data.pasteSide(Direction.EAST, false, now, registries);
+        helper.assertTrue(data.pullsResource(Direction.EAST, PipeKind.CHEMICALS), "A new copy left chemicals off");
+        helper.succeed();
+    }
+
+    /**
      * Step F100 (port of 176): a universal pipe placed now pulls chemicals on its sides by default, and keeps that
      * through a save; the old-save rule (chemicals start off) only applies to pipes saved before.
      */
