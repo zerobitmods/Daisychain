@@ -541,8 +541,9 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                 text.append("\n");
             }
             String modifier = Minecraft.ON_OSX ? "Cmd" : "Ctrl";
-            text.append(Component.translatable(helpKeyBase.equals("screen.daisychain.interval_help") ? helpKeyBase
-                            : helpKey(helpKeyBase)))
+            // Step 174: Send every and Priority have one text for every pipe (no "_fluid" / "_energy" / "_gas" version).
+            text.append(Component.translatable(helpKeyBase.equals("screen.daisychain.interval_help") || priority
+                            ? helpKeyBase : helpKey(helpKeyBase)))
                     .append("\n\n")
                     .append(Component.translatable(priority ? "screen.daisychain.priority_number_help"
                             : helpKeyBase.equals("screen.daisychain.interval_help")
