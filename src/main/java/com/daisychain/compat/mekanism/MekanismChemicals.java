@@ -1,21 +1,30 @@
 package com.daisychain.compat.mekanism;
 
 import com.daisychain.compat.ChemicalOps;
+import com.daisychain.compat.Chemicals;
 import mekanism.api.Action;
+import mekanism.api.MekanismAPI;
+import mekanism.api.chemical.Chemical;
 import mekanism.api.chemical.ChemicalStack;
 import mekanism.api.chemical.IChemicalHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.core.registries.BuiltInRegistries;
+import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.tags.TagKey;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.block.Block;
 import net.neoforged.neoforge.capabilities.BlockCapability;
 import net.neoforged.neoforge.capabilities.BlockCapabilityCache;
+import net.neoforged.neoforge.capabilities.ItemCapability;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 
 import javax.annotation.Nullable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.function.BooleanSupplier;
 
 /**
@@ -30,6 +39,13 @@ import java.util.function.BooleanSupplier;
  */
 public final class MekanismChemicals {
     static final BlockCapability<IChemicalHandler, Direction> CHEMICAL = BlockCapability.createSided(
+            ResourceLocation.fromNamespaceAndPath("mekanism", "chemical_handler"), IChemicalHandler.class);
+
+    /**
+     * Step 178: the same capability on items (chemical tanks, jetpacks...), reached the same way: NeoForge returns the
+     * item capability Mekanism made under this name.
+     */
+    static final ItemCapability<IChemicalHandler, Void> CHEMICAL_ITEM = ItemCapability.createVoid(
             ResourceLocation.fromNamespaceAndPath("mekanism", "chemical_handler"), IChemicalHandler.class);
 
     /** Step 172: Mekanism's handler and stack behind Daisychain's ChemicalOps. */
@@ -73,6 +89,76 @@ public final class MekanismChemicals {
         return false;
     }
 
+    // ---------------------------------------------------------------- step 178: filters
+
+    public static boolean exists(ResourceLocation id) {
+        return !MekanismAPI.EMPTY_CHEMICAL_KEY.location().equals(id) && MekanismAPI.CHEMICAL_REGISTRY.containsKey(id);
+    }
+
+    @Nullable
+    public static Object byId(ResourceLocation id) {
+        return exists(id) ? MekanismAPI.CHEMICAL_REGISTRY.get(id) : null;
+    }
+
+    public static Object tagKey(ResourceLocation tag) {
+        return TagKey.create(MekanismAPI.CHEMICAL_REGISTRY_NAME, tag);
+    }
+
+    public static boolean tagExists(ResourceLocation tag) {
+        return MekanismAPI.CHEMICAL_REGISTRY.getTag(TagKey.create(MekanismAPI.CHEMICAL_REGISTRY_NAME, tag)).isPresent();
+    }
+
+    public static List<String> tagsOf(ResourceLocation id) {
+        List<String> tags = new ArrayList<>();
+        if (exists(id)) {
+            MekanismAPI.CHEMICAL_REGISTRY.wrapAsHolder(MekanismAPI.CHEMICAL_REGISTRY.get(id)).tags().forEach(tag -> tags.add(tag.location().toString()));
+        }
+        return tags;
+    }
+
+    public static List<String> allTagNames() {
+        List<String> tags = new ArrayList<>();
+        MekanismAPI.CHEMICAL_REGISTRY.getTagNames().forEach(tag -> tags.add(tag.location().toString()));
+        return tags;
+    }
+
+    @Nullable
+    public static ResourceLocation idInItem(ItemStack stack) {
+        IChemicalHandler handler = stack.getCapability(CHEMICAL_ITEM);
+        if (handler == null) {
+            return null;
+        }
+        for (int i = 0; i < handler.getChemicalTanks(); i++) {
+            ChemicalStack inTank = handler.getChemicalInTank(i);
+            if (!inTank.isEmpty()) {
+                return MekanismAPI.CHEMICAL_REGISTRY.getKey(inTank.getChemical());
+            }
+        }
+        return null;
+    }
+
+    @Nullable
+    public static ResourceLocation idOfIngredient(Object ingredient) {
+        if (ingredient instanceof ChemicalStack stack && !stack.isEmpty()) {
+            return MekanismAPI.CHEMICAL_REGISTRY.getKey(stack.getChemical());
+        }
+        return null;
+    }
+
+    @Nullable
+    public static Component name(ResourceLocation id) {
+        return exists(id) ? MekanismAPI.CHEMICAL_REGISTRY.get(id).getTextComponent() : null;
+    }
+
+    @Nullable
+    public static Chemicals.Look look(ResourceLocation id) {
+        if (!exists(id)) {
+            return null;
+        }
+        Chemical chemical = MekanismAPI.CHEMICAL_REGISTRY.get(id);
+        return new Chemicals.Look(chemical.getIcon(), chemical.getTint());
+    }
+
     private static final class Ops implements ChemicalOps<IChemicalHandler, ChemicalStack> {
         @Override
         public int tanks(IChemicalHandler handler) {
@@ -113,6 +199,19 @@ public final class MekanismChemicals {
         public long insert(IChemicalHandler handler, ChemicalStack stack, boolean simulate) {
             ChemicalStack left = handler.insertChemical(stack, simulate ? Action.SIMULATE : Action.EXECUTE);
             return stack.getAmount() - left.getAmount();
+        }
+
+        @SuppressWarnings("unchecked")
+        @Override
+        public boolean hasTag(Object chemical, Object tag) {
+            // The registry's own holder for a registered chemical (a map lookup, no allocation), then a set lookup.
+            return MekanismAPI.CHEMICAL_REGISTRY.wrapAsHolder((Chemical) chemical).is((TagKey<Chemical>) tag);
+        }
+
+        @Override
+        public String modId(Object chemical) {
+            ResourceLocation id = MekanismAPI.CHEMICAL_REGISTRY.getKey((Chemical) chemical);
+            return id == null ? "" : id.getNamespace();
         }
     }
 }

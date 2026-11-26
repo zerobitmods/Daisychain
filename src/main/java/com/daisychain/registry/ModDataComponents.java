@@ -8,6 +8,7 @@ import net.neoforged.neoforge.fluids.SimpleFluidContent;
 import net.minecraft.core.component.DataComponentType;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.codec.ByteBufCodecs;
+import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.Block;
 import net.minecraft.world.level.block.state.BlockState;
 import net.neoforged.bus.api.IEventBus;
@@ -41,6 +42,15 @@ public final class ModDataComponents {
             COMPONENTS.registerComponentType("ghost_fluid", builder -> builder
                     .persistent(SimpleFluidContent.CODEC)
                     .networkSynchronized(SimpleFluidContent.STREAM_CODEC));
+
+    /**
+     * Step 178: the chemical a chemical filter entry stands for, by its Mekanism registry name only (no Mekanism type), so
+     * filters load and stay intact without Mekanism. Only on daisychain:chemical ghosts in filters.
+     */
+    public static final DeferredHolder<DataComponentType<?>, DataComponentType<ResourceLocation>> GHOST_CHEMICAL =
+            COMPONENTS.registerComponentType("ghost_chemical", builder -> builder
+                    .persistent(ResourceLocation.CODEC)
+                    .networkSynchronized(ResourceLocation.STREAM_CODEC));
 
     /** Step 125: the block a facade covers a pipe with (sent to clients as its block-state id). */
     public static final DeferredHolder<DataComponentType<?>, DataComponentType<BlockState>> FACADE =

@@ -884,6 +884,7 @@ public final class NetworkManager {
             }
             return ChemicalTransfer.transfer(level, extractor, direction, extractor.destinations,
                     data.distribution(direction), data.allowsSelfFeed(direction),
+                    data.activeFilter(direction, resource), data.filterDenies(direction, resource),
                     UpgradeSpeeds.chemicalMb(tier), data.batch(direction, resource),
                     data.keepInSource(direction, resource), data.fillDestinationTo(direction, resource),
                     maxCounted, maxSlots, maxCalls);

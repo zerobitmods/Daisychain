@@ -28,4 +28,10 @@ public interface ChemicalOps<H, S> {
 
     /** Puts the stack into the handler (simulate = only asks). Returns how much it took. */
     long insert(H handler, S stack, boolean simulate);
+
+    /** Step 178: true if the chemical (from {@link #chemical}) is in the tag (from Chemicals.tagKey). No allocation. */
+    boolean hasTag(Object chemical, Object tag);
+
+    /** Step 178: the namespace of the chemical's registry name (its mod). No allocation. */
+    String modId(Object chemical);
 }

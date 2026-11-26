@@ -7,10 +7,13 @@ import mekanism.api.chemical.ChemicalStack;
 import mekanism.api.chemical.IChemicalHandler;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.block.entity.BlockEntityType;
 import net.neoforged.neoforge.capabilities.BlockCapability;
+import net.neoforged.neoforge.capabilities.ItemCapability;
 import net.neoforged.neoforge.capabilities.RegisterCapabilitiesEvent;
 
 /**
@@ -65,6 +68,33 @@ final class MekanismTestKit {
     /** mB in all the block's chemical tanks (1.21.1 keeps infuse types with the other chemicals). */
     static long amountInfusion(ServerLevel level, BlockPos pos) {
         return amount(level, pos);
+    }
+
+    private static final ItemCapability<IChemicalHandler, Void> CHEMICAL_ITEM = ItemCapability.createVoid(
+            ResourceLocation.fromNamespaceAndPath("mekanism", "chemical_handler"), IChemicalHandler.class);
+
+    /** Step 178: a Basic Chemical Tank item holding mB of a chemical (0 = an empty tank item). */
+    static ItemStack tankItem(String chemicalId, long amount) {
+        return chemicalItem("mekanism:basic_chemical_tank", chemicalId, amount);
+    }
+
+    /** Step 178: any Mekanism item that holds chemicals (jetpack, scuba tank...) holding mB of a chemical. */
+    static ItemStack chemicalItem(String itemId, String chemicalId, long amount) {
+        ItemStack stack = new ItemStack(BuiltInRegistries.ITEM.get(ResourceLocation.parse(itemId)));
+        if (amount > 0) {
+            IChemicalHandler handler = stack.getCapability(CHEMICAL_ITEM);
+            if (handler == null) {
+                throw new IllegalStateException(itemId + " has no chemical handler");
+            }
+            Chemical chemical = MekanismAPI.CHEMICAL_REGISTRY.get(ResourceLocation.parse(chemicalId));
+            handler.insertChemical(new ChemicalStack(chemical, amount), Action.EXECUTE);
+        }
+        return stack;
+    }
+
+    /** Step 178: what JEI hands over when a chemical is dragged from Mekanism's list (a ChemicalStack). */
+    static Object jeiIngredient(String chemicalId) {
+        return new ChemicalStack(MekanismAPI.CHEMICAL_REGISTRY.get(ResourceLocation.parse(chemicalId)), 1_000);
     }
 
     /** Barrels: a chemical handler that accepts anything in simulation and throws on a real insert. */

@@ -5,6 +5,7 @@ import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.item.BloomWrenchItem;
 import com.daisychain.item.EnergyPipeItem;
 import com.daisychain.item.FacadeItem;
+import com.daisychain.item.ChemicalGhostItem;
 import com.daisychain.item.FluidGhostItem;
 import com.daisychain.item.SettingsCopierItem;
 import com.daisychain.item.UpgradeItem;
@@ -53,6 +54,10 @@ public final class ModItems {
     /** A fluid listed in a filter (never a real item in survival; not in the creative tab). */
     public static final DeferredItem<FluidGhostItem> FLUID_GHOST = ITEMS.register("fluid",
             () -> new FluidGhostItem(new Item.Properties().stacksTo(1)));
+
+    /** Step 178: a Mekanism chemical listed in a filter (like FLUID_GHOST: never a real item, not in the creative tab). */
+    public static final DeferredItem<ChemicalGhostItem> CHEMICAL_GHOST = ITEMS.register("chemical",
+            () -> new ChemicalGhostItem(new Item.Properties().stacksTo(1)));
 
     /** Step 125: a pipe cover; which block it shows is in the daisychain:facade data component. */
     public static final DeferredItem<FacadeItem> FACADE = ITEMS.registerItem("facade", FacadeItem::new);

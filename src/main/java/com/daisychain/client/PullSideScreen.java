@@ -14,6 +14,7 @@ import com.daisychain.item.UpgradeItem;
 import com.daisychain.Daisychain;
 import com.daisychain.filter.FilterMatch;
 import com.daisychain.filter.FilterNumbers;
+import com.daisychain.filter.ChemicalGhost;
 import com.daisychain.filter.FluidGhost;
 import com.daisychain.filter.ItemFilter;
 import com.daisychain.filter.MatchMode;
@@ -103,6 +104,8 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
     private static final int TAG_ROWS = 3;
     private static final int SEARCH_WIDTH = 76;
     private static final MatchMode[] MODE_ORDER = {MatchMode.ITEM, MatchMode.DATA, MatchMode.TAG, MatchMode.MOD};
+    /** Step 178: chemicals carry no data, so their entries have three match keys. */
+    private static final MatchMode[] CHEMICAL_MODE_ORDER = {MatchMode.ITEM, MatchMode.TAG, MatchMode.MOD};
     private static final int[] ENTRY_SETTINGS = {
             PipeDataBlockEntity.SETTING_BATCH, PipeDataBlockEntity.SETTING_KEEP, PipeDataBlockEntity.SETTING_FILL};
     private static final String[] ENTRY_LABELS = {
@@ -1390,7 +1393,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
             MatchMode mode = match == null ? MatchMode.ITEM : match.matchMode();
             Component how = switch (mode) {
                 case ITEM -> Component.translatable(menu.isFluid() ? "screen.daisychain.match.fluid"
-                        : "screen.daisychain.match.item");
+                        : menu.isChemical() ? "screen.daisychain.match.chemical" : "screen.daisychain.match.item");
                 case DATA -> Component.translatable(menu.isFluid() ? "screen.daisychain.match.fluid_data"
                         : "screen.daisychain.match.data");
                 case TAG -> Component.literal("#" + match.value());
@@ -1420,7 +1423,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         return lines;
     }
 
-    /** Fluid filter entries are drawn as the fluid itself instead of the placeholder item. */
+    /** Fluid and chemical filter entries are drawn as the fluid or chemical itself instead of the placeholder item. */
     @Override
     protected void renderSlotContents(GuiGraphics graphics, ItemStack stack, Slot slot, @Nullable String countString) {
         // Step 68: a parked upgrade (insert side) does nothing here, so it's drawn with a faded copy of its icon
@@ -1439,6 +1442,10 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         }
         if (FluidGhost.isGhost(stack)) {
             FluidRender.drawFluid(graphics, FluidGhost.contentOf(stack), slot.x, slot.y);
+            return;
+        }
+        if (ChemicalGhost.isGhost(stack)) {
+            ChemicalRender.drawChemical(graphics, ChemicalGhost.idOf(stack), slot.x, slot.y);
             return;
         }
         super.renderSlotContents(graphics, stack, slot, countString);
@@ -1694,8 +1701,16 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         return pickingTag ? MatchMode.TAG : entryMatchMode();
     }
 
-    /** Lang key part for a match key: fluid pipes say Fluid instead of Item. */
+    /** The match keys this filter's entries have, left to right. */
+    private MatchMode[] modeOrder() {
+        return menu.isChemical() ? CHEMICAL_MODE_ORDER : MODE_ORDER;
+    }
+
+    /** Lang key part for a match key: fluid pipes say Fluid instead of Item, chemical filters Chemical. */
     private String modeKey(MatchMode mode) {
+        if (menu.isChemical() && mode == MatchMode.ITEM) {
+            return "chemical";
+        }
         if (menu.isFluid() && mode == MatchMode.ITEM) {
             return "fluid";
         }
@@ -1714,7 +1729,11 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         List<String> own = new ArrayList<>();
         List<String> all = new ArrayList<>();
         SimpleFluidContent fluid = FluidGhost.contentOf(entry);
-        if (fluid != null) {
+        ResourceLocation chemical = ChemicalGhost.idOf(entry);
+        if (chemical != null) {
+            own.addAll(Chemicals.tagsOf(chemical));
+            all.addAll(Chemicals.allTagNames());
+        } else if (fluid != null) {
             fluid.getFluidHolder().tags().forEach(tag -> own.add(tag.location().toString()));
             BuiltInRegistries.FLUID.getTagNames().forEach(tag -> all.add(tag.location().toString()));
         } else {
@@ -1732,20 +1751,22 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         entryBackKey.setTooltip(Tooltip.create(Component.translatable("screen.daisychain.entry.back")));
         // Match by: four keys filling x 7-143 at y 25, 1 px apart. Each is its text + 8, and the room left over is
         // shared out evenly (the design scripts' rule), so the row ends exactly at x 143.
-        Component[] matchLabels = new Component[MODE_ORDER.length];
-        int[] matchWidths = new int[MODE_ORDER.length];
-        int used = MODE_ORDER.length - 1;
-        for (int i = 0; i < MODE_ORDER.length; i++) {
-            matchLabels[i] = DaisyGui.styled(Component.translatable("screen.daisychain.entry.match." + modeKey(MODE_ORDER[i])));
+        MatchMode[] order = modeOrder();
+        java.util.Arrays.fill(matchKeys, null);
+        Component[] matchLabels = new Component[order.length];
+        int[] matchWidths = new int[order.length];
+        int used = order.length - 1;
+        for (int i = 0; i < order.length; i++) {
+            matchLabels[i] = DaisyGui.styled(Component.translatable("screen.daisychain.entry.match." + modeKey(order[i])));
             matchWidths[i] = DaisyGui.inkWidth(font, matchLabels[i]) + 8;
             used += matchWidths[i];
         }
         int extra = Math.max(0, DRAWER_RIGHT - DRAWER_PAD - used);
         int keyX = dx + DRAWER_PAD;
-        for (int i = 0; i < MODE_ORDER.length; i++) {
-            MatchMode mode = MODE_ORDER[i];
+        for (int i = 0; i < order.length; i++) {
+            MatchMode mode = order[i];
             Component label = matchLabels[i];
-            int keyWidth = matchWidths[i] + extra / MODE_ORDER.length + (i < extra % MODE_ORDER.length ? 1 : 0);
+            int keyWidth = matchWidths[i] + extra / order.length + (i < extra % order.length ? 1 : 0);
             matchKeys[i] = addRenderableWidget(DaisyKey.text(keyX, y + 25, keyWidth, ROW_HEIGHT,
                     () -> label, () -> shownMatch() == mode, sideTint(), sideInk(), () -> chooseMode(mode)));
             keyX += keyWidth + 1;
@@ -1835,9 +1856,10 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         }
         ItemStack entry = plain(entryStack());
         boolean hasData = ItemFilter.hasData(entry);
-        matchKeys[1].active = hasData;
-        for (int i = 0; i < MODE_ORDER.length; i++) {
-            matchKeys[i].setTooltip(Tooltip.create(matchHelp(MODE_ORDER[i], entry, hasData)));
+        MatchMode[] order = modeOrder();
+        for (int i = 0; i < order.length; i++) {
+            matchKeys[i].active = order[i] != MatchMode.DATA || hasData;
+            matchKeys[i].setTooltip(Tooltip.create(matchHelp(order[i], entry, hasData)));
         }
         int pages = tagPages();
         tagPage = Math.min(tagPage, pages - 1);
@@ -1860,7 +1882,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
 
     /** What a match key does, for its tooltip. */
     private Component matchHelp(MatchMode mode, ItemStack entry, boolean hasData) {
-        String kind = menu.isFluid() ? "fluid" : "item";
+        String kind = menu.isFluid() ? "fluid" : menu.isChemical() ? "chemical" : "item";
         return switch (mode) {
             case ITEM -> Component.translatable("screen.daisychain.matches." + kind);
             case DATA -> hasData ? Component.translatable("screen.daisychain.matches." + (menu.isFluid() ? "fluid_data" : "data"))
@@ -1946,7 +1968,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
                 case ITEM -> other.is(mine.getItem()) && sameFluidOrItem(other, mine);
                 case DATA -> ItemStack.isSameItemSameComponents(plain(other), mine);
                 case TAG -> match != null && match.value().equals(value);
-                case MOD -> FluidGhost.isGhost(other) == FluidGhost.isGhost(mine)
+                case MOD -> ItemFilter.unitsOf(other) == ItemFilter.unitsOf(mine)
                         && ItemFilter.modOf(other).equals(ItemFilter.modOf(mine));
             };
             if (same) {
@@ -1956,8 +1978,11 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         return false;
     }
 
-    /** Item entries: always true (same item). Fluid entries: the same fluid. */
+    /** Item entries: always true (same item). Fluid entries: the same fluid. Chemical entries: the same chemical. */
     private static boolean sameFluidOrItem(ItemStack other, ItemStack mine) {
+        if (ChemicalGhost.isGhost(mine)) {
+            return ChemicalGhost.sameChemical(other, mine);
+        }
         SimpleFluidContent a = FluidGhost.contentOf(other);
         SimpleFluidContent b = FluidGhost.contentOf(mine);
         return a == null || b == null || a.getFluid() == b.getFluid();
@@ -2151,6 +2176,8 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         graphics.pose().scale(13 / 16.0F, 13 / 16.0F, 1);
         if (FluidGhost.isGhost(entry)) {
             FluidRender.drawFluid(graphics, FluidGhost.contentOf(entry), 0, 0);
+        } else if (ChemicalGhost.isGhost(entry)) {
+            ChemicalRender.drawChemical(graphics, ChemicalGhost.idOf(entry), 0, 0);
         } else {
             graphics.renderFakeItem(entry, 0, 0);
         }

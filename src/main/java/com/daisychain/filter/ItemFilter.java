@@ -1,6 +1,8 @@
 package com.daisychain.filter;
 
 import com.daisychain.block.PipeKind;
+import com.daisychain.compat.ChemicalOps;
+import com.daisychain.compat.Chemicals;
 import com.daisychain.registry.ModDataComponents;
 import it.unimi.dsi.fastutil.objects.ObjectArrayList;
 import it.unimi.dsi.fastutil.objects.ObjectOpenHashSet;
@@ -31,6 +33,9 @@ import java.util.Arrays;
  * TAG entries check the item's tags; MOD entries are one hash lookup on the item's mod id.
  * Fluid pipes use the same class with fluid entries (FluidGhost, step 27): the same four modes apply to the fluid
  * (fluid, fluid + data, fluid tag, mod), compiled into their own lookups and checked with testFluid.
+ * Gas pipes (and universal chemical tabs) use chemical entries (ChemicalGhost, step 178): chemical, chemical tag or mod
+ * (chemicals carry no data). The entry holds only the chemical's name; rebuild looks the chemical and its tags up
+ * through compat.Chemicals, so testChemical compares chemicals by identity and never touches a registry by name.
  */
 public final class ItemFilter {
     public static final int SIZE = 54;
@@ -50,6 +55,13 @@ public final class ItemFilter {
     private final TagKey<Fluid>[] fluidTags;
     /** True for entries that are fluids (FluidGhost). Set by rebuild. */
     private final boolean[] fluidEntry = new boolean[SIZE];
+    /** Step 178: true for entries that are chemicals (ChemicalGhost). Set by rebuild. */
+    private final boolean[] chemicalEntry = new boolean[SIZE];
+    /** Step 178, TAG mode on chemical entries: the tag's name (kept as a name so it saves without Mekanism). */
+    private final ResourceLocation[] chemicalTagIds = new ResourceLocation[SIZE];
+    /** Compiled per chemical entry: the chemical (ITEM mode) or tag key (TAG mode) from compat.Chemicals, or null. */
+    private final Object[] chemicalOf = new Object[SIZE];
+    private final Object[] chemicalTagOf = new Object[SIZE];
     /** Per entry: its own Batch / Keep in source / Fill destination to, or UNSET. Indexed [BATCH|KEEP|FILL][slot]. */
     private final int[][] numbers = new int[3][SIZE];
     /** What filter slots show: a copy of the entry, plus FilterMatch (unless ITEM mode) and FilterNumbers (if set). */
@@ -68,6 +80,9 @@ public final class ItemFilter {
             new Reference2ObjectOpenHashMap<>();
     private final ObjectArrayList<TagKey<Fluid>> fluidTagList = new ObjectArrayList<>();
     private final ObjectOpenHashSet<String> fluidMods = new ObjectOpenHashSet<>();
+    private final ReferenceOpenHashSet<Object> chemicals = new ReferenceOpenHashSet<>();
+    private final ObjectArrayList<Object> chemicalTagList = new ObjectArrayList<>();
+    private final ObjectOpenHashSet<String> chemicalMods = new ObjectOpenHashSet<>();
     private boolean hasOverrides;
     private boolean hasKeepOverride;
     private boolean hasFillOverride;
@@ -146,6 +161,69 @@ public final class ItemFilter {
         return !fluidMods.isEmpty() && fluidMods.contains(FluidGhost.modId(fluid));
     }
 
+    /**
+     * Step 178, chemical filters: Allow mode passes only matching chemicals, Deny mode everything else. chemical comes
+     * from ops.chemical. Only call on an active filter, and only where Mekanism errors are caught (ChemicalTransfer).
+     * No allocation.
+     */
+    public boolean testChemical(ChemicalOps<?, ?> ops, Object chemical, boolean deny) {
+        return matchesChemical(ops, chemical) != deny;
+    }
+
+    private boolean matchesChemical(ChemicalOps<?, ?> ops, Object chemical) {
+        if (chemicals.contains(chemical)) {
+            return true;
+        }
+        for (int i = 0; i < chemicalTagList.size(); i++) {
+            if (ops.hasTag(chemical, chemicalTagList.get(i))) {
+                return true;
+            }
+        }
+        return !chemicalMods.isEmpty() && chemicalMods.contains(ops.modId(chemical));
+    }
+
+    /**
+     * Step 178: the chemical entry whose amounts apply to this chemical (chemical, then tag, then mod; lowest slot on a
+     * tie), or -1. Only chemical entries count. No allocation.
+     */
+    public int entryForChemical(ChemicalOps<?, ?> ops, Object chemical) {
+        String mod = null;
+        int best = -1;
+        int bestRank = -1;
+        for (int i = 0; i < SIZE; i++) {
+            if (!chemicalEntry[i]) {
+                continue;
+            }
+            MatchMode mode = modes[i];
+            int rank = switch (mode) {
+                case DATA -> 3; // never set on chemical entries
+                case ITEM -> 2;
+                case TAG -> 1;
+                case MOD -> 0;
+            };
+            if (rank <= bestRank) {
+                continue;
+            }
+            boolean match;
+            switch (mode) {
+                case ITEM -> match = chemicalOf[i] == chemical;
+                case TAG -> match = chemicalTagOf[i] != null && ops.hasTag(chemical, chemicalTagOf[i]);
+                case MOD -> {
+                    if (mod == null) {
+                        mod = ops.modId(chemical);
+                    }
+                    match = mod.equals(modValues[i]);
+                }
+                default -> match = false;
+            }
+            if (match) {
+                best = i;
+                bestRank = rank;
+            }
+        }
+        return best;
+    }
+
     /** True if any entry has its own Batch, Keep or Fill. Only then is entryFor worth calling. */
     public boolean hasOverrides() {
         return hasOverrides;
@@ -171,7 +249,7 @@ public final class ItemFilter {
         int bestRank = -1;
         for (int i = 0; i < SIZE; i++) {
             ItemStack entry = entries[i];
-            if (entry.isEmpty() || fluidEntry[i]) {
+            if (entry.isEmpty() || fluidEntry[i] || chemicalEntry[i]) {
                 continue;
             }
             MatchMode mode = modes[i];
@@ -272,6 +350,14 @@ public final class ItemFilter {
             return false;
         }
         SimpleFluidContent content = FluidGhost.contentOf(stack);
+        if (ChemicalGhost.isGhost(stack)) {
+            for (int i = 0; i < SIZE; i++) {
+                if (chemicalEntry[i] && modes[i] == MatchMode.ITEM && ChemicalGhost.sameChemical(entries[i], stack)) {
+                    return true;
+                }
+            }
+            return false;
+        }
         return content != null ? fluids.contains(content.getFluid()) : items.contains(stack.getItem());
     }
 
@@ -303,6 +389,7 @@ public final class ItemFilter {
         modes[slot] = MatchMode.ITEM;
         tags[slot] = null;
         fluidTags[slot] = null;
+        chemicalTagIds[slot] = null;
         for (int[] values : numbers) {
             values[slot] = UNSET;
         }
@@ -318,7 +405,7 @@ public final class ItemFilter {
         if (slot < 0 || slot >= SIZE || which < BATCH || which > FILL || entries[slot].isEmpty()) {
             return false;
         }
-        if (!validNumber(which, value, FluidGhost.isGhost(entries[slot])) || numbers[which][slot] == value) {
+        if (!validNumber(which, value, unitsOf(entries[slot])) || numbers[which][slot] == value) {
             return false;
         }
         numbers[which][slot] = value;
@@ -326,9 +413,8 @@ public final class ItemFilter {
         return true;
     }
 
-    /** Item entries count items, fluid entries mB (bigger limits). */
-    private static boolean validNumber(int which, int value, boolean fluid) {
-        PipeKind kind = fluid ? PipeKind.FLUID : PipeKind.ITEM;
+    /** Item entries count items, fluid and chemical entries mB (bigger limits). */
+    private static boolean validNumber(int which, int value, PipeKind kind) {
         int max = which == BATCH ? kind.maxBatch() : kind.maxStock();
         return value == UNSET || (value >= 0 && value <= max);
     }
@@ -351,12 +437,28 @@ public final class ItemFilter {
         if (isDuplicate(slot, entries[slot], mode, newTag)) {
             return false;
         }
-        boolean fluid = FluidGhost.isGhost(entries[slot]);
-        modes[slot] = mode;
-        tags[slot] = newTag != null && !fluid ? TagKey.create(Registries.ITEM, newTag) : null;
-        fluidTags[slot] = newTag != null && fluid ? TagKey.create(Registries.FLUID, newTag) : null;
+        setTag(slot, mode, newTag, unitsOf(entries[slot]));
         rebuild();
         return true;
+    }
+
+    /** Stores an entry's mode and tag in the tag array of its kind (the others cleared). */
+    private void setTag(int slot, MatchMode mode, @Nullable ResourceLocation tag, PipeKind units) {
+        modes[slot] = mode;
+        tags[slot] = tag != null && units == PipeKind.ITEM ? TagKey.create(Registries.ITEM, tag) : null;
+        fluidTags[slot] = tag != null && units == PipeKind.FLUID ? TagKey.create(Registries.FLUID, tag) : null;
+        chemicalTagIds[slot] = tag != null && units == PipeKind.GAS ? tag : null;
+    }
+
+    /**
+     * Which filter an entry belongs in: FLUID for fluid ghosts, GAS for chemical ghosts (step 178), ITEM for anything
+     * else. Its numbers count in that kind's units.
+     */
+    public static PipeKind unitsOf(ItemStack entry) {
+        if (FluidGhost.isGhost(entry)) {
+            return PipeKind.FLUID;
+        }
+        return ChemicalGhost.isGhost(entry) ? PipeKind.GAS : PipeKind.ITEM;
     }
 
     /** The tag an entry matches (item or fluid tag), or null. */
@@ -365,11 +467,18 @@ public final class ItemFilter {
         if (tags[slot] != null) {
             return tags[slot].location();
         }
+        if (chemicalTagIds[slot] != null) {
+            return chemicalTagIds[slot];
+        }
         return fluidTags[slot] != null ? fluidTags[slot].location() : null;
     }
 
-    /** The mod id of an entry's item, or of its fluid for a fluid ghost. */
+    /** The mod id of an entry's item, or of its fluid / chemical for a fluid / chemical ghost. */
     public static String modOf(ItemStack entry) {
+        ResourceLocation chemical = ChemicalGhost.idOf(entry);
+        if (chemical != null) {
+            return chemical.getNamespace();
+        }
         SimpleFluidContent content = FluidGhost.contentOf(entry);
         return content != null ? FluidGhost.modId(content.getFluid()) : modId(entry.getItem());
     }
@@ -379,6 +488,7 @@ public final class ItemFilter {
         Arrays.fill(modes, MatchMode.ITEM);
         Arrays.fill(tags, null);
         Arrays.fill(fluidTags, null);
+        Arrays.fill(chemicalTagIds, null);
         for (int[] values : numbers) {
             Arrays.fill(values, UNSET);
         }
@@ -387,13 +497,17 @@ public final class ItemFilter {
 
     /** True if another entry (not at exceptSlot) would match exactly the same things. */
     private boolean isDuplicate(int exceptSlot, ItemStack ghost, MatchMode mode, @Nullable ResourceLocation tag) {
-        boolean fluid = FluidGhost.isGhost(ghost);
+        PipeKind units = unitsOf(ghost);
         for (int i = 0; i < SIZE; i++) {
-            if (i == exceptSlot || entries[i].isEmpty() || modes[i] != mode || FluidGhost.isGhost(entries[i]) != fluid) {
+            if (i == exceptSlot || entries[i].isEmpty() || modes[i] != mode || unitsOf(entries[i]) != units) {
                 continue;
             }
             boolean same = switch (mode) {
-                case ITEM -> fluid ? sameFluid(entries[i], ghost) : entries[i].is(ghost.getItem());
+                case ITEM -> switch (units) {
+                    case FLUID -> sameFluid(entries[i], ghost);
+                    case GAS -> ChemicalGhost.sameChemical(entries[i], ghost);
+                    default -> entries[i].is(ghost.getItem());
+                };
                 case DATA -> ItemStack.isSameItemSameComponents(entries[i], ghost);
                 case TAG -> tag != null && tag.equals(tagId(i));
                 case MOD -> modOf(entries[i]).equals(modOf(ghost));
@@ -417,6 +531,10 @@ public final class ItemFilter {
             // Rebuilt from its fluid: drops display markers and anything else, re-checks the data size.
             return FluidGhost.of(FluidGhost.fluidOf(stack), registries);
         }
+        if (ChemicalGhost.isGhost(stack)) {
+            // Rebuilt from its name only. Not checked against Mekanism, so entries survive a game without it.
+            return ChemicalGhost.of(ChemicalGhost.idOf(stack));
+        }
         ItemStack ghost = stack.copyWithCount(1);
         ghost.remove(ModDataComponents.FILTER_MATCH.get());
         ghost.remove(ModDataComponents.FILTER_NUMBERS.get());
@@ -430,6 +548,9 @@ public final class ItemFilter {
     public static boolean hasData(ItemStack stack) {
         if (FluidGhost.isGhost(stack)) {
             return FluidGhost.hasData(stack);
+        }
+        if (ChemicalGhost.isGhost(stack)) {
+            return false; // chemicals carry no data of their own
         }
         return !stack.getComponentsPatch().isEmpty();
     }
@@ -454,6 +575,11 @@ public final class ItemFilter {
         fluidDataByFluid.clear();
         fluidTagList.clear();
         fluidMods.clear();
+        chemicals.clear();
+        chemicalTagList.clear();
+        chemicalMods.clear();
+        Arrays.fill(chemicalOf, null);
+        Arrays.fill(chemicalTagOf, null);
         hasOverrides = false;
         hasKeepOverride = false;
         hasFillOverride = false;
@@ -461,14 +587,39 @@ public final class ItemFilter {
         for (int i = 0; i < SIZE; i++) {
             ItemStack entry = entries[i];
             SimpleFluidContent content = FluidGhost.contentOf(entry);
+            ResourceLocation chemicalId = ChemicalGhost.idOf(entry);
             fluidEntry[i] = content != null;
+            chemicalEntry[i] = chemicalId != null;
             if (entry.isEmpty() || (fluidEntry[i] && content.isEmpty())) {
                 display[i] = ItemStack.EMPTY;
                 continue;
             }
             entryCount++;
             String value = "";
-            if (fluidEntry[i]) {
+            if (chemicalEntry[i]) {
+                // Looked up once here, never per transfer. Without Mekanism (or a chemical it no longer has) the entry
+                // stays listed and saved but matches nothing.
+                switch (modes[i]) {
+                    case TAG -> {
+                        value = chemicalTagIds[i].toString();
+                        chemicalTagOf[i] = Chemicals.tagKey(chemicalTagIds[i]);
+                        if (chemicalTagOf[i] != null) {
+                            chemicalTagList.add(chemicalTagOf[i]);
+                        }
+                    }
+                    case MOD -> {
+                        value = chemicalId.getNamespace();
+                        chemicalMods.add(value);
+                        modValues[i] = value;
+                    }
+                    default -> {
+                        chemicalOf[i] = Chemicals.byId(chemicalId);
+                        if (chemicalOf[i] != null) {
+                            chemicals.add(chemicalOf[i]);
+                        }
+                    }
+                }
+            } else if (fluidEntry[i]) {
                 Fluid fluid = content.getFluid();
                 switch (modes[i]) {
                     case ITEM -> fluids.add(fluid);
@@ -548,12 +699,12 @@ public final class ItemFilter {
     }
 
     /** A saved number, or UNSET if it's missing or out of range (e.g. edited by hand). */
-    private static int readNumber(CompoundTag entry, String key, int which, boolean fluid) {
+    private static int readNumber(CompoundTag entry, String key, int which, PipeKind units) {
         if (!entry.contains(key, Tag.TAG_INT)) {
             return UNSET;
         }
         int value = entry.getInt(key);
-        return validNumber(which, value, fluid) ? value : UNSET;
+        return validNumber(which, value, units) ? value : UNSET;
     }
 
     public void load(ListTag list, HolderLookup.Provider registries) {
@@ -561,6 +712,7 @@ public final class ItemFilter {
         Arrays.fill(modes, MatchMode.ITEM);
         Arrays.fill(tags, null);
         Arrays.fill(fluidTags, null);
+        Arrays.fill(chemicalTagIds, null);
         for (int[] values : numbers) {
             Arrays.fill(values, UNSET);
         }
@@ -584,13 +736,11 @@ public final class ItemFilter {
                 mode = MatchMode.ITEM; // anything unreadable falls back to plain item matching
                 tag = null;
             }
-            boolean fluid = FluidGhost.isGhost(ghost);
-            modes[slot] = mode;
-            tags[slot] = tag != null && !fluid ? TagKey.create(Registries.ITEM, tag) : null;
-            fluidTags[slot] = tag != null && fluid ? TagKey.create(Registries.FLUID, tag) : null;
-            numbers[BATCH][slot] = readNumber(entry, "Batch", BATCH, fluid);
-            numbers[KEEP][slot] = readNumber(entry, "Keep", KEEP, fluid);
-            numbers[FILL][slot] = readNumber(entry, "Fill", FILL, fluid);
+            PipeKind units = unitsOf(ghost);
+            setTag(slot, mode, tag, units);
+            numbers[BATCH][slot] = readNumber(entry, "Batch", BATCH, units);
+            numbers[KEEP][slot] = readNumber(entry, "Keep", KEEP, units);
+            numbers[FILL][slot] = readNumber(entry, "Fill", FILL, units);
         }
         rebuild();
     }
