@@ -10,6 +10,7 @@
     "daisychain:netherite_energy_pipe",
     "daisychain:nether_star_energy_pipe",
     "daisychain:universal_pipe",
-    "daisychain:redstone_pipe"
+    "daisychain:redstone_pipe",
+    "daisychain:gas_pipe"
   ]
 }

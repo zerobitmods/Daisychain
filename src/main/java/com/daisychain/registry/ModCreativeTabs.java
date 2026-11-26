@@ -29,6 +29,9 @@ public final class ModCreativeTabs {
                         }
                         output.accept(ModItems.UNIVERSAL_PIPE.get());
                         output.accept(ModItems.REDSTONE_PIPE.get()); // step F86
+                        if (com.daisychain.compat.Chemicals.mekanismLoaded()) {
+                            output.accept(ModItems.GAS_PIPE.get()); // step F95: only with Mekanism
+                        }
                         output.accept(ModItems.BLOOM_WRENCH.get());
                         output.accept(ModItems.SETTINGS_COPIER.get());
                         // Step F53: a few ready-made facades; any other full block is one craft away.

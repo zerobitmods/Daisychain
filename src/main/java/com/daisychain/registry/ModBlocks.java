@@ -4,6 +4,7 @@ import com.daisychain.Daisychain;
 import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.block.BasePipeBlock;
 import com.daisychain.block.FluidPipeBlock;
+import com.daisychain.block.GasPipeBlock;
 import com.daisychain.block.ItemPipeBlock;
 import com.daisychain.block.RedstonePipeBlock;
 import com.daisychain.block.UniversalPipeBlock;
@@ -37,6 +38,9 @@ public final class ModBlocks {
     /** Step F86 (port of 161): carries an on / off redstone signal along its line (RedstonePipeBlock). */
     public static final RegistryObject<RedstonePipeBlock> REDSTONE_PIPE =
             BLOCKS.register("redstone_pipe", () -> new RedstonePipeBlock(pipeProperties().mapColor(MapColor.COLOR_RED)));
+    /** Step F95: carries Mekanism chemicals (GasPipeBlock). Always registered; only shown and crafted with Mekanism. */
+    public static final RegistryObject<GasPipeBlock> GAS_PIPE =
+            BLOCKS.register("gas_pipe", () -> new GasPipeBlock(pipeProperties().mapColor(MapColor.COLOR_MAGENTA)));
 
     /**
      * Step F61 (port of 134, transparent facade): the "block" a transparent facade covers a pipe with. Never placed in
@@ -70,11 +74,11 @@ public final class ModBlocks {
                 DIAMOND_ENERGY_PIPE.get(), NETHERITE_ENERGY_PIPE.get(), NETHER_STAR_ENERGY_PIPE.get()};
     }
 
-    /** Every pipe block: item, fluid, all energy tiers, universal, redstone (step 161). */
+    /** Every pipe block: item, fluid, all energy tiers, universal, redstone (step 161), gas (step 171). */
     public static Block[] allPipes() {
         return new Block[]{ITEM_PIPE.get(), FLUID_PIPE.get(), ENERGY_PIPE.get(), IRON_ENERGY_PIPE.get(),
                 GOLD_ENERGY_PIPE.get(), DIAMOND_ENERGY_PIPE.get(), NETHERITE_ENERGY_PIPE.get(),
-                NETHER_STAR_ENERGY_PIPE.get(), UNIVERSAL_PIPE.get(), REDSTONE_PIPE.get()};
+                NETHER_STAR_ENERGY_PIPE.get(), UNIVERSAL_PIPE.get(), REDSTONE_PIPE.get(), GAS_PIPE.get()};
     }
 
     private static BlockBehaviour.Properties pipeProperties() {

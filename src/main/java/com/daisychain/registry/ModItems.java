@@ -37,6 +37,9 @@ public final class ModItems {
     /** Step F86. */
     public static final RegistryObject<BlockItem> REDSTONE_PIPE =
             ITEMS.register("redstone_pipe", () -> new BlockItem(ModBlocks.REDSTONE_PIPE.get(), new Item.Properties()));
+    /** Step F95. */
+    public static final RegistryObject<BlockItem> GAS_PIPE =
+            ITEMS.register("gas_pipe", () -> new BlockItem(ModBlocks.GAS_PIPE.get(), new Item.Properties()));
     /**
      * The Bloom Wrench (step 62b; was the Probe, id daisychain:probe, and before that the Pipe Wrench, id daisychain:wrench).
      * Its behavior comes from the forge:tools/wrench tag.

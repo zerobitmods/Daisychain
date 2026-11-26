@@ -190,6 +190,8 @@ dependencies {
     modRuntimeOnly "maven.modrinth:spark:${spark_version}"
 
     // Mekanism + Generators, only so energy pipes can be tested in the dev game. Never a dependency of Daisychain.
+    // Step F95: gas pipes compile against Mekanism's published API only (its api jar, never the rest of Mekanism).
+    modCompileOnly "mekanism:Mekanism:${mekanism_version}:api"
     // Step F94: ./gradlew runGameTestServer -Pwithout_mekanism runs everything without Mekanism, so a Mekanism class
     // used outside the compat code shows up as a crash in the dev game instead of in someone's modpack.
     if (!project.hasProperty('without_mekanism')) {
