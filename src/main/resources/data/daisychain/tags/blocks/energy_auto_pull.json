@@ -1,0 +1,9 @@
+{
+  "replace": false,
+  "values": [
+    {
+      "id": "fluxnetworks:flux_point",
+      "required": false
+    }
+  ]
+}

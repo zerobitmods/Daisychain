@@ -6,6 +6,8 @@ import net.minecraft.core.Direction;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.level.block.entity.BlastFurnaceBlockEntity;
 import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.block.entity.BrewingStandBlockEntity;
+import net.minecraft.world.level.block.entity.CampfireBlockEntity;
 import net.minecraft.world.level.block.entity.FurnaceBlockEntity;
 import net.minecraft.world.level.block.entity.SmokerBlockEntity;
 import net.minecraftforge.common.capabilities.Capability;
@@ -22,7 +24,8 @@ import net.minecraftforge.fml.loading.FMLEnvironment;
 /**
  * Step F93 (port of 169, game tests only), energy blocks that answer "both ways" (no other dev hook uses these block
  * entities): a smoker is a half-full battery, a furnace a full battery, and a blast furnace a generator that says it
- * can take energy but refuses it (as Mekanism's generators do on their output face).
+ * can take energy but refuses it (as Mekanism's generators do on their output face). Step F105: a brewing stand (flux point,
+ * in the dev tag) and a campfire (unlinked flux plug) answer neither.
  */
 @Mod.EventBusSubscriber(modid = Daisychain.MOD_ID, bus = Mod.EventBusSubscriber.Bus.FORGE)
 public final class TwoWayBattery {
@@ -44,6 +47,11 @@ public final class TwoWayBattery {
             storage = new RefusingGenerator();
         } else if (be instanceof FurnaceBlockEntity) {
             storage = new EnergyStorage(100_000, 1_000, 1_000, 100_000);
+        } else if (be instanceof BrewingStandBlockEntity || be instanceof CampfireBlockEntity) {
+            // Step F105 (port of 181): a brewing stand stands in for a Flux Networks flux point (in the dev copy of the
+            // tag daisychain:energy_auto_pull), a campfire for a Flux Plug that hasn't joined its network yet (not in
+            // it). Both say they neither give nor take energy.
+            storage = new EnergyStorage(10_000, 0, 0, 0);
         } else {
             return;
         }

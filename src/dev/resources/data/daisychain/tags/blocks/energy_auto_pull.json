@@ -1,0 +1,10 @@
+{
+  "replace": false,
+  "values": [
+    {
+      "id": "fluxnetworks:flux_point",
+      "required": false
+    },
+    "minecraft:brewing_stand"
+  ]
+}

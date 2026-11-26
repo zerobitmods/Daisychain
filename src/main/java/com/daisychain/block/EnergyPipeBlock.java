@@ -140,13 +140,19 @@ public final class EnergyPipeBlock extends BasePipeBlock {
      * stay insert sides, so the pipe never drains a battery on its own. Some generators say they can take energy too
      * (Mekanism's, on their output face): such a block counts as a generator only if it has room and still refuses
      * 1,000 FE (asked as a simulation, nothing moves). A full battery can't be told apart that way, so it stays an insert
-     * side. Other mods' cables and pipes (tag daisychain:energy_never_auto_pull) never start as pull sides. Asked once,
-     * one tick after the side connected; a handler that throws counts as "no".
+     * side. Step F105 (port of 181): blocks in the tag daisychain:energy_auto_pull (flux points, which push their
+     * power out) start as pull sides too. Other mods' cables and pipes (tag daisychain:energy_never_auto_pull) never start as pull sides.
+     * Asked once, one tick after the side connected; a handler that throws counts as "no".
      */
     @Override
     protected boolean startsAsPull(ServerLevel level, BlockPos pos, Direction side, BlockState neighborState) {
         if (neighborState.is(com.daisychain.registry.ModTags.ENERGY_NEVER_AUTO_PULL)) {
             return false; // another mod's cable or pipe: which way it should run is the player's call
+        }
+        if (neighborState.is(com.daisychain.registry.ModTags.ENERGY_AUTO_PULL)) {
+            // Step F105 (port of 181): a block that pushes its power out (a flux point), which only a pull side's energy
+            // input accepts.
+            return true;
         }
         try {
             net.minecraft.world.level.block.entity.BlockEntity be = level.getBlockEntity(pos.relative(side));
