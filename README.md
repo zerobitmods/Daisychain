@@ -2,7 +2,7 @@
 
 Fast, lag-friendly pipes for items, fluids, energy, redstone signals and Mekanism chemicals, built for big modpacks and busy servers.
 
-Minecraft 1.20.1 · Forge 47.2.0+ (this branch; 1.21.1 NeoForge is on main) · MIT license · version 1.6.0
+Minecraft 1.20.1 · Forge 47.2.0+ (this branch; 1.21.1 NeoForge is on main) · MIT license · version 1.6.1
 
 ## What it adds
 
