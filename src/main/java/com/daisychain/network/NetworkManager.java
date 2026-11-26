@@ -1035,7 +1035,8 @@ public final class NetworkManager {
                 boolean saw = false;
                 for (int resource = 0; resource < PipeKind.RESOURCE_COUNT; resource++) {
                     int slot = resource * 6 + side;
-                    if (!data.pullsResource(direction, resource) || now < extractor.resourceLastRun[slot]
+                    if (!extractor.kind.carries(resource) // step 170: not chemicals (yet)
+                            || !data.pullsResource(direction, resource) || now < extractor.resourceLastRun[slot]
                             + resourceInterval(data, direction, resource, tier)) {
                         continue; // switched off on this side (step 33a), or not due yet
                     }
@@ -1123,7 +1124,7 @@ public final class NetworkManager {
         }
         int soonest = Integer.MAX_VALUE;
         for (int resource = 0; resource < PipeKind.RESOURCE_COUNT; resource++) {
-            if (data.pullsResource(direction, resource)) {
+            if (extractor.kind.carries(resource) && data.pullsResource(direction, resource)) {
                 soonest = Math.min(soonest, resourceInterval(data, direction, resource, tier));
             }
         }

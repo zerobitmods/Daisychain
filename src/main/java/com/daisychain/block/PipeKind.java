@@ -11,19 +11,26 @@ public enum PipeKind {
      * Step 161: carries a redstone signal (on / off), no resource. Pull sides read a signal, insert sides send it out.
      * Never part of an item / fluid / energy network: it has no settings screens, upgrades, filters or pull extractors.
      */
-    REDSTONE;
+    REDSTONE,
+    /**
+     * Step 170: Mekanism chemicals (gas, infusion, pigment, slurry), counted in mB. Only the resource slot exists so far:
+     * no gas pipe block yet (step 172), and the universal pipe doesn't carry chemicals yet (step 173).
+     */
+    GAS;
 
     /**
-     * What a pipe side can carry, as an index into per-resource settings (step 31): items 0, fluids 1, energy 2.
-     * Item, fluid and energy pipes carry one resource each; the universal pipe (step 32) carries all three.
+     * What a pipe side can carry, as an index into per-resource settings (step 31): items 0, fluids 1, energy 2,
+     * chemicals 3 (step 170). Item, fluid, energy and gas pipes carry one resource each; the universal pipe (step 32)
+     * carries items, fluids and energy.
      */
-    public static final int RESOURCE_COUNT = 3;
+    public static final int RESOURCE_COUNT = 4;
     public static final int ITEMS = 0;
     public static final int FLUIDS = 1;
     public static final int ENERGY_RES = 2;
-    private static final PipeKind[] BY_RESOURCE = {ITEM, FLUID, ENERGY};
+    public static final int CHEMICALS = 3;
+    private static final PipeKind[] BY_RESOURCE = {ITEM, FLUID, ENERGY, GAS};
 
-    /** The kind that matches one resource (ITEM, FLUID or ENERGY): decides its units, limits and help texts. */
+    /** The kind that matches one resource (ITEM, FLUID, ENERGY or GAS): decides its units, limits and help texts. */
     public static PipeKind ofResource(int resource) {
         return BY_RESOURCE[resource];
     }
@@ -34,12 +41,19 @@ public enum PipeKind {
             case ITEM -> ITEMS;
             case FLUID -> FLUIDS;
             case ENERGY -> ENERGY_RES;
+            case GAS -> CHEMICALS;
             case UNIVERSAL, REDSTONE -> -1;
         };
     }
 
-    /** True if sides of this pipe carry that resource. Step 161: redstone pipes carry none. */
+    /**
+     * True if sides of this pipe carry that resource. Step 161: redstone pipes carry none. Step 170: chemicals only on
+     * gas pipes for now (the universal pipe joins in step 173).
+     */
     public boolean carries(int resource) {
+        if (resource == CHEMICALS) {
+            return this == GAS;
+        }
         return resource >= 0 && resource < RESOURCE_COUNT && this != REDSTONE
                 && (this == UNIVERSAL || resource() == resource);
     }
@@ -77,7 +91,7 @@ public enum PipeKind {
     /** Highest Batch value (0 = Max, following the upgrade). */
     public int maxBatch() {
         return switch (this) {
-            case FLUID -> MAX_FLUID_AMOUNT;
+            case FLUID, GAS -> MAX_FLUID_AMOUNT; // chemicals count mB like fluids
             case ENERGY -> MAX_ENERGY_AMOUNT;
             default -> MAX_ITEM_BATCH;
         };
@@ -86,7 +100,7 @@ public enum PipeKind {
     /** Highest Keep in source / Fill destination to / Max stock value (0 = off). */
     public int maxStock() {
         return switch (this) {
-            case FLUID -> MAX_FLUID_AMOUNT;
+            case FLUID, GAS -> MAX_FLUID_AMOUNT; // chemicals count mB like fluids
             case ENERGY -> MAX_ENERGY_AMOUNT;
             default -> MAX_ITEM_STOCK;
         };
@@ -95,7 +109,7 @@ public enum PipeKind {
     /** One click on a number button: 1 item, 100 mB, or 1,000 FE. */
     public int smallStep() {
         return switch (this) {
-            case FLUID -> 100;
+            case FLUID, GAS -> 100;
             case ENERGY -> 1_000;
             default -> 1;
         };
@@ -104,16 +118,17 @@ public enum PipeKind {
     /** Shift+click on a number button: 64 items, 1000 mB (one bucket), or 100,000 FE. */
     public int bigStep() {
         return switch (this) {
-            case FLUID -> 1_000;
+            case FLUID, GAS -> 1_000;
             case ENERGY -> 100_000;
             default -> 64;
         };
     }
 
-    /** Suffix of this kind's own help texts ("", "_fluid", "_energy"). */
+    /** Suffix of this kind's own help texts ("", "_fluid", "_energy", "_gas"). */
     public String langSuffix() {
         return switch (this) {
             case FLUID -> "_fluid";
+            case GAS -> "_gas"; // the texts themselves come with the gas pipe (step 172)
             case ENERGY -> "_energy";
             default -> "";
         };

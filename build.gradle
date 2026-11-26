@@ -190,8 +190,12 @@ dependencies {
     modRuntimeOnly "maven.modrinth:spark:${spark_version}"
 
     // Mekanism + Generators, only so energy pipes can be tested in the dev game. Never a dependency of Daisychain.
-    modRuntimeOnly "mekanism:Mekanism:${mekanism_version}"
-    modRuntimeOnly "mekanism:Mekanism:${mekanism_version}:generators"
+    // Step F94: ./gradlew runGameTestServer -Pwithout_mekanism runs everything without Mekanism, so a Mekanism class
+    // used outside the compat code shows up as a crash in the dev game instead of in someone's modpack.
+    if (!project.hasProperty('without_mekanism')) {
+        modRuntimeOnly "mekanism:Mekanism:${mekanism_version}"
+        modRuntimeOnly "mekanism:Mekanism:${mekanism_version}:generators"
+    }
     // FTB Ultimine (step F26, optional): compile against it; in the dev game with FTB Library and Architectury API.
     // Never required: Daisychain only touches Ultimine when it's installed (Daisychain.java).
     modCompileOnly("dev.ftb.mods:ftb-ultimine-forge:${ultimine_version}") { transitive = false }

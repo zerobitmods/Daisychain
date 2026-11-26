@@ -88,10 +88,13 @@ public final class PipeDataBlockEntity extends BlockEntity {
     public static final int MAX_BATCH = 1_000_000;
     public static final int MAX_STOCK = 100_000;
 
-    /** Per-resource arrays hold one value per side per resource: index = resource * 6 + side (step 31). */
+    /**
+     * Per-resource arrays hold one value per side per resource: index = resource * 6 + side (step 31). Step 170: four
+     * resources (24 values); saves with three (18 values) load as they are, the chemical values reading as 0.
+     */
     private static final int SLOTS = PipeKind.RESOURCE_COUNT * 6;
-    /** Saved / synced names of the per-resource sub-tags in a Settings Copier (items, fluids, energy). */
-    private static final String[] RESOURCE_KEYS = {"Items", "Fluids", "Energy"};
+    /** Saved / synced names of the per-resource sub-tags in a Settings Copier (items, fluids, energy, chemicals). */
+    private static final String[] RESOURCE_KEYS = {"Items", "Fluids", "Energy", "Chemicals"};
 
     private byte extractMask;
     private byte disconnectMask;
@@ -699,9 +702,9 @@ public final class PipeDataBlockEntity extends BlockEntity {
         return (byte) mask;
     }
 
-    /** Folds 18 per-resource bits (resource * 6 + side) into 6 side bits. */
+    /** Folds the per-resource bits (resource * 6 + side; 24 since step 170) into 6 side bits. */
     private static int sidesOf(int bits) {
-        return (bits | (bits >>> 6) | (bits >>> 12)) & 0b111111;
+        return (bits | (bits >>> 6) | (bits >>> 12) | (bits >>> 18)) & 0b111111;
     }
 
     /**
