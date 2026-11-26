@@ -1,5 +1,6 @@
 package com.daisychain.network;
 
+import com.daisychain.compat.Chemicals;
 import it.unimi.dsi.fastutil.longs.Long2IntOpenHashMap;
 import it.unimi.dsi.fastutil.longs.LongArrayList;
 import it.unimi.dsi.fastutil.longs.LongOpenHashSet;
@@ -554,6 +555,16 @@ public final class PipeNetwork {
             return maxStock[PipeKind.FLUIDS];
         }
 
+        /** Step 172, gas pipes: false if redstone stops this destination or it is switched off for chemicals. */
+        public boolean acceptsChemicals() {
+            return !redstoneBlocked && (insertOffMask & (1 << PipeKind.CHEMICALS)) == 0;
+        }
+
+        /** Step 172, gas pipes: Max stock in mB (0 = no limit); the side's value (chemical filters come later). */
+        public int maxStockForChemicals() {
+            return maxStock[PipeKind.CHEMICALS];
+        }
+
         /** Energy: false if this insert side is switched off for energy (step 33a). */
         public boolean acceptsEnergy() {
             return !redstoneBlocked && (insertOffMask & (1 << PipeKind.ENERGY_RES)) == 0;
@@ -621,6 +632,22 @@ public final class PipeNetwork {
             return c.energy.getCapability();
         }
 
+        /**
+         * Step F96 (port of 172): the target's handler of one chemical type (0 gas, 1 infusion, 2 pigment, 3 slurry), cached, as an
+         * opaque object for ChemicalTransfer. Null if it has none, its chunk isn't loaded, or gas is off.
+         */
+        @Nullable
+        public Object chemicalHandler(ServerLevel level, int type) {
+            if (released || !targetLoaded(level)) { // like the other handlers: never on a dropped network (R8)
+                return null;
+            }
+            TargetCaps c = caps;
+            if (c.chemical == null) {
+                c.chemical = Chemicals.newCache(level, targetPos, side.getOpposite(), null, null);
+            }
+            return Chemicals.handler(c.chemical, type);
+        }
+
         /** The target's fluid handler (fluid pipes), cached. Null if it has none or its chunk isn't loaded. */
         @Nullable
         public IFluidHandler fluidHandler(ServerLevel level) {
@@ -647,6 +674,9 @@ public final class PipeNetwork {
         CapCache<IFluidHandler> fluid;
         @Nullable
         CapCache<IEnergyStorage> energy;
+        /** Step F96: chemical handler caches, one per chemical type (opaque, from compat.Chemicals.newCache). */
+        @Nullable
+        Object chemical;
         /** Valid networks with an endpoint using these. */
         int users;
         /** Game time when users last dropped to 0. */
@@ -666,6 +696,10 @@ public final class PipeNetwork {
             if (energy != null) {
                 energy.release();
                 energy = null;
+            }
+            if (chemical != null) {
+                Chemicals.releaseCache(chemical);
+                chemical = null;
             }
         }
     }

@@ -4,10 +4,14 @@ import com.daisychain.Daisychain;
 import com.daisychain.compat.mekanism.MekanismChemicals;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
+import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.level.Level;
 import net.minecraftforge.eventbus.api.IEventBus;
 import net.minecraftforge.fml.ModList;
 import net.minecraftforge.fml.event.lifecycle.FMLLoadCompleteEvent;
+
+import javax.annotation.Nullable;
+import java.util.function.BooleanSupplier;
 
 /**
  * Step F95 (port of step 171): what the rest of Daisychain uses for Mekanism chemicals (gas, infusion, pigment, slurry). Never names a
@@ -19,6 +23,8 @@ import net.minecraftforge.fml.event.lifecycle.FMLLoadCompleteEvent;
  */
 public final class Chemicals {
     private static final boolean MEKANISM = ModList.get().isLoaded("mekanism");
+    /** Step F96: Mekanism 10.4's chemical types, each with its own handler: gas, infusion, pigment, slurry. */
+    public static final int TYPES = 4;
     private static volatile boolean broken;
 
     private Chemicals() {
@@ -51,6 +57,62 @@ public final class Chemicals {
         } catch (LinkageError | RuntimeException e) {
             switchOff("looking for a chemical handler at " + pos.toShortString(), e);
             return false;
+        }
+    }
+
+    /**
+     * Step F96 (port of 172): caches for the chemical handlers (all four types) of the block at pos (its side), kept by
+     * the caller; release them with {@link #releaseCache}. onValid / onInvalidate as for CapCache.create (may be null).
+     * Null if gas is off.
+     */
+    @Nullable
+    public static Object newCache(ServerLevel level, BlockPos pos, Direction side, @Nullable BooleanSupplier onValid,
+                                  @Nullable Runnable onInvalidate) {
+        if (!available()) {
+            return null;
+        }
+        try {
+            return MekanismChemicals.newCache(level, pos, side, onValid, onInvalidate);
+        } catch (LinkageError | RuntimeException e) {
+            switchOff("looking for a chemical handler at " + pos.toShortString(), e);
+            return null;
+        }
+    }
+
+    /** Step F96: takes a cache from newCache off its block (Forge listeners). Safe whatever state gas is in. */
+    public static void releaseCache(Object cache) {
+        try {
+            MekanismChemicals.releaseCache(cache);
+        } catch (LinkageError | RuntimeException e) {
+            switchOff("releasing a chemical handler cache", e);
+        }
+    }
+
+    /** Step F96: the handler of one type a cache from newCache holds now, or null (none, or gas is off). */
+    @Nullable
+    public static Object handler(@Nullable Object cache, int type) {
+        if (cache == null || !available()) {
+            return null;
+        }
+        try {
+            return MekanismChemicals.handler(cache, type);
+        } catch (LinkageError | RuntimeException e) {
+            switchOff("reading a chemical handler", e);
+            return null;
+        }
+    }
+
+    /** Step F96: how to work a handler of one type from {@link #handler}; null if gas is off. */
+    @Nullable
+    public static ChemicalOps<?, ?> ops(int type) {
+        if (!available()) {
+            return null;
+        }
+        try {
+            return MekanismChemicals.ops(type);
+        } catch (LinkageError | RuntimeException e) {
+            switchOff("setting up chemical transfers", e);
+            return null;
         }
     }
 

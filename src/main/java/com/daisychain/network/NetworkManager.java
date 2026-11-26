@@ -875,7 +875,15 @@ public final class NetworkManager {
     private int transferNow(Extractor extractor, Direction direction, int resource, int tier, PipeDataBlockEntity data,
                             int maxSlots, int maxCalls) {
         if (resource == PipeKind.CHEMICALS) {
-            return 0; // step 171: gas pipes connect, but chemicals don't move yet (step 172)
+            // Step 172: gas pipes (Mekanism chemicals); the server config can switch them off.
+            if (!DaisychainConfig.CHEMICALS_ENABLED.get()) {
+                return 0;
+            }
+            return ChemicalTransfer.transfer(level, extractor, direction, extractor.destinations,
+                    data.distribution(direction), data.allowsSelfFeed(direction),
+                    UpgradeSpeeds.chemicalMb(tier), data.batch(direction, resource),
+                    data.keepInSource(direction, resource), data.fillDestinationTo(direction, resource),
+                    maxCounted, maxSlots, maxCalls);
         }
         if (resource == PipeKind.FLUIDS) {
             return FluidTransfer.transfer(level, extractor, direction, extractor.destinations,

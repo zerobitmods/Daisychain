@@ -2,6 +2,8 @@ package com.daisychain.gametest;
 
 import com.daisychain.Daisychain;
 import com.daisychain.block.BasePipeBlock;
+import com.daisychain.block.PipeDataBlockEntity;
+import com.daisychain.block.PipeKind;
 import com.daisychain.block.SideState;
 import com.daisychain.compat.Chemicals;
 import com.daisychain.registry.ModBlocks;
@@ -132,6 +134,190 @@ public final class GasPipeTests {
         BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(from.east()),
                 1 << Direction.WEST.get3DDataValue());
         helper.succeedWhen(() -> helper.assertTrue(count(helper, to) == 64, "Items moved: " + count(helper, to)));
+    }
+
+    // ---------------------------------------------------------------- step 172: chemicals move
+
+    private static final BlockPos TANK_A = new BlockPos(1, 1, 2);
+    private static final BlockPos TANK_B = new BlockPos(5, 1, 2);
+
+    /** Tank A (filled with hydrogen) -> three gas pipes, pulling from A -> tank B (or another block at B). */
+    private static void gasLine(GameTestHelper helper, long hydrogen, @javax.annotation.Nullable Block atB) {
+        Block tank = BuiltInRegistries.BLOCK.get(TANK);
+        helper.setBlock(TANK_A, tank.defaultBlockState());
+        chemicalSidesOn(helper, TANK_A);
+        if (atB == null) {
+            helper.setBlock(TANK_B, tank.defaultBlockState());
+            chemicalSidesOn(helper, TANK_B);
+        } else {
+            helper.setBlock(TANK_B, atB.defaultBlockState());
+        }
+        if (hydrogen > 0) {
+            long in = MekanismTestKit.fill(helper.getLevel(), helper.absolutePos(TANK_A), "mekanism:hydrogen", hydrogen);
+            helper.assertTrue(in == hydrogen, "Setup: tank A took " + in + " mB");
+        }
+        for (int x = 2; x <= 4; x++) {
+            helper.setBlock(new BlockPos(x, 1, 2), ModBlocks.GAS_PIPE.get().defaultBlockState());
+        }
+        for (int x = 2; x <= 4; x++) {
+            BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(new BlockPos(x, 1, 2)));
+        }
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(new BlockPos(2, 1, 2)),
+                1 << Direction.WEST.get3DDataValue());
+    }
+
+    private static long gas(GameTestHelper helper, BlockPos pos) {
+        return MekanismTestKit.amount(helper.getLevel(), helper.absolutePos(pos));
+    }
+
+    /** All the hydrogen goes from A to B; at no tick is there more than there was. */
+    @GameTest(template = EMPTY, timeoutTicks = 200)
+    public static void gasMovesBetweenTanks(GameTestHelper helper) {
+        if (!Chemicals.mekanismLoaded()) {
+            helper.succeed();
+            return;
+        }
+        gasLine(helper, 8_000, null);
+        helper.onEachTick(() -> {
+            long total = gas(helper, TANK_A) + gas(helper, TANK_B);
+            if (total != 8_000) {
+                helper.fail("Hydrogen " + (total > 8_000 ? "made" : "lost") + ": " + total + " mB (should be 8000)");
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(gas(helper, TANK_B) == 8_000, "Tank B has " + gas(helper, TANK_B));
+            helper.assertTrue(gas(helper, TANK_A) == 0, "Tank A still has " + gas(helper, TANK_A));
+        });
+    }
+
+    /**
+     * Not only gases: 4000 mB of redstone infusion goes from A to B (on 1.20.1 infusion is its own chemical type with
+     * its own handler; on 1.21.1 one of the chemicals).
+     */
+    @GameTest(template = EMPTY, timeoutTicks = 200)
+    public static void infusionMoves(GameTestHelper helper) {
+        if (!Chemicals.mekanismLoaded()) {
+            helper.succeed();
+            return;
+        }
+        gasLine(helper, 0, null);
+        long in = MekanismTestKit.fillInfusion(helper.getLevel(), helper.absolutePos(TANK_A), "mekanism:redstone", 4_000);
+        helper.assertTrue(in == 4_000, "Setup: tank A took " + in + " mB of redstone");
+        helper.succeedWhen(() -> {
+            long b = MekanismTestKit.amountInfusion(helper.getLevel(), helper.absolutePos(TANK_B));
+            long a = MekanismTestKit.amountInfusion(helper.getLevel(), helper.absolutePos(TANK_A));
+            helper.assertTrue(b == 4_000 && a == 0, "Redstone: A " + a + ", B " + b + " (should be 0 and 4000)");
+        });
+    }
+
+    /** Keep in source 3000 mB: A stops at 3000, B gets the other 5000. */
+    @GameTest(template = EMPTY, timeoutTicks = 200)
+    public static void gasKeepsInSource(GameTestHelper helper) {
+        if (!Chemicals.mekanismLoaded()) {
+            helper.succeed();
+            return;
+        }
+        gasLine(helper, 8_000, null);
+        BlockPos pull = helper.absolutePos(new BlockPos(2, 1, 2));
+        PipeDataBlockEntity data = BasePipeBlock.getData(helper.getLevel(), pull, helper.getLevel().getBlockState(pull));
+        helper.assertTrue(data != null, "Setup: no pull side settings");
+        data.applySetting(Direction.WEST, PipeDataBlockEntity.SETTING_KEEP, 3_000, PipeKind.CHEMICALS);
+        helper.assertTrue(data.keepInSource(Direction.WEST, PipeKind.CHEMICALS) == 3_000, "Setup: Keep didn't stick");
+        helper.runAfterDelay(100, () -> {
+            helper.assertTrue(gas(helper, TANK_A) == 3_000, "Tank A has " + gas(helper, TANK_A) + " (keep 3000)");
+            helper.assertTrue(gas(helper, TANK_B) == 5_000, "Tank B has " + gas(helper, TANK_B));
+            helper.succeed();
+        });
+    }
+
+    @BeforeBatch(batch = "gasThrows")
+    public static void beforeThrows(ServerLevel level) {
+        Chemicals.setBrokenForTest(false);
+        if (Chemicals.mekanismLoaded()) {
+            MekanismTestKit.throwingArmed = true;
+        }
+    }
+
+    @AfterBatch(batch = "gasThrows")
+    public static void afterThrows(ServerLevel level) {
+        if (Chemicals.mekanismLoaded()) {
+            MekanismTestKit.throwingArmed = false;
+        }
+        Chemicals.setBrokenForTest(false);
+    }
+
+    /**
+     * A destination that accepts in simulation but throws when the hydrogen really arrives (a barrel with the test
+     * handler): gas switches off, and the hydrogen taken out goes back into tank A.
+     */
+    @GameTest(template = EMPTY, batch = "gasThrows", timeoutTicks = 100)
+    public static void throwingHandlerSwitchesGasOff(GameTestHelper helper) {
+        if (!Chemicals.mekanismLoaded()) {
+            helper.succeed();
+            return;
+        }
+        gasLine(helper, 1_000, Blocks.BARREL);
+        helper.succeedWhen(() -> {
+            helper.assertFalse(Chemicals.available(), "Gas is still on after a handler threw");
+            helper.assertTrue(gas(helper, TANK_A) == 1_000, "Tank A has " + gas(helper, TANK_A) + " (should be back to 1000)");
+            // Finished tests stay in the world: without this the barrel would switch gas off again in later batches.
+            helper.setBlock(TANK_B, Blocks.AIR.defaultBlockState());
+        });
+    }
+
+    @BeforeBatch(batch = "gasBreaksMidRun")
+    public static void beforeBreak(ServerLevel level) {
+        Chemicals.setBrokenForTest(false);
+    }
+
+    @AfterBatch(batch = "gasBreaksMidRun")
+    public static void afterBreak(ServerLevel level) {
+        Chemicals.setBrokenForTest(false);
+    }
+
+    /**
+     * Gas and items moving; the hookup breaks half way (as if Mekanism changed): gas stops where it is (nothing lost),
+     * items keep moving.
+     */
+    @GameTest(template = EMPTY, batch = "gasBreaksMidRun", timeoutTicks = 200)
+    public static void hookupBreaksMidRun(GameTestHelper helper) {
+        if (!Chemicals.mekanismLoaded()) {
+            helper.succeed();
+            return;
+        }
+        gasLine(helper, 60_000, null);
+        BlockPos from = new BlockPos(1, 1, 5);
+        BlockPos to = new BlockPos(5, 1, 5);
+        helper.setBlock(from, Blocks.CHEST.defaultBlockState());
+        helper.setBlock(to, Blocks.CHEST.defaultBlockState());
+        if (helper.getLevel().getBlockEntity(helper.absolutePos(from)) instanceof ChestBlockEntity chest) {
+            for (int i = 0; i < 9; i++) {
+                chest.setItem(i, new ItemStack(Items.COBBLESTONE, 64));
+            }
+        }
+        for (int i = 1; i <= 3; i++) {
+            helper.setBlock(from.east(i), ModBlocks.ITEM_PIPE.get().defaultBlockState());
+        }
+        for (int i = 1; i <= 3; i++) {
+            BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(from.east(i)));
+        }
+        BasePipeBlock.setPullSidesForTest(helper.getLevel(), helper.absolutePos(from.east()),
+                1 << Direction.WEST.get3DDataValue());
+        long[] atBreak = new long[2];
+        helper.runAfterDelay(25, () -> {
+            helper.assertTrue(gas(helper, TANK_B) > 0, "Setup: no gas moved before the break (gas on: "
+                    + Chemicals.available() + ", A " + gas(helper, TANK_A) + ", items moved " + count(helper, to) + ")");
+            Chemicals.setBrokenForTest(true);
+            atBreak[0] = gas(helper, TANK_B);
+            atBreak[1] = count(helper, to);
+        });
+        helper.runAfterDelay(120, () -> {
+            helper.assertTrue(gas(helper, TANK_A) + gas(helper, TANK_B) == 60_000,
+                    "Hydrogen total " + (gas(helper, TANK_A) + gas(helper, TANK_B)));
+            helper.assertTrue(gas(helper, TANK_B) == atBreak[0], "Gas kept moving after the break");
+            helper.assertTrue(count(helper, to) > atBreak[1], "Items stopped after the gas hookup broke");
+            helper.succeed();
+        });
     }
 
     private static int count(GameTestHelper helper, BlockPos pos) {
