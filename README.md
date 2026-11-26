@@ -1,16 +1,16 @@
 # Daisychain
 
-Fast, lag-friendly pipes for items, fluids and energy, built for big modpacks and busy servers.
+Fast, lag-friendly pipes for items, fluids, energy, redstone signals and Mekanism chemicals, built for big modpacks and busy servers.
 
-Minecraft 1.21.1 · NeoForge 21.1.49+ · MIT license · version 1.5.1
+Minecraft 1.21.1 · NeoForge 21.1.49+ · MIT license · version 1.6.0
 
 ## What it adds
 
-- **Item, Fluid, Energy and Universal pipes.** The Universal pipe carries all three at once, each at its own speed.
+- **Item, Fluid, Energy, Universal, Redstone and Gas pipes.** The Universal pipe carries items, fluids and energy at once (and Mekanism chemicals), each at its own speed. The Redstone pipe carries an on/off signal with no loss. The Gas pipe (with Mekanism) carries gases, infusion types, pigments and slurries.
 - **Pull and insert sides.** Sneak and right-click a side with the Bloom Wrench (or any other wrench) to make it pull. Everything else on the network is a destination.
 - **Send to** Near, Far or Robin (an even split), with a priority on every destination. Energy always splits evenly.
 - **Send every:** a pull side can send less often than its upgrade allows, down to once every 2 minutes.
-- **Filters:** 54 slots per side, matching by item, item + data, tag or mod, as a whitelist or blacklist. JEI drag-and-drop is supported.
+- **Filters:** 54 slots per side, matching by item, item + data, tag or mod, as a whitelist or blacklist; fluid and chemical filters too. JEI drag-and-drop is supported.
 - **Stock control:** Batch size, Keep in source, Fill destination to and Max stock, per side or per filter entry.
 - **Redstone control** on pull and insert sides.
 - **Five upgrades** (iron to nether star) and a **Settings Copier** that pastes onto one side or a whole network, with undo.
@@ -27,7 +27,7 @@ Minecraft 1.21.1 · NeoForge 21.1.49+ · MIT license · version 1.5.1
 
 ## Compatibility
 
-Daisychain uses only NeoForge's standard item, fluid and energy capabilities, so it works with any mod that uses them. [GuideME](https://modrinth.com/mod/guideme) is optional: install it to get the in-game guide and its guide book. JEI, Jade and FTB Ultimine are optional too.
+Daisychain uses NeoForge's standard item, fluid and energy capabilities, so it works with any mod that uses them. [GuideME](https://modrinth.com/mod/guideme) is optional: install it to get the in-game guide and its guide book. JEI, Jade and FTB Ultimine are optional too. Mekanism is optional: with it installed you get the gas pipe, which uses Mekanism's own chemical capability.
 
 ## Links
 
