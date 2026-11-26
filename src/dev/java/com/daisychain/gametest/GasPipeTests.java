@@ -166,6 +166,10 @@ public final class GasPipeTests {
 
     /** Tank A (filled with hydrogen) -> three gas pipes, pulling from A -> tank B (or another block at B). */
     private static void gasLine(GameTestHelper helper, long hydrogen, @javax.annotation.Nullable Block atB) {
+        gasLine(helper, hydrogen, atB, ModBlocks.GAS_PIPE.get());
+    }
+
+    private static void gasLine(GameTestHelper helper, long hydrogen, @javax.annotation.Nullable Block atB, Block pipe) {
         Block tank = BuiltInRegistries.BLOCK.get(TANK);
         helper.setBlock(TANK_A, tank.defaultBlockState());
         chemicalSidesOn(helper, TANK_A);
@@ -180,7 +184,7 @@ public final class GasPipeTests {
             helper.assertTrue(in == hydrogen, "Setup: tank A took " + in + " mB");
         }
         for (int x = 2; x <= 4; x++) {
-            helper.setBlock(new BlockPos(x, 1, 2), ModBlocks.GAS_PIPE.get().defaultBlockState());
+            helper.setBlock(new BlockPos(x, 1, 2), pipe.defaultBlockState());
         }
         for (int x = 2; x <= 4; x++) {
             BasePipeBlock.refreshArms(helper.getLevel(), helper.absolutePos(new BlockPos(x, 1, 2)));
@@ -230,6 +234,20 @@ public final class GasPipeTests {
             long b = MekanismTestKit.amountInfusion(helper.getLevel(), helper.absolutePos(TANK_B));
             long a = MekanismTestKit.amountInfusion(helper.getLevel(), helper.absolutePos(TANK_A));
             helper.assertTrue(b == 4_000 && a == 0, "Redstone: A " + a + ", B " + b + " (should be 0 and 4000)");
+        });
+    }
+
+    /** Step 176: a universal pipe line carries hydrogen too (a new pull side has chemicals on). */
+    @GameTest(template = EMPTY, timeoutTicks = 200)
+    public static void universalCarriesGas(GameTestHelper helper) {
+        if (!Chemicals.mekanismLoaded()) {
+            helper.succeed();
+            return;
+        }
+        gasLine(helper, 8_000, null, ModBlocks.UNIVERSAL_PIPE.get());
+        helper.succeedWhen(() -> {
+            helper.assertTrue(gas(helper, TANK_B) == 8_000, "Tank B has " + gas(helper, TANK_B));
+            helper.assertTrue(gas(helper, TANK_A) == 0, "Tank A still has " + gas(helper, TANK_A));
         });
     }
 

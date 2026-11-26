@@ -59,6 +59,7 @@ public final class ChemicalSlotTests {
             }
             old.putIntArray(keys[k], values);
         }
+        old.remove("ChemicalsKnown"); // step 176: 1.5.1 didn't write it (it marks saves made since)
         old.putInt("PullOff", PULL_OFF);
         old.putInt("InsertOff", INSERT_OFF);
         old.putInt("FilterDeny", FILTER_DENY);
@@ -78,11 +79,30 @@ public final class ChemicalSlotTests {
         PipeDataBlockEntity client = new PipeDataBlockEntity(at, helper.getBlockState(PIPE));
         client.loadWithComponents(loaded.getUpdateTag(registries), registries);
         checkNumbers(helper, client, "client update");
-        // The Settings Copier copies the three resources the universal pipe carries, not chemicals (yet).
+        // The Settings Copier copies all four resources of a universal pipe (step 176).
         CompoundTag copy = loaded.copySide(Direction.NORTH, false, registries);
-        helper.assertTrue(copy.contains("Items") && copy.contains("Fluids") && copy.contains("Energy"),
-                "Copier lost a resource: " + copy.getAllKeys());
-        helper.assertFalse(copy.contains("Chemicals"), "Copier copied chemicals from a universal pipe");
+        helper.assertTrue(copy.contains("Items") && copy.contains("Fluids") && copy.contains("Energy")
+                && copy.contains("Chemicals"), "Copier lost a resource: " + copy.getAllKeys());
+        helper.succeed();
+    }
+
+    /**
+     * Step 176: a universal pipe placed now pulls chemicals on its sides by default, and keeps that through a save; the
+     * old-save rule (chemicals start off) only applies to pipes saved before.
+     */
+    @GameTest(template = EMPTY)
+    public static void newUniversalPullsChemicals(GameTestHelper helper) {
+        helper.setBlock(PIPE, ModBlocks.UNIVERSAL_PIPE.get().defaultBlockState().setValue(BasePipeBlock.HAS_DATA, true));
+        BlockPos at = helper.absolutePos(PIPE);
+        var registries = helper.getLevel().registryAccess();
+        PipeDataBlockEntity data = BasePipeBlock.getData(helper.getLevel(), at, helper.getLevel().getBlockState(at));
+        helper.assertTrue(data != null, "Setup: no settings storage");
+        PipeDataBlockEntity again = new PipeDataBlockEntity(at, helper.getBlockState(PIPE));
+        again.loadWithComponents(data.saveWithoutMetadata(registries), registries);
+        for (Direction side : Direction.values()) {
+            helper.assertTrue(data.pullsResource(side, PipeKind.CHEMICALS), "New pipe: chemicals off on " + side);
+            helper.assertTrue(again.pullsResource(side, PipeKind.CHEMICALS), "Saved and loaded: chemicals off on " + side);
+        }
         helper.succeed();
     }
 
@@ -92,7 +112,7 @@ public final class ChemicalSlotTests {
     }
 
     private static void checkNumbers(GameTestHelper helper, PipeDataBlockEntity data, String what) {
-        helper.assertFalse(data.carries(PipeKind.CHEMICALS), what + ": universal pipe carries chemicals already");
+        helper.assertTrue(data.carries(PipeKind.CHEMICALS), what + ": universal pipe doesn't carry chemicals");
         for (int resource = 0; resource < 3; resource++) {
             for (Direction side : Direction.values()) {
                 int i = resource * 6 + side.get3DDataValue();
@@ -112,6 +132,8 @@ public final class ChemicalSlotTests {
         }
         for (Direction side : Direction.values()) {
             expect(helper, data.batch(side, PipeKind.CHEMICALS), 0, what + ", chemicals " + side + ": Batch");
+            // Step 176: saved before universal pipes carried chemicals, so they start switched off on every side.
+            helper.assertFalse(data.pullsResource(side, PipeKind.CHEMICALS), what + ": chemicals on at " + side);
         }
     }
 

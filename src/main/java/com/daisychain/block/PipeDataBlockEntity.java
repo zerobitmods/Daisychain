@@ -88,6 +88,8 @@ public final class PipeDataBlockEntity extends BlockEntity {
      * resources (24 values); saves with three (18 values) load as they are, the chemical values reading as 0.
      */
     private static final int SLOTS = PipeKind.RESOURCE_COUNT * 6;
+    /** Step 176: written by universal pipes since they carry chemicals; missing = an older save (chemicals start off). */
+    private static final String CHEMICALS_KNOWN = "ChemicalsKnown";
     /** Saved / synced names of the per-resource sub-tags in a Settings Copier (items, fluids, energy, chemicals). */
     private static final String[] RESOURCE_KEYS = {"Items", "Fluids", "Energy", "Chemicals"};
 
@@ -1002,6 +1004,9 @@ public final class PipeDataBlockEntity extends BlockEntity {
         putIntIfSet(tag, "InsertOff", insertOffBits);
         putBytesIfSet(tag, "InsertRedstone", insertRedstone);
         putByteIfSet(tag, "View", viewMode);
+        if (kind() == PipeKind.UNIVERSAL) {
+            tag.putBoolean(CHEMICALS_KNOWN, true); // step 176: saved since universal pipes carry chemicals
+        }
         if (cover != null) {
             tag.put("Cover", NbtUtils.writeBlockState(cover)); // step 125
         }
@@ -1066,6 +1071,11 @@ public final class PipeDataBlockEntity extends BlockEntity {
         insertDenyBits = loadBits(tag, "InsertDeny", legacyResource, kind);
         pullOffBits = loadBits(tag, "PullOff", legacyResource, kind);
         insertOffBits = loadBits(tag, "InsertOff", legacyResource, kind);
+        if (kind == PipeKind.UNIVERSAL && !tag.getBoolean(CHEMICALS_KNOWN)) {
+            // Step 176: a universal pipe saved before it carried chemicals. Its sides start with chemicals switched off,
+            // so an update never changes what a working setup pulls; the player turns them on per side.
+            pullOffBits |= 0b111111 << (PipeKind.CHEMICALS * 6);
+        }
         loadNumbers(tag.getIntArray("Batch"), batch, legacyResource, kind, true);
         loadNumbers(tag.getIntArray("Keep"), keep, legacyResource, kind, false);
         loadNumbers(tag.getIntArray("Fill"), fill, legacyResource, kind, false);

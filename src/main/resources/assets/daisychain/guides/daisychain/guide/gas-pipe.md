@@ -17,6 +17,10 @@ touches that takes them. Priority, Nearest / Farthest / Round robin, Batch, Keep
 all work the way they do for fluids, counted in mB ([Side settings](side-settings.md)). The same
 [upgrades](upgrades.md) make it faster.
 
+The universal pipe carries chemicals as well, on its own Chemicals tab (the flask). Universal pipes that were already
+placed before your world got this update start with chemicals switched off on every side, so nothing in a working build
+changes until you turn them on.
+
 ## Recipe
 
 Six steel ingots, two glass and a Basic Control Circuit make 8 pipes: steel along the top and bottom, glass on both sides of

@@ -1,5 +1,6 @@
 package com.daisychain.client;
 
+import com.daisychain.compat.Chemicals;
 import com.daisychain.block.Distribution;
 import com.daisychain.block.EnergyPipeBlock;
 import com.daisychain.block.BasePipeBlock;
@@ -83,6 +84,8 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
 
 
     private static final int MAIN_WIDTH = 176;
+    /** Step 176: the last resource tab ends at 150; 4 px of panel below it, as the energy tab had at 132. */
+    private static final int UNIVERSAL_MIN_HEIGHT = 154;
     private static final int DRAWER_GAP = 4;
     private static final int DRAWER_WIDTH = 150;
     private static final int DRAWER_PAD = 7;
@@ -246,6 +249,10 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         boolean hasFilter = menu.hasFilter();
         filterRows = !hasFilter ? 0 : advanced ? 3 : 1;
         mainHeight = filterRows * PITCH + 132;
+        if (menu.hasResourceTabs()) {
+            // Step 176: four resource tabs (64 .. 150) under the two view tabs; a panel without a filter grows to hold them.
+            mainHeight = Math.max(mainHeight, UNIVERSAL_MIN_HEIGHT);
+        }
         if (!hasFilter) {
             openEntry = -1;
         }
@@ -279,10 +286,10 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         java.util.Arrays.fill(resourceTabs, null);
         resourceToggle = null;
         if (menu.hasResourceTabs()) {
-            String[][] icons = {DaisyGui.ITEMS, DaisyGui.FLUIDS, DaisyGui.ENERGY};
+            String[][] icons = {DaisyGui.ITEMS, DaisyGui.FLUIDS, DaisyGui.ENERGY, DaisyGui.FLASK};
             for (int r = 0; r < PipeKind.RESOURCE_COUNT; r++) {
-                if (!menu.kind().carries(r) || r >= icons.length) {
-                    continue; // step 170: the chemicals slot gets its tab with the universal pipe's chemicals (173)
+                if (!menu.kind().carries(r) || (r == PipeKind.CHEMICALS && !Chemicals.mekanismLoaded())) {
+                    continue; // step 176: no chemicals tab without Mekanism
                 }
                 int resource = r;
                 resourceTabs[r] = addRenderableWidget(new DaisyTab(panelX, panelY + 64 + r * 22, 20, icons[r],
@@ -1057,6 +1064,7 @@ public final class PullSideScreen extends AbstractContainerScreen<PullSideMenu> 
         return Component.translatable(switch (resource) {
             case PipeKind.FLUIDS -> "screen.daisychain.resource.fluids";
             case PipeKind.ENERGY_RES -> "screen.daisychain.resource.energy";
+            case PipeKind.CHEMICALS -> "screen.daisychain.resource.chemicals";
             default -> "screen.daisychain.resource.items";
         });
     }

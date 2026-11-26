@@ -5,7 +5,10 @@ public enum PipeKind {
     ITEM,
     FLUID,
     ENERGY,
-    /** Carries items, fluids and energy at once (step 33); each side has settings per resource. */
+    /**
+     * Carries items, fluids and energy at once (step 33), and Mekanism chemicals (step 176); each side has settings per
+     * resource.
+     */
     UNIVERSAL,
     /**
      * Step 161: carries a redstone signal (on / off), no resource. Pull sides read a signal, insert sides send it out.
@@ -47,12 +50,12 @@ public enum PipeKind {
     }
 
     /**
-     * True if sides of this pipe carry that resource. Step 161: redstone pipes carry none. Step 170: chemicals only on
-     * gas pipes for now (the universal pipe joins in step 173).
+     * True if sides of this pipe carry that resource. Step 161: redstone pipes carry none. Step 170: chemicals on gas
+     * pipes; step 176: and on universal pipes (which then carry all four).
      */
     public boolean carries(int resource) {
         if (resource == CHEMICALS) {
-            return this == GAS;
+            return this == GAS || this == UNIVERSAL;
         }
         return resource >= 0 && resource < RESOURCE_COUNT && this != REDSTONE
                 && (this == UNIVERSAL || resource() == resource);

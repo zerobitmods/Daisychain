@@ -32,6 +32,7 @@ public final class UniversalPipeBlock extends BasePipeBlock {
     protected boolean canConnectToBlock(Level level, BlockPos targetPos, Direction targetSide) {
         return level.getCapability(Capabilities.ItemHandler.BLOCK, targetPos, targetSide) != null
                 || level.getCapability(Capabilities.FluidHandler.BLOCK, targetPos, targetSide) != null
-                || level.getCapability(Capabilities.EnergyStorage.BLOCK, targetPos, targetSide) != null;
+                || level.getCapability(Capabilities.EnergyStorage.BLOCK, targetPos, targetSide) != null
+                || com.daisychain.compat.Chemicals.hasHandler(level, targetPos, targetSide); // step 176
     }
 }
